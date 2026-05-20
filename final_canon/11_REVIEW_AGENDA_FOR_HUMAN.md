@@ -458,7 +458,7 @@ H-14  Q-28: Station ENUM mở rộng?
 - Không relitigate locked decisions (D001-D060 trừ những marked "needs review").
 - Không design entity/schema mới trong review này. v6 là canon.
 - Không code trong review (Step 8 produces task assignments, không code).
-- Không external stakeholder calls (BS Thành, Hoa) yet — downstream sau khi 
+- Không external stakeholder calls (BS Thành, Hoa) yet — downstream sau khi
   biết hỏi gì cụ thể.
 ```
 

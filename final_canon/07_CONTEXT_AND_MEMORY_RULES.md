@@ -318,16 +318,16 @@ Khi diverge:
 
 ```
 category = 'agent_policy'    → JSONB structured lookup (deterministic)
-                                 SELECT rule_data FROM kb_policy_rule 
+                                 SELECT rule_data FROM kb_policy_rule
                                  WHERE policy_key = 'LAB_REVIEW.sla.warn'
 
 category = 'clinical'        → pgvector semantic search (MiniLM-L12-v2 384-d)
-                                 SELECT * FROM kb_chunk 
+                                 SELECT * FROM kb_chunk
                                  ORDER BY embedding <=> $query_embedding LIMIT 5
 
 category = 'operations'      → tsvector full-text (Vietnamese tokenizer if available,
                                  else default 'simple')
-                                 SELECT * FROM kb_page 
+                                 SELECT * FROM kb_page
                                  WHERE tsvector_content @@ to_tsquery($query)
 
 category = 'faq_internal'    → tsvector or pgvector hybrid (TBD Phase 2)

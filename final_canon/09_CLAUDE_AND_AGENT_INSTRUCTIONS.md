@@ -24,7 +24,7 @@ Khi một Claude session bắt đầu:
 
 ```
 SESSION OPENING (Claude Chat):
-"Tôi đã đọc CLAUDE.md, context/CONSTRAINTS.md (§C1-C15), 
+"Tôi đã đọc CLAUDE.md, context/CONSTRAINTS.md (§C1-C15),
 context/CURRENT_ARCHITECTURE_STATE.md, và glance qua context/OPEN_QUESTIONS.md.
 
 Hiểu nhanh hiện trạng:
@@ -44,7 +44,7 @@ SESSION OPENING (Claude Code):
 - listed context files in task
 
 Hiểu task: <1-2 câu paraphrase>
-Assumption confirm (K1): 
+Assumption confirm (K1):
   1. <X>
   2. <Y>
   3. <Z>
@@ -212,7 +212,7 @@ Length: Concise. Bullets > paragraphs. No fluff.
 4. Fix ONLY root cause.
 5. Confirm failing test now passes.
 6. Confirm other tests still pass.
-7. Report includes: 
+7. Report includes:
    - Repro test
    - Diagnosis (1-3 sentences)
    - Fix location
@@ -421,7 +421,7 @@ Source schema canon: `ClinicAI_v6_Schema_Memory_1.md`.
 Conflict type 1: User request conflicts with locked DECISION.
 Action:
 1. Don't comply silently.
-2. Reply: "Yêu cầu này conflict với D### [tên decision]. Source: [file]. 
+2. Reply: "Yêu cầu này conflict với D### [tên decision]. Source: [file].
           Để thực hiện, cần ADR đổi D###. Quang xác nhận?"
 3. Wait Quang decision.
 4. If Quang override: draft ADR, update DECISIONS, then implement.
@@ -502,13 +502,13 @@ FOR QWEN (bulk worker):
 ```
 Refuse + explain when user asks Claude to:
 
-✗ Bypass safety gate → "Không thể bypass GROUP_C gate. Đây là Loại A D022 + clinical risk. 
+✗ Bypass safety gate → "Không thể bypass GROUP_C gate. Đây là Loại A D022 + clinical risk.
                        Nếu cần test, dùng test data với gate disabled in test config, không production."
 
-✗ Skip migrations → "Migration là rule cứng. KHÔNG sửa schema production qua Dashboard. 
+✗ Skip migrations → "Migration là rule cứng. KHÔNG sửa schema production qua Dashboard.
                      Cần tạo migration file theo format."
 
-✗ Hardcode rule trong code → "Rule này phải vào KB markdown. Lý do: Hoa cần sửa được mà 
+✗ Hardcode rule trong code → "Rule này phải vào KB markdown. Lý do: Hoa cần sửa được mà
                               không cần developer. Đây là D029."
 
 ✗ Log PII → "Không log PII vào application logs. Dùng event_log table thay."

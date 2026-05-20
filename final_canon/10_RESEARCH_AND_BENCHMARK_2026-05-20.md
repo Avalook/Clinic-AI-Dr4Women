@@ -153,30 +153,30 @@ PATTERN                                  REASON
 ─────                                    ──────
 Temporal durable workflow                 Overkill ClinicAI scale (seconds-minutes).
                                           Reconsider Phase 3 if multi-day flows emerge.
-                                          
+
 Full OpenTelemetry stack                  Phase 3+. Phase 1 = Supabase + RabbitMQ admin.
-                                          
+
 Microservices fan-out                     1 VPS Phase 1. Monolith fine.
                                           Split per-domain Phase 3+ if scale.
-                                          
+
 Reflective memory (agent self-learning)  Compliance trap. Auditors ask "when did logic
                                           change?" Reflective updates diffuse.
-                                          
+
 Hosted Claude Managed Agents              Lost control. Self-hosted LangGraph cheaper
                                           + more control cho compliance constraints.
-                                          
+
 Vector search for everything              Cost + noise. Use 3-strategy KB (D030).
-                                          
+
 Long-context "dump everything"            4x cost + 84% quality degrade.
                                           Selective retrieval (D032).
-                                          
+
 Multi-tenant generalize                   Single-tenant Dr4women. Premature optimization.
-                                          
+
 Custom CMS for KB                         Markdown first. Quang/Hoa edit qua GitHub web
                                           edit + auto-PR. CMS Phase 2 nếu friction.
-                                          
+
 Mobile-native apps                        Banned BN + staff. Zalo OA only (D010).
-                                          
+
 Real-time hotline audio                   Phase 3+. Legal NĐ13/2023 + Audio handling complex.
 ```
 

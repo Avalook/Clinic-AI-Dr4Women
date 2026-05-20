@@ -328,7 +328,7 @@ Test bắt buộc: negative test — GROUP_C unreviewed → notify raises error.
 ```
 Task
 ├── task_id               UUID PK
-├── task_type             LAB_REVIEW | LAB_NOTIFY | SLOT_FILL | APPOINTMENT_CONFIRM | 
+├── task_type             LAB_REVIEW | LAB_NOTIFY | SLOT_FILL | APPOINTMENT_CONFIRM |
 │                          INTAKE_FOLLOWUP | PRESCRIPTION_DISPENSE | PATIENT_CALLBACK
 ├── clinic_patient_id     FK NULLABLE
 ├── assigned_to           FK → Staff NULLABLE (NULL = unassigned)
@@ -337,7 +337,7 @@ Task
 ├── context_ref           JSONB  (entity_type + entity_id)
 ├── policy_snapshot       JSONB  (SLA snapshot at creation — KEY DECISION)
 ├── sla_warn_at, sla_breach_at, due_at
-├── status                OPEN → ASSIGNED → IN_PROGRESS → SLA_WARN → ESCALATED 
+├── status                OPEN → ASSIGNED → IN_PROGRESS → SLA_WARN → ESCALATED
 │                          → REASSIGNED → DONE | CANCELLED
 ├── compensation_tag      CSKH_CALL | CSKH_CONFIRM | CSKH_NOTIFY | CSKH_ADMIN | ...
 ├── escalated_to, escalated_at
@@ -433,7 +433,7 @@ Future debug: SELECT * FROM event_log WHERE trace_id = '...' ORDER BY logged_at;
 RECOMMEND: MATERIALIZED (background job incremental update)
 
 Reasoning:
-- Pre-visit Brief cần 7 fields từ 5 bảng + KB lookup. On-demand = ~2-5s latency 
+- Pre-visit Brief cần 7 fields từ 5 bảng + KB lookup. On-demand = ~2-5s latency
   cho mỗi brief. 30 BN/ngày × 5s = 2.5 phút tổng — chấp nhận được nhưng peaky.
 - Materialized: brief = 1 SELECT (~10ms). Background job update khi: Patient/Visit/
   Lab/Pregnancy event. Stale tối đa ~60s.
@@ -638,7 +638,7 @@ DUPLICATE PREVENTION:
 
 STALE PREVENTION:
 - updated_at column on all mutable tables + set_updated_at() trigger.
-- patient_summary: last_updated_at field; if NOW() - last_updated > 5 min, 
+- patient_summary: last_updated_at field; if NOW() - last_updated > 5 min,
   trigger refresh.
 - kb_page: last_reviewed_at + status; "stale" pages flagged in dashboard.
 
@@ -731,14 +731,14 @@ RECOMMEND-4  ADD audit table schema_migration_log to track who applied what when
 RECOMMEND-5  ADD index: idx_patient_phone, idx_patient_cccd_partial, idx_appointment_session,
              idx_visit_patient, idx_lab_result_status, idx_task_assigned_status,
              idx_event_log_trace, idx_event_log_entity.
-RECOMMEND-6  Foreign Key everywhere with ON DELETE RESTRICT (default) or ON DELETE CASCADE 
+RECOMMEND-6  Foreign Key everywhere with ON DELETE RESTRICT (default) or ON DELETE CASCADE
              where appropriate (e.g., PatientContactChannel cascade delete with Patient).
-RECOMMEND-7  Use Postgres GENERATED ALWAYS AS for derived columns where possible 
+RECOMMEND-7  Use Postgres GENERATED ALWAYS AS for derived columns where possible
              (e.g., Patient.age = GENERATED from date_of_birth).
 RECOMMEND-8  Pgvector index = HNSW (default cosine), build_param: m=16, ef_construction=64.
              Tune after seeing real KB query patterns.
 RECOMMEND-9  Enable RLS Phase 2+ for dashboard tables (staff can only see their own clinic).
-RECOMMEND-10 Backup strategy: Supabase PITR + weekly logical dump to S3-compatible storage 
+RECOMMEND-10 Backup strategy: Supabase PITR + weekly logical dump to S3-compatible storage
              (Backblaze B2 cheap). Test restore monthly.
 
 NEEDS_REVIEW (Quang quyết):

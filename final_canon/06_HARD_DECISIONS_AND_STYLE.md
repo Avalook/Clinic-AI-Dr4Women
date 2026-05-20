@@ -80,7 +80,7 @@ D013  KHÔNG risk-scoring AI cho đến ≥50.000 thai kỳ + outcomes.
       Source: CLAUDE.md Loại A.
       Status: locked.
 
-D014  Tech stack: LangGraph 1.0 + FastAPI + Supabase Cloud + RabbitMQ + 
+D014  Tech stack: LangGraph 1.0 + FastAPI + Supabase Cloud + RabbitMQ +
       Anthropic Claude Sonnet/Haiku + Qwen3-14B local + PhoWhisper + MiniLM-L12-v2.
       Rationale: từng item đã decisive review trong 00_SYSTEM_OVERVIEW §7-8.
       Source: ConstraintMap §5 Session 29 + Quang prompt 2026-05-20.

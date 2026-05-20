@@ -538,20 +538,20 @@ from typing import Literal
 
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_file=".env", extra="forbid")
-    
+
     environment: Literal["dev", "staging", "prod"] = "dev"
     log_level: str = "INFO"
-    
+
     supabase_url: str
     supabase_service_role_key: str
     database_url: str
     rabbitmq_url: str
-    
+
     anthropic_api_key: str
     qwen_local_url: str = "http://localhost:8082"
     phowhisper_local_url: str = "http://localhost:8081"
     embedding_local_url: str = "http://localhost:8083"
-    
+
     zalo_oa_access_token: str | None = None
     pancake_api_key: str | None = None
     # ... rest
@@ -739,9 +739,9 @@ Runtime:
                           ────────────                ─────────────
 Database                  Local Postgres in Docker    Supabase Cloud
                           OR Supabase dev project
-                          
+
 RabbitMQ                  Docker localhost            Docker VPS
-                          
+
 AI cloud (Anthropic)      Real API (low budget)       Real API (production budget)
 
 AI local                  Real (Mac Mini same box)    Via Tailscale VPN to Mac Mini

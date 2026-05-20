@@ -133,7 +133,7 @@ Implementer flow:
 Implementer flow:
 1. STOP code.
 2. Reply lên Claude Chat:
-   "T-YYYYMMDD-NN cần sửa thêm file X vì lý do Y. 
+   "T-YYYYMMDD-NN cần sửa thêm file X vì lý do Y.
     Approve mở scope hay tạo task mới?"
 3. ĐỢI Claude Chat reply.
 ```
@@ -438,7 +438,7 @@ CANNOT:
 ## 13. Anti-patterns to avoid
 
 ```
-✗ "Hey Codex, also refactor this nearby function while you're there." 
+✗ "Hey Codex, also refactor this nearby function while you're there."
   Solution: separate task.
 
 ✗ Multiple AI agents pull-request hôm cùng file cùng lúc.

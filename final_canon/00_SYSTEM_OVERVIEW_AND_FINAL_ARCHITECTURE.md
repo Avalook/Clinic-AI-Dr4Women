@@ -21,7 +21,7 @@ Hệ thống giải quyết bốn vấn đề cốt lõi:
 - **Không** phải chatbot tư vấn y tế tự do cho bệnh nhân. Ranh giới pháp lý.
 - **Không** phải HIS (Hospital Information System) đầy đủ. MVP scope.
 - **Không** phải app riêng cho bệnh nhân hoặc nhân viên. Chỉ Zalo OA. Nhưng vẫn phải có dashboard để theo dõi toàn bộ luồng vận hành cho chủ phòng khám theo dõi. Kế hoạch mới là làm thêm cả dashboard để giải đoạn 1, phòng khám sử dụng dasboard song song với việc nhập liệu thủ công vào notion của phòng khám để theo dõi độ hiệu quả.
-- **Không** phải Voice-to-EMR ngay. Phase 2+ sau khi SOAP schema được chốt. 
+- **Không** phải Voice-to-EMR ngay. Phase 2+ sau khi SOAP schema được chốt.
 - **Không** phải Risk Scoring AI. Cấm cho đến khi có ≥50.000 thai kỳ có outcome.
 - **Không** phải off-the-shelf CRM/HIS. Đã thử, không fit.
 - **Không** phải multi-tenant white-label. Single clinic, multi-site.

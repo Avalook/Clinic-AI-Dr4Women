@@ -1,4 +1,5 @@
 """ClinicAI FastAPI application entry point."""
+
 import structlog
 from fastapi import FastAPI
 

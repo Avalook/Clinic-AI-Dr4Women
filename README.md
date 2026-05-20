@@ -34,7 +34,7 @@ docker-compose up -d                 # start RabbitMQ
 ```
 
 ## Architecture
-6 LangGraph sub-graphs: Orchestrator · Scheduling · Lab Triage · 
+6 LangGraph sub-graphs: Orchestrator · Scheduling · Lab Triage ·
 Task Manager · Communication · Pre-visit Brief.
 Safety gates hard-coded: GROUP_C lab, FINALIZED visit — AI suggests, human decides.
 

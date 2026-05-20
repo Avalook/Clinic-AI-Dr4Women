@@ -304,7 +304,7 @@ logger.info(f"Created patient {patient.clinic_patient_id}")  # f-string trong lo
 
 Mọi log line từ một request/event phải có cùng `trace_id`. Propagation:
 ```
-Adapter (assigns trace_id) → Event Bus (carries) → Graph state (carries) → 
+Adapter (assigns trace_id) → Event Bus (carries) → Graph state (carries) →
   Service (receives via context) → DB (writes to event_log.trace_id)
 ```
 
@@ -362,10 +362,10 @@ def test_mpi__cccd_match_overrides_phone__returns_existing_patient():
 async def test_lab_triage__group_c_unreviewed__raises_safety_gate_error():
     """GATE: CSKH MUST NOT notify patient about GROUP_C lab when bs_reviewed_at IS NULL."""
     lab_result = await create_test_lab(classification="GROUP_C", bs_reviewed_at=None)
-    
+
     with pytest.raises(SafetyGateBlockedError) as exc:
         await lab_service.notify_patient(lab_result.id)
-    
+
     assert exc.value.gate == "GROUP_C_REVIEW"
 ```
 
@@ -484,7 +484,7 @@ class Settings(BaseSettings):
     qwen_local_url: str = "http://mac-mini.local:8080"
     log_level: str = "INFO"
     environment: Literal["dev", "staging", "prod"] = "dev"
-    
+
     class Config:
         env_file = ".env"
 

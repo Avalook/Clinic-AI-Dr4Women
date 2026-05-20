@@ -215,7 +215,7 @@ Tất cả phải có file git để verify.
 
 ## Sessions
 - 09:00 Claude Code: T-20260601-01 Patient service implementation. In progress.
-- 11:30 Claude Code: T-20260601-01 Reported, PR #42 open. 
+- 11:30 Claude Code: T-20260601-01 Reported, PR #42 open.
 - 14:00 Claude Chat: PR #42 review. Approved.
 - 14:30 Claude Code: T-20260601-02 MPI service. Started.
 - 17:00 Claude Code: T-20260601-02 Blocked on Q-N12 (phone format).
@@ -332,7 +332,7 @@ Sprint end → Quang/Claude Chat update:
 ```
 1. Codex KHÔNG refactor tự động. Codex là pair programmer, không autonomous.
 2. Quang (hoặc Claude Chat) đọc Codex suggestion.
-3. Decide: 
+3. Decide:
    - Accept → tạo task mới `T-REFACTOR-NN`, assign Claude Code.
    - Reject → đóng suggestion.
 4. KHÔNG có "Codex và Claude Code đối thoại trực tiếp."
@@ -355,12 +355,12 @@ ONLY Quang deploys to production.
 
 CI builds image → push to registry → Quang manually triggers deploy.
 
-Why: 
+Why:
 - Compliance accountability.
 - Real-world impact (Zalo gửi BN thật, DB ghi production).
 - AI agents cannot be held legally responsible.
 
-Mitigation for slower release: 
+Mitigation for slower release:
 - Quang can deploy multiple times per day.
 - CI/CD shortened to <5min build + push.
 - One-click deploy script on Mac Mini.
