@@ -56,3 +56,8 @@ Thumbs.db
 # Logs
 *.log
 logs/
+
+# RabbitMQ runtime data
+docker/rabbitmq/data/
+docker/rabbitmq/log/
+docker/rabbitmq/mnesia/
