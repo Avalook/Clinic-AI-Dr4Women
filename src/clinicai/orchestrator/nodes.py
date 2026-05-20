@@ -1,3 +1,5 @@
+"""Mock/rule-based nodes — giữ làm fallback khi LLM fail hoặc unit test."""
+
 import structlog
 
 from clinicai.orchestrator.state import OrchestratorState
@@ -5,28 +7,34 @@ from clinicai.orchestrator.state import OrchestratorState
 logger = structlog.get_logger(__name__)
 
 
-async def classify_intent_node(state: OrchestratorState) -> dict:
-    """Mock classifier. Phase 9.0 → LLM Haiku thật."""
-    msg = state.get("user_message", "").lower()
-    trace_id = state.get("trace_id")
-
+def classify_intent_rule_based(message: str) -> str:
+    """Pure function tách ra để LLM node reuse khi fallback."""
+    msg = message.lower()
     if any(kw in msg for kw in ["lịch", "hẹn", "appointment", "book"]):
-        route = "scheduling"
-    elif any(kw in msg for kw in ["xét nghiệm", "lab", "kết quả"]):
-        route = "lab"
-    elif any(kw in msg for kw in ["zalo", "nhắn", "thông báo"]):
-        route = "communication"
-    elif msg.strip() == "":
-        route = "unknown"
-    else:
-        route = "general"
+        return "scheduling"
+    if any(kw in msg for kw in ["xét nghiệm", "lab", "kết quả"]):
+        return "lab"
+    if any(kw in msg for kw in ["zalo", "nhắn", "thông báo"]):
+        return "communication"
+    if msg.strip() == "":
+        return "unknown"
+    return "general"
 
-    logger.info("classify_intent", trace_id=str(trace_id), route=route)
+
+async def classify_intent_node(state: OrchestratorState) -> dict:
+    """Rule-based fallback node. Dùng khi không có llm_client."""
+    msg = state.get("user_message", "")
+    route = classify_intent_rule_based(msg)
+    logger.info(
+        "classify_intent_rule_based",
+        trace_id=str(state.get("trace_id")),
+        route=route,
+    )
     return {"route": route}
 
 
 async def respond_node(state: OrchestratorState) -> dict:
-    """Mock responder. Phase 9.0 → LLM Sonnet + sub-graph dispatch."""
+    """Template responder (giữ nguyên, Phase 9.0 → LLM Sonnet)."""
     route = state.get("route", "unknown")
     trace_id = state.get("trace_id")
 

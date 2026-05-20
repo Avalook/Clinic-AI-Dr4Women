@@ -34,13 +34,15 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     try:
         async with AsyncExitStack() as stack:
             checkpointer = await stack.enter_async_context(make_checkpointer())
-            app.state.orchestrator_service = OrchestratorService(
-                checkpointer=checkpointer
-            )
 
             llm_client = AnthropicClient()
             stack.push_async_callback(llm_client.close)
             app.state.llm_client = llm_client
+
+            app.state.orchestrator_service = OrchestratorService(
+                checkpointer=checkpointer,
+                llm_client=llm_client,
+            )
 
             logger.info("app_startup_complete")
             yield

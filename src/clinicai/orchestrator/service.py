@@ -4,6 +4,7 @@ from uuid import UUID, uuid4
 import structlog
 from langgraph.checkpoint.base import BaseCheckpointSaver
 
+from clinicai.llm.anthropic_client import AnthropicClient
 from clinicai.orchestrator.graph import build_orchestrator_graph
 from clinicai.orchestrator.state import OrchestratorState
 
@@ -11,8 +12,12 @@ logger = structlog.get_logger(__name__)
 
 
 class OrchestratorService:
-    def __init__(self, checkpointer: Optional[BaseCheckpointSaver] = None):
-        self._graph = build_orchestrator_graph(checkpointer)
+    def __init__(
+        self,
+        checkpointer: Optional[BaseCheckpointSaver] = None,
+        llm_client: Optional[AnthropicClient] = None,
+    ):
+        self._graph = build_orchestrator_graph(checkpointer, llm_client)
 
     async def chat(
         self,
