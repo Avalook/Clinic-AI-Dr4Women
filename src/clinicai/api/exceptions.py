@@ -22,3 +22,15 @@ class ConflictError(ClinicAIBaseException):
 
     status_code: int = 409
     error_code: str = "CONFLICT_ERROR"
+
+
+class PatientNotFoundError(NotFoundError):
+    """Raised when a patient cannot be located by id."""
+
+    error_code: str = "PATIENT_NOT_FOUND"
+
+
+class WorkSessionNotFoundError(NotFoundError):
+    """Raised when a work session cannot be located by id."""
+
+    error_code: str = "WORK_SESSION_NOT_FOUND"
