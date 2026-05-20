@@ -1,0 +1,49 @@
+from typing import Optional
+from uuid import UUID, uuid4
+
+import structlog
+from langgraph.checkpoint.base import BaseCheckpointSaver
+
+from clinicai.orchestrator.graph import build_orchestrator_graph
+from clinicai.orchestrator.state import OrchestratorState
+
+logger = structlog.get_logger(__name__)
+
+
+class OrchestratorService:
+    def __init__(self, checkpointer: Optional[BaseCheckpointSaver] = None):
+        self._graph = build_orchestrator_graph(checkpointer)
+
+    async def chat(
+        self,
+        user_message: str,
+        patient_id: Optional[UUID] = None,
+        trace_id: Optional[UUID] = None,
+        thread_id: Optional[str] = None,
+    ) -> dict:
+        if trace_id is None:
+            trace_id = uuid4()
+        if thread_id is None:
+            thread_id = str(trace_id)
+        initial_state: OrchestratorState = {
+            "trace_id": trace_id,
+            "user_message": user_message,
+            "patient_id": patient_id,
+        }
+        config = {"configurable": {"thread_id": thread_id}}
+        try:
+            final_state = await self._graph.ainvoke(initial_state, config=config)
+            return {
+                "trace_id": trace_id,
+                "route": final_state.get("route"),
+                "response": final_state.get("response"),
+                "error": None,
+            }
+        except Exception as e:
+            logger.error("orchestrator_failed", trace_id=str(trace_id), error=str(e))
+            return {
+                "trace_id": trace_id,
+                "route": None,
+                "response": None,
+                "error": str(e),
+            }

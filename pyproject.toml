@@ -15,12 +15,13 @@ dependencies = [
     "supabase (==2.15.2)",
     "asyncpg (==0.30.0)",
     "sqlalchemy (==2.0.41)",
-    "langgraph (==0.4.5)",
+    "langgraph (>=0.6.0,<0.7.0)",
     "langchain-anthropic (==0.3.14)",
     "anthropic (==0.52.0)",
     "aio-pika (==9.5.5)",
     "structlog (==25.3.0)",
-    "python-dotenv (==1.1.0)"
+    "python-dotenv (==1.1.0)",
+    "langchain-core (>=0.3.0,<0.4.0)"
 ]
 
 
