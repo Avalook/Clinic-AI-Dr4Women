@@ -37,7 +37,7 @@ class PatientService:
         self._pool = pool
 
     async def create_patient(self, data: PatientCreateDTO) -> PatientDTO:
-        """Insert a new patient row and return the created record."""
+        """Insert a new patient row, run MPI dedup, and return the record."""
         patient_code = _generate_patient_code()
 
         query = """
@@ -75,7 +75,32 @@ class PatientService:
             clinic_patient_id=str(row["clinic_patient_id"]),
             patient_code=patient_code,
         )
-        return _record_to_dto(row)
+        dto = _record_to_dto(row)
+
+        # --- MPI deduplication (non-blocking) ---
+        try:
+            from clinicai.services.mpi_service import MPIService
+
+            mpi = MPIService()
+            candidates = await mpi.find_candidates(self._pool, data)
+            if candidates:
+                queued = await mpi.auto_queue_if_needed(
+                    self._pool, dto.clinic_patient_id, candidates
+                )
+                if queued:
+                    logger.info(
+                        "mpi_auto_queued",
+                        clinic_patient_id=str(dto.clinic_patient_id),
+                        queue_count=len(queued),
+                    )
+        except Exception:
+            logger.warning(
+                "mpi_dedup_failed",
+                clinic_patient_id=str(dto.clinic_patient_id),
+                exc_info=True,
+            )
+
+        return dto
 
     async def get_by_id(self, clinic_patient_id: UUID) -> PatientDTO | None:
         """Fetch a single patient by primary key. Returns None if absent."""
