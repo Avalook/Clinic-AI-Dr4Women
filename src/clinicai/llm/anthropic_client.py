@@ -1,0 +1,134 @@
+"""Anthropic SDK async wrapper với retry + structured logging.
+
+T-P8-04 sẽ inject AnthropicClient vào OrchestratorService để swap
+classify_intent rule-based → LLM Haiku. Hiện tại chỉ provide gateway client.
+"""
+
+from __future__ import annotations
+
+import os
+import time
+from dataclasses import dataclass
+from typing import Any, Optional
+from uuid import UUID
+
+import structlog
+from anthropic import APIConnectionError, APIError, AsyncAnthropic, RateLimitError
+from tenacity import (
+    AsyncRetrying,
+    retry_if_exception_type,
+    stop_after_attempt,
+    wait_exponential,
+)
+
+from clinicai.llm.models import TIER_TO_MODEL, Tier
+
+logger = structlog.get_logger(__name__)
+
+DEFAULT_MAX_TOKENS = 1024
+DEFAULT_TEMPERATURE = 0.2
+RETRY_ATTEMPTS = 3
+RETRY_WAIT_MIN_S = 1.0
+RETRY_WAIT_MAX_S = 8.0
+
+
+@dataclass(frozen=True)
+class LLMResponse:
+    text: str
+    model: str
+    input_tokens: int
+    output_tokens: int
+    latency_ms: int
+    stop_reason: Optional[str] = None
+
+
+class AnthropicClient:
+    """Async wrapper quanh AsyncAnthropic SDK với retry + logging."""
+
+    def __init__(self, api_key: Optional[str] = None) -> None:
+        key = api_key or os.getenv("ANTHROPIC_API_KEY")
+        if not key:
+            raise RuntimeError(
+                "ANTHROPIC_API_KEY env var bắt buộc để khởi tạo AnthropicClient."
+            )
+        self._client = AsyncAnthropic(api_key=key)
+
+    async def chat(
+        self,
+        messages: list[dict[str, Any]],
+        tier: Tier = "gateway",
+        max_tokens: int = DEFAULT_MAX_TOKENS,
+        temperature: float = DEFAULT_TEMPERATURE,
+        system: Optional[str] = None,
+        trace_id: Optional[UUID] = None,
+    ) -> LLMResponse:
+        model = TIER_TO_MODEL[tier]
+        kwargs: dict[str, Any] = {
+            "model": model,
+            "messages": messages,
+            "max_tokens": max_tokens,
+            "temperature": temperature,
+        }
+        if system is not None:
+            kwargs["system"] = system
+
+        start = time.perf_counter()
+        resp = await self._invoke_with_retry(kwargs)
+        latency_ms = int((time.perf_counter() - start) * 1000)
+
+        text = self._extract_text(resp)
+        input_tokens = getattr(resp.usage, "input_tokens", 0)
+        output_tokens = getattr(resp.usage, "output_tokens", 0)
+        stop_reason = getattr(resp, "stop_reason", None)
+
+        logger.info(
+            "llm_call",
+            trace_id=str(trace_id) if trace_id else None,
+            model=resp.model,
+            tier=tier,
+            input_tokens=input_tokens,
+            output_tokens=output_tokens,
+            latency_ms=latency_ms,
+            stop_reason=stop_reason,
+        )
+
+        return LLMResponse(
+            text=text,
+            model=resp.model,
+            input_tokens=input_tokens,
+            output_tokens=output_tokens,
+            latency_ms=latency_ms,
+            stop_reason=stop_reason,
+        )
+
+    async def _invoke_with_retry(self, kwargs: dict[str, Any]) -> Any:
+        retryer = AsyncRetrying(
+            reraise=True,
+            stop=stop_after_attempt(RETRY_ATTEMPTS),
+            wait=wait_exponential(
+                multiplier=1, min=RETRY_WAIT_MIN_S, max=RETRY_WAIT_MAX_S
+            ),
+            retry=retry_if_exception_type(
+                (RateLimitError, APIConnectionError, APIError)
+            ),
+        )
+        async for attempt in retryer:
+            with attempt:
+                return await self._client.messages.create(**kwargs)
+        raise RuntimeError("AnthropicClient retry loop exited without result")
+
+    @staticmethod
+    def _extract_text(resp: Any) -> str:
+        parts: list[str] = []
+        for block in getattr(resp, "content", []) or []:
+            if getattr(block, "type", None) == "text":
+                parts.append(getattr(block, "text", ""))
+        return "".join(parts)
+
+    async def close(self) -> None:
+        close = getattr(self._client, "close", None)
+        if close is not None:
+            try:
+                await close()
+            except Exception:
+                logger.debug("anthropic_close_noop")

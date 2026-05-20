@@ -17,6 +17,7 @@ from clinicai.api.v1.routers.tools import router as tools_router
 from clinicai.core.database import close_pool, create_pool
 from clinicai.core.exceptions import ClinicAIBaseException
 from clinicai.core.logging import setup_logging
+from clinicai.llm.anthropic_client import AnthropicClient
 from clinicai.orchestrator.checkpointer import make_checkpointer
 from clinicai.orchestrator.service import OrchestratorService
 
@@ -36,6 +37,11 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
             app.state.orchestrator_service = OrchestratorService(
                 checkpointer=checkpointer
             )
+
+            llm_client = AnthropicClient()
+            stack.push_async_callback(llm_client.close)
+            app.state.llm_client = llm_client
+
             logger.info("app_startup_complete")
             yield
             logger.info("app_shutdown_starting")
