@@ -1,0 +1,5 @@
+BEGIN;
+
+DROP TABLE IF EXISTS work_session_staff CASCADE;
+
+COMMIT;
