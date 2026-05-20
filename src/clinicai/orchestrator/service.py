@@ -16,8 +16,11 @@ class OrchestratorService:
         self,
         checkpointer: Optional[BaseCheckpointSaver] = None,
         llm_client: Optional[AnthropicClient] = None,
+        use_llm_respond: bool = True,
     ):
-        self._graph = build_orchestrator_graph(checkpointer, llm_client)
+        self._graph = build_orchestrator_graph(
+            checkpointer, llm_client, use_llm_respond
+        )
 
     async def chat(
         self,
