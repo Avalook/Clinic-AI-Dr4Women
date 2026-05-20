@@ -1,0 +1,5 @@
+BEGIN;
+
+DROP TABLE IF EXISTS mpi_merge_queue;
+
+COMMIT;
