@@ -3,11 +3,15 @@
 from contextlib import asynccontextmanager
 from typing import AsyncIterator
 
+import asyncpg.exceptions
 import structlog
 from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
 
 from clinicai.api.v1.health import router as health_router
+from clinicai.api.v1.patients import router as patients_router
+from clinicai.api.v1.routers.scheduling import router as scheduling_router
+from clinicai.api.v1.routers.staff import router as staff_router
 from clinicai.core.database import close_pool, create_pool
 from clinicai.core.exceptions import ClinicAIBaseException
 from clinicai.core.logging import setup_logging
@@ -36,6 +40,45 @@ app = FastAPI(
 )
 
 app.include_router(health_router)
+app.include_router(patients_router, prefix="/api/v1")
+app.include_router(staff_router, prefix="/api/v1", tags=["staff"])
+app.include_router(scheduling_router, prefix="/api/v1", tags=["scheduling"])
+
+
+@app.exception_handler(asyncpg.exceptions.ExclusionViolationError)
+async def exclusion_violation_handler(
+    request: Request, exc: asyncpg.exceptions.ExclusionViolationError
+) -> JSONResponse:
+    """Global handler for database exclusion violation errors (HTTP 409)."""
+    logger.warning(
+        "exclusion_violation",
+        message="Lịch hẹn xung đột khung giờ với appointment khác",
+    )
+    return JSONResponse(
+        status_code=409,
+        content={
+            "error": "CONFLICT_ERROR",
+            "message": "Lịch hẹn xung đột khung giờ với appointment khác",
+        },
+    )
+
+
+@app.exception_handler(asyncpg.exceptions.UniqueViolationError)
+async def unique_violation_handler(
+    request: Request, exc: asyncpg.exceptions.UniqueViolationError
+) -> JSONResponse:
+    """Global handler for database unique constraint violations (HTTP 409)."""
+    logger.warning(
+        "unique_violation",
+        message="Resource already exists",
+    )
+    return JSONResponse(
+        status_code=409,
+        content={
+            "error": "CONFLICT_ERROR",
+            "message": "Resource already exists",
+        },
+    )
 
 
 @app.exception_handler(ClinicAIBaseException)
