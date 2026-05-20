@@ -10,37 +10,13 @@ import structlog
 from pydantic import BaseModel
 
 from clinicai.api.exceptions import PatientNotFoundError
+from clinicai.services.patient_service import PatientService
 from clinicai.tools._common.context import TraceContext
 
 if TYPE_CHECKING:
     import asyncpg
 
 logger = structlog.get_logger()
-
-# Patient row + latest completed visit date + ongoing-pregnancy flag in one query.
-# Direct asyncpg use is permitted here (per task waiver) until T-P6-B extracts
-# this join into patient_service.get_summary().
-_SUMMARY_SQL = """
-    SELECT
-        p.clinic_patient_id,
-        p.patient_code,
-        p.full_name,
-        p.phone_primary,
-        p.date_of_birth,
-        (
-            SELECT MAX(a.slot_start)::date
-            FROM appointment a
-            WHERE a.clinic_patient_id = p.clinic_patient_id
-              AND a.status = 'COMPLETED'
-        ) AS last_visit_date,
-        EXISTS (
-            SELECT 1 FROM pregnancy pr
-            WHERE pr.clinic_patient_id = p.clinic_patient_id
-              AND pr.outcome = 'ONGOING'
-        ) AS active_pregnancy
-    FROM patient p
-    WHERE p.clinic_patient_id = $1;
-"""
 
 
 class GetPatientSummaryInput(BaseModel):
@@ -74,8 +50,8 @@ async def get_patient_summary(
         trace_id=str(input.ctx.trace_id),
     )
 
-    async with pool.acquire() as conn:
-        row = await conn.fetchrow(_SUMMARY_SQL, input.patient_id)
+    service = PatientService(pool)
+    row = await service.get_summary_data(input.patient_id)
 
     if row is None:
         raise PatientNotFoundError(f"Patient {input.patient_id} not found")

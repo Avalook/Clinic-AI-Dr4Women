@@ -9,27 +9,13 @@ import structlog
 from pydantic import BaseModel
 
 from clinicai.api.exceptions import WorkSessionNotFoundError
+from clinicai.services.scheduling_service import SchedulingService
 from clinicai.tools._common.context import TraceContext
 
 if TYPE_CHECKING:
     import asyncpg
 
 logger = structlog.get_logger()
-
-# Exclude training staff (D023 gate). is_training is snapshotted on assignment,
-# so the assignment-time policy is preserved even if the staff record changes later.
-_ONCALL_SQL = """
-    SELECT
-        wss.staff_id,
-        s.full_name,
-        wss.role,
-        wss.station
-    FROM work_session_staff wss
-    JOIN staff s ON s.id = wss.staff_id
-    WHERE wss.work_session_id = $1
-      AND wss.is_training = FALSE
-    ORDER BY wss.station;
-"""
 
 
 class FindOncallInput(BaseModel):
@@ -59,18 +45,15 @@ async def find_oncall_staff(
         trace_id=str(input.ctx.trace_id),
     )
 
-    async with pool.acquire() as conn:
-        session_row = await conn.fetchrow(
-            "SELECT id FROM work_session WHERE id = $1;",
-            input.work_session_id,
+    service = SchedulingService(pool)
+    data = await service.get_oncall_staff(input.work_session_id)
+
+    if data is None:
+        raise WorkSessionNotFoundError(
+            f"Work session {input.work_session_id} not found"
         )
-        if session_row is None:
-            raise WorkSessionNotFoundError(
-                f"Work session {input.work_session_id} not found"
-            )
 
-        staff_rows = await conn.fetch(_ONCALL_SQL, input.work_session_id)
-
+    staff_rows = data["staff"]
     on_duty_staff = [
         {
             "staff_id": row["staff_id"],

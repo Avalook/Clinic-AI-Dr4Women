@@ -12,6 +12,7 @@ from clinicai.api.v1.health import router as health_router
 from clinicai.api.v1.patients import router as patients_router
 from clinicai.api.v1.routers.scheduling import router as scheduling_router
 from clinicai.api.v1.routers.staff import router as staff_router
+from clinicai.api.v1.routers.tools import router as tools_router
 from clinicai.core.database import close_pool, create_pool
 from clinicai.core.exceptions import ClinicAIBaseException
 from clinicai.core.logging import setup_logging
@@ -43,6 +44,7 @@ app.include_router(health_router)
 app.include_router(patients_router, prefix="/api/v1")
 app.include_router(staff_router, prefix="/api/v1", tags=["staff"])
 app.include_router(scheduling_router, prefix="/api/v1", tags=["scheduling"])
+app.include_router(tools_router, prefix="/api/v1")
 
 
 @app.exception_handler(asyncpg.exceptions.ExclusionViolationError)

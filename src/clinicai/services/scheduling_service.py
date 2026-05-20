@@ -126,6 +126,37 @@ class SchedulingService:
         )
         return _to_wss_dto(row)
 
+    async def get_oncall_staff(self, work_session_id: UUID) -> dict | None:
+        """Return on-duty staff for a session, excluding trainees.
+
+        Returns None if the work session does not exist (so the tool layer
+        can raise WorkSessionNotFoundError with its own error_code).
+        Returns {"staff": [<row dicts>]} when the session exists — note that
+        an empty staff list is a valid result (session created, none assigned).
+        """
+        query = """
+            SELECT
+                wss.staff_id,
+                s.full_name,
+                wss.role,
+                wss.station
+            FROM work_session_staff wss
+            JOIN staff s ON s.id = wss.staff_id
+            WHERE wss.work_session_id = $1
+              AND wss.is_training = FALSE
+            ORDER BY wss.station;
+        """
+        async with self._pool.acquire() as conn:
+            session_row = await conn.fetchrow(
+                "SELECT id FROM work_session WHERE id = $1;",
+                work_session_id,
+            )
+            if session_row is None:
+                return None
+            staff_rows = await conn.fetch(query, work_session_id)
+
+        return {"staff": [dict(r) for r in staff_rows]}
+
     async def get_session_with_staff(self, work_session_id: UUID) -> dict:
         """Fetch a work session together with its assigned staff list."""
         async with self._pool.acquire() as conn:
