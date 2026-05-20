@@ -1,0 +1,1 @@
+# Keep migrations directory tracked by git until first SQL migrations are created
