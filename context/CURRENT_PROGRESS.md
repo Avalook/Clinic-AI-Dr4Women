@@ -1,111 +1,111 @@
 # CURRENT_PROGRESS.md
-_Cập nhật: 2026-05-20 cuối session. Handoff cho session sau._
+_Cập nhật: 2026-05-21 cuối session P8-04. Handoff cho session sau (T-P8-05)._
 
 ## Phase tổng quan
 ```
-P1 Bootstrap         ✅ DONE
-P2 Master data       ✅ DONE
-P3 Patient/MPI       ✅ DONE
-P4 Staff/Sched/Appt  ✅ DONE
-P5 EventLog/Queue    ✅ CORE DONE (T-P5-04/05/07 còn lại nhỏ, làm cùng P6)
-P6 Tools layer       🟡 IN PROGRESS — T-P6-A done, T-P6-B NEXT
-P7+ chưa bắt đầu
+P1-P6                ✅ DONE
+P8 Orchestrator      🟡 IN PROGRESS
+  T-P8-01 skeleton           ✅ 45e2da6 (LangGraph + MemorySaver + mock nodes)
+  T-P8-02 checkpointer       ✅ 66175f3 (AsyncPostgresSaver + DI lifespan)
+  T-P8-03 LLM gateway        ✅ 6f775e5 (AnthropicClient + retry + DI)
+  T-P8-04 LLM classify       ✅ 2baaa46 (Haiku classify_intent + fallback)
+  T-P8-05 Sonnet respond     ⏭ NEXT — swap respond_node sang Sonnet 4.6
+  T-P8-06 Conditional edges  ⏳ sau P8-05
+P9.x sub-graphs      ⏳ sau P8 done
 ```
 
-## Test count: 150 passed + 3 skipped (RabbitMQ MQ tests)
+## Test count: 179 passed + 5 skipped
+- 3 RabbitMQ (defer T-P5-02)
+- 1 postgres checkpointer (skip nếu no DSN, hiện đang PASS với Supabase)
+- 1 Haiku integration (skip no key)
 
 ## Stack confirmed (KHÔNG ĐỔI)
-- Python 3.12.9 + Poetry 2.4.1
-- FastAPI + asyncpg + structlog + Pydantic v2
-- Anthropic Sonnet (Main Brain) + Haiku (Cost-Effective Gateway) + Qwen3-14B local
-- KHÔNG dùng Gemini
-- Antigravity / Claude Code = primary executor
-- Repo: ~/Projects/AI Clinic Dr4Women/Clinic-AI-Dr4Women
-- Branch: `feature/p4-p5-bundle` (đã push origin, PR chưa tạo)
+- LangGraph 0.6.11 + langchain-core 0.3.86
+- langgraph-checkpoint-postgres 2.0.25 + psycopg 3.3.4
+- anthropic 0.52.0 + tenacity 9.1.4
+- Models: MAIN_BRAIN=claude-sonnet-4-6 (Sonnet 4.6) + GATEWAY=claude-haiku-4-5-20251001 (Haiku 4.5)
+- WARNING: Sonnet 4 claude-sonnet-4-20250514 RETIRED 20 Apr 2026 — KHÔNG dùng
 
-## Git state cuối session
+## Git state
 ```
-Branch: feature/p4-p5-bundle (ahead of main ~10 commits, pushed)
-Last commits:
-  7d410b9 feat(tools): T-P6-A TraceContext + patient/scheduling/event_log tools
-  0df29cf feat(golden-record): T-P5-03B consumer + GoldenRecord skeleton
-  3a8913b feat(event-service): T-P5-03A migration 014 + EventService + outbox
-  0cd403b chore(scripts): add commit_bundle helper script
-  f64bb01 docs(worklog): handoff log P4-P5 session
-  33699b1 fix(core): exception handlers, patient router, MPI service
-  f9438f1 feat(rabbitmq): T-P5-02 Docker Compose + topology baseline [PARTIAL]
-  e7820e5 feat(event-log): T-P5-01 append-only event_log table
-  fd71268 feat(scheduling): P4 scheduling service with slot exclusion
-  dcef661 feat(staff): P4 staff service with role-based access
-  2c268bd chore(gitignore): exclude rabbitmq runtime data dirs
-```
-Working tree clean. PR cần tạo:
-https://github.com/nguyencongtuyenlp/Clinic-AI-Dr4Women/pull/new/feature/p4-p5-bundle
+Branch: feature/p8-orchestrator (pushed origin, clean)
+Last 5 commits:
+  2baaa46 feat(orchestrator): T-P8-04 LLM-powered intent classification (Haiku 4.5)
+  6f775e5 feat(llm): T-P8-03 Anthropic SDK gateway client
+  66175f3 feat(orchestrator): T-P8-02 hybrid checkpointer + DI lifespan
+  45e2da6 feat(orchestrator): T-P8-01 LangGraph skeleton + MemorySaver
+  4f37d67 docs(worklog): handoff P6 complete + P8 setup
 
-## Đã làm session này
-1. ✅ Git debt flush — 6 commit (gitignore + 5 feat/fix + docs worklog)
-2. ✅ T-P5-03A — Migration 014 event_published + EventService outbox + 18 tests
-3. ✅ T-P5-03B — RabbitMQConsumer + GoldenRecordEngine skeleton + 6 tests
-4. ✅ Push branch lên origin
-5. ✅ T-P6-A — TraceContext + 3 tools (patient.get_summary, scheduling.find_oncall, event_log.append) + 9 tests
-
-## T-P5-02 BLOCKER (vẫn open)
-- ACCESS_REFUSED khi connect RabbitMQ local
-- Root cause: bind mount `docker/rabbitmq/data/` chứa mnesia DB cũ
-- 3 integration test @skip với reason rõ ràng
-- Đã quyết định: PARTIAL DONE, defer fix infra
-- Fix candidates:
-  * Đổi sang named volume trong docker-compose.yml
-  * Hoặc wipe Docker Desktop reset toàn bộ
-- ETA: khi resume infra task (không cản P6/P8)
-
-## Technical debt mở
-- **WAIVER T-P6-A** (sẽ dọn trong T-P6-B):
-  - patient/get_summary.py và scheduling/find_oncall.py hiện gọi asyncpg pool TRỰC TIẾP
-  - Phải refactor → gọi qua patient_service.get_summary_data() và scheduling_service.get_oncall_staff()
-  - T-P6-B đã embed bước này
-
-## T-P6-B TASK PACKET — SẴN SÀNG PASTE
-Đã chuẩn bị task packet đầy đủ trong session chat trước đó.
-Khái quát nội dung:
-- Phần 1: Refactor waiver (patient_service.get_summary_data() + scheduling_service.get_oncall_staff())
-- Phần 2: 4 tools mới
-  * kb/read_policy.py (handle UndefinedTableError → rule_data=None)
-  * communication/send_zalo.py (STUB, delivered=False)
-  * lab/classify.py (STUB, classification="PENDING")
-  * task/create.py + task_service.py skeleton (no DB write)
-- Phần 3: 14 unit tests (kb 3 + comm 3 + lab 3 + task 3 + service tests 2)
-- Phần 4: FastAPI router /v1/tools/* mount 6 endpoints cho OpenAPI doc
-- Expected sau commit: 164 passed + 3 skipped
-
-## Roadmap sau T-P6-B
-```
-T-P5-04   trace_id propagation end-to-end (small, làm cùng P8)
-T-P5-07   Integration test event flow (small, làm cùng P8)
-P6 done   → Tag commit hoặc merge PR feature/p4-p5-bundle vào main
-P7        Dashboard Next.js — có thể skip, defer Phase 2
-P8        LangGraph Orchestrator skeleton ← PRIORITY NEXT sau P6
-P9.1-9.6  Sub-graphs theo thứ tự (Communication → Scheduling → Task → Lab → Pre-visit → StaffCap)
+Branches state:
+  main                    = 4f7cd62 (P3 only) — CHƯA merge P4-P8 (NỢ)
+  feature/p4-p5-bundle    = cdeac7d (P6 final, tag v0.6.0-tools-layer)
+  feature/p8-orchestrator = 2baaa46 (HEAD)
 ```
 
-## Blockers chiến lược (chờ Anh Quang)
-- H-1: v6 schema 35 entities — confirm cuối
-- H-8: Qwen3-14B Mac Mini vs VPS — hosting decision
-- Q-30: 1 BN book 2 appt cùng giờ khác BS — business rule
-- Q-31: doctor-not-on-duty status code 409 vs 422 — chờ FE feedback
+## Module structure hiện tại
+```
+src/clinicai/
+├── orchestrator/
+│   ├── state.py              OrchestratorState TypedDict
+│   ├── nodes.py              rule-based fallback: classify_intent_rule_based + classify_intent_node + respond_node
+│   ├── llm_nodes.py          make_classify_intent_llm_node(llm) — Haiku-powered
+│   ├── graph.py              build_orchestrator_graph(checkpointer, llm_client=None)
+│   ├── service.py            OrchestratorService (DI checkpointer + llm_client)
+│   └── checkpointer.py       make_checkpointer() async-context, memory|postgres
+├── llm/
+│   ├── models.py             MAIN_BRAIN_MODEL, GATEWAY_MODEL, MODEL_BY_TIER, DEFAULT_MAX_TOKENS
+│   └── anthropic_client.py   AnthropicClient + LLMResponse + AsyncRetrying
+└── tools/ + services/        (P3-P6, không đổi)
+```
 
-## Workflow rules (đã chốt)
-1. Mỗi Task Packet PHẢI bắt đầu bằng "BƯỚC 0: COMMIT WORK CŨ"
-2. Tuyền paste output task → tôi verify → cấp Task Packet tiếp theo
-3. Báo % context window cuối mỗi response của tôi
-4. Format Task Packet: SCOPE + BOUNDARY + CONTEXT + ACCEPTANCE + OUTPUT + NẾU GẶP VẤN ĐỀ
-5. Antigravity hoặc Claude Code = executor; tôi (Claude Chat) = planner/architect
+## T-P8-05 SCOPE (NEXT — paste session sau)
 
-## Lưu ý cho session sau
-- Mở file này đầu session, xác nhận `git log --oneline -3` khớp với "Last commits" ở trên
-- Verify pytest còn 150 passed + 3 skipped trước khi paste T-P6-B
-- Nếu Anh Quang chưa review PR: tiếp tục feature branch, không merge main
-- Có thể tạo branch mới `feature/p6-tools` từ `feature/p4-p5-bundle` nếu muốn tách scope, hoặc tiếp tục trên cùng branch (recommend cùng branch cho tới P6 done)
-- Docker bind mount issue (T-P5-02): defer, không cản P6/P8
-- Xóa dòng `version:` trong docker-compose.yml (obsolete warning) — tiện thì làm trong commit nào đó
-- pytest warning asyncio_default_fixture_loop_scope: thêm vào pyproject.toml nếu chưa
+**Mục tiêu:** Swap respond_node từ template static sang Sonnet 4.6 LLM thật.
+Tạo `make_respond_node_llm(llm)` factory tương tự T-P8-04, dùng tier="main_brain".
+
+**Design:**
+- System prompt Vietnamese chuyên gia y khoa Dr4Women, friendly + professional + tránh tự ý chẩn đoán
+- Input cho LLM: state.route + state.user_message → natural Vietnamese response
+- KHÔNG ép JSON output (prose tự do)
+- Fallback template (nodes.py respond_node hiện tại) nếu LLM fail
+- Graph factory thêm param: build_orchestrator_graph(checkpointer, llm_client, use_llm_respond=True default True nếu có llm_client)
+- Test pattern same T-P8-04: 4-5 mock tests + 1 integration
+- Note safety: System prompt PHẢI nhắc Sonnet không chẩn đoán/kê đơn, chỉ trả lời chung và hướng dẫn đặt khám
+
+**Expected:** 179 + 5 = ≥184 passed.
+
+**Cost note:** Sonnet đắt 3x Haiku ($3/$15 vs $1/$5 per 1M tok). Test integration dùng max_tokens=200, temperature=0.3.
+
+## T-P8-06 PREVIEW (sau P8-05)
+
+Hiện graph linear: START → classify → respond → END.
+P8-06 thêm conditional edges + sub-graph stub:
+- classify_intent → conditional router function → 5 routes branch
+- Mỗi route → sub-graph stub placeholder (P9.x sẽ implement thật)
+- general route → respond_node trực tiếp
+
+## Workflow rules (vẫn áp dụng)
+1. BƯỚC 0 Task Packet: verify git clean + pytest baseline
+2. Tuyền paste output → Claude verify → cấp packet tiếp theo
+3. Báo % context window cuối mỗi response
+4. Antigravity/Claude Code = executor; Claude Chat = planner
+
+## Lưu ý session sau
+- Mở file này đầu session, paste vào Claude Chat
+- Xác nhận `git log --oneline -3` đỉnh = 2baaa46
+- Verify `poetry run pytest -q 2>&1 | tail -2` = 179 passed + 5 skipped
+- Branch hiện tại: feature/p8-orchestrator (KHÔNG đổi branch)
+
+## Nợ kỹ thuật mở (không cản P8)
+- Merge feature/p4-p5-bundle vào main
+- RabbitMQ bind mount T-P5-02
+- Xóa `version:` docker-compose.yml (1 dòng)
+- Pytest asyncio_default_fixture_loop_scope config (1 dòng)
+- ANTHROPIC_API_KEY: muốn integration test pass thật → export hoặc .env
+
+## Critical reminders cho session sau
+- KHÔNG dùng Sonnet 4 cũ (retired). MAIN_BRAIN = "claude-sonnet-4-6"
+- Closure factory pattern same T-P8-04 (đã hoạt động tốt)
+- Fallback 3 lớp như classify_intent_llm: empty → API err → parse err
+- KHÔNG đụng sub-graphs (P9.x scope)
+- Y khoa safety: Sonnet system prompt phải có rule "KHÔNG chẩn đoán, KHÔNG kê đơn, chỉ tư vấn chung + đề xuất đặt khám"
