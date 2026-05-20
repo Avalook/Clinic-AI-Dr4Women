@@ -1,4 +1,4 @@
-from typing import Literal, Optional, TypedDict
+from typing import Literal, NotRequired, Optional, TypedDict
 from uuid import UUID
 
 RouteType = Literal["scheduling", "lab", "communication", "general", "unknown"]
@@ -11,3 +11,4 @@ class OrchestratorState(TypedDict, total=False):
     route: RouteType
     response: str
     error: Optional[str]
+    handled_by: NotRequired[str | None]
