@@ -1,13 +1,19 @@
 from typing import Optional
 from uuid import UUID
 
-from fastapi import APIRouter
+from fastapi import APIRouter, Depends, Request
 from pydantic import BaseModel
 
 from clinicai.orchestrator.service import OrchestratorService
 
 router = APIRouter(prefix="/orchestrator", tags=["orchestrator"])
-_service = OrchestratorService()  # singleton skeleton; T-P8-02 → DI lifespan
+
+
+def get_orchestrator_service(request: Request) -> OrchestratorService:
+    svc = getattr(request.app.state, "orchestrator_service", None)
+    if svc is None:
+        raise RuntimeError("OrchestratorService chưa init trong lifespan")
+    return svc
 
 
 class ChatInput(BaseModel):
@@ -25,9 +31,12 @@ class ChatOutput(BaseModel):
 
 
 @router.post("/chat", response_model=ChatOutput)
-async def chat(input: ChatInput) -> ChatOutput:
+async def chat(
+    input: ChatInput,
+    svc: OrchestratorService = Depends(get_orchestrator_service),
+) -> ChatOutput:
     """Debug endpoint. Phase 9.0 → real LLM dispatch."""
-    result = await _service.chat(
+    result = await svc.chat(
         user_message=input.user_message,
         patient_id=input.patient_id,
         trace_id=input.trace_id,

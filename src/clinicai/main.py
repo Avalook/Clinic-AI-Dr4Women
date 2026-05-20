@@ -1,6 +1,6 @@
 """ClinicAI FastAPI application entry point."""
 
-from contextlib import asynccontextmanager
+from contextlib import AsyncExitStack, asynccontextmanager
 from typing import AsyncIterator
 
 import asyncpg.exceptions
@@ -17,6 +17,8 @@ from clinicai.api.v1.routers.tools import router as tools_router
 from clinicai.core.database import close_pool, create_pool
 from clinicai.core.exceptions import ClinicAIBaseException
 from clinicai.core.logging import setup_logging
+from clinicai.orchestrator.checkpointer import make_checkpointer
+from clinicai.orchestrator.service import OrchestratorService
 
 # Initialize structured JSON logging
 setup_logging()
@@ -26,10 +28,17 @@ logger = structlog.get_logger()
 
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncIterator[None]:
-    """Manage the asyncpg pool over the application lifetime."""
+    """Manage the asyncpg pool + LangGraph checkpointer over the app lifetime."""
     app.state.db_pool = await create_pool()
     try:
-        yield
+        async with AsyncExitStack() as stack:
+            checkpointer = await stack.enter_async_context(make_checkpointer())
+            app.state.orchestrator_service = OrchestratorService(
+                checkpointer=checkpointer
+            )
+            logger.info("app_startup_complete")
+            yield
+            logger.info("app_shutdown_starting")
     finally:
         await close_pool(app.state.db_pool)
 
