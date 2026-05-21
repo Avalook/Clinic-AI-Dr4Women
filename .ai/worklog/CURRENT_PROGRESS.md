@@ -1,52 +1,47 @@
-# Handoff Worklog — ClinicAI P9.2
-_Updated: 2026-05-21 | Branch: feature/p8-orchestrator_
+# Handoff Worklog — ClinicAI P9.5
+_Updated: 2026-05-21 | Branch: main_
 
 ## TRẠNG THÁI HIỆN TẠI
-- **P9.2 Lab Triage Graph: DONE** (last commit `e4dd9f3`)
-- **Test baseline:** 291 passed + 6 skipped
-- **Branch:** `feature/p8-orchestrator` (chưa merge main `4f7cd62`)
+- **P9.5 Pre-visit Brief Graph: DONE** (last commit `e4a075d`)
+- **Test baseline:** 345 passed + 6 skipped
+- **Branch:** `main` (local only, chưa push)
 
-## COMMITS P9.2 (chronological)
+## COMMITS P9.x ROADMAP
 | Hash | Task | Nội dung |
 |------|------|----------|
-| 56ad8e3 | T-P9.2-00 | migration 015 lab_result + spec |
-| 9e87e05 | T-P9.2-01 | skeleton graphs/lab_triage/ |
-| 72d2524 | T-P9.2-02 | tool query_lab_result + 10 tests |
-| 90354f0 | T-P9.2-03 | classify REAL (rules + LLM fallback) + 15 tests |
-| e4dd9f3 | T-P9.2-04 | wire lab_triage → orchestrator + 9 tests |
+| a9eed37 | P9.1 | Scheduling Graph |
+| 56ad8e3..e4dd9f3 | P9.2 | Lab Triage Graph (5 commits) |
+| 7855928 | merge | P8+P9.2 → main |
+| cd5cd55 | P9.3 | Task Manager Graph (migration 016, tools/task/) |
+| e4a075d | P9.5 | Pre-visit Brief Graph (API on-demand) |
 
-## SCHEMA ĐÃ LOCK (lab_result thật)
-- `triage_group` (KHÔNG result_classification)
-- `reviewed_at` + `reviewed_by_staff_id` (KHÔNG bs_reviewed_at)
-- `is_finalized BOOL` (KHÔNG status TEXT)
-- `result_received_at` (KHÔNG received_at)
-- `reference_range_low` + `reference_range_high` NUMERIC (tách)
-- `lab_provider TEXT` (KHÔNG lab_partner_id UUID)
-- `result_numeric`, `flag`, `panel_code`, `triage_reason`, `requires_doctor_review`, `sample_collected_at`
+## SCHEMA STATE (verified)
+- ✅ patient, staff, work_session, clinic_location, appointment, lab_result, task, task_event
+- ❌ visit (CHƯA CÓ) — P9.5 fallback dùng appointment(status=COMPLETED)
+- ❌ patient_summary materialized (CHƯA CÓ) — P9.5 dùng Mode B on-demand
+- ❌ ultrasound_summary (CHƯA CÓ) — P9.5 fallback empty section
+- ❌ ongoing_issues structured (CHƯA CÓ) — confidence LLM tự hạ
 
-## LLM CLIENT THẬT
-- File: `src/clinicai/llm/anthropic_client.py` → class `AnthropicClient`
-- Param: `tier="gateway"` (Haiku) | `tier="main_brain"` (Sonnet)
-- KHÔNG có `ModelGateway` hay `model_gateway.py`
-- Import pattern: `from clinicai.tools._common.context import TraceContext`
-- Test pattern: mock-pool (xem `test_find_work_sessions.py`), KHÔNG seed DB
+## TODO P13 (deferred technical debt)
+- Flip USE_MATERIALIZED=True khi patient_summary table được build
+- Implement cron trigger 30' trước WorkSession → call brief API
+- Build visit table proper (hiện dùng appointment proxy)
+- Build ultrasound_summary table
+- Wire previsit_brief vào orchestrator (event-driven fallback)
 
-## STUB NODES CHƯA IMPLEMENT (cần P9.3+)
-- `create_review_tasks_node` — GROUP_C → tạo task cho BS review
-- `prepare_notification_node` — GROUP_A/B → Zalo notify BN (chờ P12)
-- Multi-row batch triage (single-row architecture giữ nguyên đến event-driven ready)
-- `_classify_stub_backup.py` — có thể xóa sau P9.2 clean-up
+## STUB NODES CÒN LẠI
+- `communication_stub_node` — P9.4 chờ Zalo OA credential
+- `previsit_brief_stub_node` — giữ làm event-driven fallback (defer P13)
+- `*_stub_node` các cái khác — fallback khi pool=None
 
 ## VIỆC CẦN LÀM KHI SESSION MỚI
-1. **NGAY:** Merge `feature/p8-orchestrator` → `main` (nợ từ 4f7cd62)
-2. **P9.3:** Task Manager Graph
-   - `create_review_tasks_node` implement thật
-   - Task SLA + TaskEvent append-only
-   - Wire vào orchestrator
-3. **Sau P9.3:** `prepare_notification_node` + Communication Graph (P9.4)
+1. **NGAY:** Quyết định P9.4 Communication hay defer chờ Zalo cred
+2. **Lựa chọn khác:** P9.6 StaffCapability multi-role backup
+3. **Hoặc:** Cleanup _classify_stub_backup.py + audit stub cleanup tổng thể
 
 ## KIẾN TRÚC QUYẾT ĐỊNH (KHÔNG thay đổi)
-- Rules lab triage: hardcode `_rules.py` (JSON-ready format) → migrate KB ở P10 bằng 1 script
-- Safety gate: `requires_doctor_review=True` OR `triage_group=GROUP_C` → route review task (KHÔNG raise exception ở graph layer)
-- Single-row classify per call (batch = loop từ caller)
-- LabTriageState = Pydantic BaseModel (khác OrchestratorState TypedDict) → wrapper node giải quyết
+- Brief on-demand qua API, KHÔNG event-driven ở P9.5
+- LLM tier="main_brain" (Sonnet) cho brief — chất lượng > cost
+- Output: JSON structured + Markdown helper (cả hai)
+- Auto-detect materialized vs on-demand, source_mode field trong output
+- Safety bias: insufficient data → confidence < 0.5, KHÔNG bịa
