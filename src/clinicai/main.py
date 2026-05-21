@@ -12,6 +12,7 @@ from fastapi.responses import JSONResponse
 
 from clinicai.api.v1.health import router as health_router
 from clinicai.api.v1.patients import router as patients_router
+from clinicai.api.v1.routers.brief import router as brief_router
 from clinicai.api.v1.routers.orchestrator import router as orchestrator_router
 from clinicai.api.v1.routers.scheduling import router as scheduling_router
 from clinicai.api.v1.routers.staff import router as staff_router
@@ -75,6 +76,7 @@ app.include_router(staff_router, prefix="/api/v1", tags=["staff"])
 app.include_router(scheduling_router, prefix="/api/v1", tags=["scheduling"])
 app.include_router(tools_router, prefix="/api/v1")
 app.include_router(orchestrator_router, prefix="/api/v1")
+app.include_router(brief_router, prefix="/api/v1")
 
 
 @app.exception_handler(asyncpg.exceptions.ExclusionViolationError)

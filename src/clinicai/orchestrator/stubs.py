@@ -49,5 +49,10 @@ async def task_manager_stub_node(state: OrchestratorState) -> dict:
 
 
 async def previsit_brief_stub_node(state: OrchestratorState) -> dict:
+    # P9.5: real pre_visit_brief graph is callable via
+    # `clinicai.graphs.pre_visit_brief.build_pre_visit_brief_subgraph()` and
+    # exposed through POST /api/v1/brief/{clinic_patient_id}. The stub here
+    # remains as the event-driven fallback; wiring the real graph into the
+    # orchestrator router is deferred to P13 (cron trigger).
     logger.info("stub_previsit_brief", trace_id=str(state.get("trace_id")))
     return _stub_payload("previsit_brief")
