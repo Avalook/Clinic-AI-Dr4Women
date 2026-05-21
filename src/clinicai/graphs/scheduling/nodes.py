@@ -1,9 +1,12 @@
 """Slot-filling conversation nodes (rule-based parsers).
 
-P9.1-03 sẽ wire find_oncall_staff tool vào find_doctor_node.
+find_doctor_node uses the real find_work_sessions tool (P9.1-03b).
 """
 
 from __future__ import annotations
+
+from datetime import date as date_type
+from uuid import UUID
 
 import structlog
 
@@ -12,6 +15,7 @@ from clinicai.graphs.scheduling.parsers import (
     parse_time_slot,
     parse_yes_no,
 )
+from clinicai.graphs.scheduling.session_mapper import map_to_session_type
 from clinicai.graphs.scheduling.state import SchedulingState
 
 logger = structlog.get_logger(__name__)
@@ -84,41 +88,64 @@ async def ask_time_node(state: SchedulingState) -> dict:
     }
 
 
-def make_find_doctor_node(pool):
-    """Closure factory: bind asyncpg pool vào find_doctor_node.
+def make_find_doctor_node(pool, location_id: UUID):
+    """Closure factory: bind asyncpg pool + location_id into find_doctor_node.
 
-    P9.1-03 NOTE: tool `find_oncall_staff` yêu cầu `work_session_id: UUID` —
-    sub-graph chưa có resolver từ (date, time_slot) → work_session_id (P9.1-04 sẽ thêm).
-    Hiện tại dùng placeholder uuid4() để satisfy schema; tests mock toàn bộ.
+    Uses the real `find_work_sessions` tool to surface doctors available for
+    the (location_id, preferred_date, derived session_type) tuple.
     """
-    from uuid import uuid4
-
-    from clinicai.tools._common.context import TraceContext
 
     async def find_doctor_node(state: SchedulingState) -> dict:
-        from clinicai.tools.scheduling.find_oncall import (
-            FindOncallInput,
-            find_oncall_staff,
+        from clinicai.tools.scheduling.find_work_sessions import (
+            FindWorkSessionsInput,
+            find_work_sessions,
         )
 
-        preferred_date = state.get("preferred_date")
+        preferred_date_str = state.get("preferred_date")
         preferred_time = state.get("preferred_time")
         turn = state.get("turn_count", 0)
         logger.info(
             "scheduling.find_doctor",
             turn=turn,
-            date=preferred_date,
+            date=preferred_date_str,
             time=preferred_time,
         )
 
-        ctx = TraceContext(trace_id=uuid4())
-        tool_input = FindOncallInput(
-            work_session_id=uuid4(),
-            ctx=ctx,
-        )
+        try:
+            preferred_date = date_type.fromisoformat(preferred_date_str)
+        except (TypeError, ValueError):
+            return {
+                "step": "ask_date",
+                "preferred_date": None,
+                "response": (
+                    "Dạ em không đọc được ngày chị chọn. Chị nhập lại giúp em ạ."
+                ),
+                "handled_by": _MARKER,
+                "turn_count": turn + 1,
+            }
+
+        session_type = map_to_session_type(preferred_time, preferred_date)
+        if session_type is None:
+            return {
+                "step": "ask_time",
+                "preferred_time": None,
+                "response": (
+                    "Dạ ngày chị chọn phòng khám chỉ có ca tối. "
+                    "Chị có muốn đặt ca tối không ạ?"
+                ),
+                "handled_by": _MARKER,
+                "turn_count": turn + 1,
+            }
 
         try:
-            result = await find_oncall_staff(tool_input, pool)
+            result = await find_work_sessions(
+                FindWorkSessionsInput(
+                    location_id=location_id,
+                    session_date=preferred_date,
+                    session_type=session_type,
+                ),
+                pool,
+            )
         except Exception as e:
             logger.error(
                 "scheduling.find_doctor_tool_failed",
@@ -130,37 +157,43 @@ def make_find_doctor_node(pool):
                 "candidate_doctors": [],
                 "response": (
                     "Dạ em chưa tra cứu được lịch bác sĩ. "
-                    "Chị có muốn em thử lại hoặc chuyển nhân viên tư vấn không ạ?"
+                    "Chị có muốn em chuyển tới nhân viên tư vấn không ạ?"
                 ),
                 "handled_by": _MARKER,
                 "turn_count": turn + 1,
             }
 
-        all_staff = getattr(result, "on_duty_staff", []) or []
-        doctors = [s for s in all_staff if str(s.get("role", "")).upper() == "DOCTOR"]
+        all_doctors: list[dict] = []
+        for session in result.sessions:
+            for d in session.available_doctors:
+                enriched = dict(d)
+                enriched["session_id"] = str(session.session_id)
+                enriched["start_time"] = session.start_time
+                all_doctors.append(enriched)
 
-        if not doctors:
+        if not all_doctors:
             return {
                 "step": "ask_date",
-                "candidate_doctors": [],
                 "preferred_date": None,
+                "candidate_doctors": [],
                 "response": (
-                    f"Dạ ngày {preferred_date} khung {preferred_time} "
-                    "không có bác sĩ rảnh. Chị chọn ngày khác giúp em ạ."
+                    f"Dạ ngày {preferred_date_str} không có bác sĩ rảnh ca này. "
+                    "Chị chọn ngày khác giúp em ạ."
                 ),
                 "handled_by": _MARKER,
                 "turn_count": turn + 1,
             }
 
-        top = doctors[0]
-        doctor_name = top.get("full_name") or top.get("name") or "bác sĩ trực"
+        top = all_doctors[0]
+        doctor_name = top.get("full_name") or "bác sĩ trực"
         return {
             "step": "confirm",
-            "candidate_doctors": doctors,
+            "candidate_doctors": all_doctors,
             "preferred_doctor": doctor_name,
             "response": (
-                f"Dạ em tìm thấy {doctor_name} có thể khám ngày {preferred_date} "
-                f"khung {preferred_time}. Chị xác nhận đặt lịch (có/không)?"
+                f"Dạ em tìm thấy {doctor_name} có thể khám ngày "
+                f"{preferred_date_str} ca {session_type}. "
+                "Chị xác nhận đặt lịch (có/không)?"
             ),
             "handled_by": _MARKER,
             "turn_count": turn + 1,

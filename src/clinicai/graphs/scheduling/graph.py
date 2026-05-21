@@ -1,4 +1,5 @@
 from typing import Optional
+from uuid import UUID
 
 from langgraph.graph import END, START, StateGraph
 
@@ -42,16 +43,22 @@ def _make_no_pool_stub_find_doctor():
     return find_doctor_node
 
 
-def build_scheduling_subgraph(pool: Optional[object] = None):
-    """Build scheduling sub-graph với optional asyncpg pool injection.
+def build_scheduling_subgraph(
+    pool: Optional[object] = None,
+    location_id: Optional[UUID] = None,
+):
+    """Build scheduling sub-graph with optional asyncpg pool + location_id.
 
-    - pool=None      → find_doctor_node là stub fallback (giữ test P9.1-02)
-    - pool given     → make_find_doctor_node(pool) wire tool thật
-    P9.1-04 sẽ luôn truyền pool thật từ orchestrator lifespan.
+    - pool=None or location_id=None → find_doctor_node is the stub fallback
+      (preserves T-P9.1-02 tests when DB not wired).
+    - Both pool + location_id given → make_find_doctor_node uses the real
+      find_work_sessions tool.
+
+    P9.1-04 will always pass real pool + location_id from orchestrator lifespan.
     """
     find_doctor = (
-        make_find_doctor_node(pool)
-        if pool is not None
+        make_find_doctor_node(pool, location_id)
+        if pool is not None and location_id is not None
         else _make_no_pool_stub_find_doctor()
     )
 
