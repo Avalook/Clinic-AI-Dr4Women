@@ -64,6 +64,55 @@ async def test_graph_routes_scheduling_to_stub():
 
 
 @pytest.mark.asyncio
+async def test_graph_routes_scheduling_to_real_subgraph(monkeypatch):
+    """With pool + location_id wired, scheduling routes to build_scheduling_subgraph."""
+    import clinicai.tools.scheduling.find_work_sessions as _fws_module
+    from clinicai.tools.scheduling.find_work_sessions import (
+        FindWorkSessionsOutput,
+        WorkSessionResult,
+    )
+
+    session_result = WorkSessionResult(
+        session_id=uuid4(),
+        session_date=__import__("datetime").date(2026, 5, 25),
+        session_type="EVENING",
+        start_time="18:00",
+        end_time="21:00",
+        max_patients=20,
+        available_doctors=[
+            {"staff_id": str(uuid4()), "full_name": "BS A", "on_call_flag": True},
+        ],
+    )
+    monkeypatch.setattr(
+        _fws_module,
+        "find_work_sessions",
+        AsyncMock(return_value=FindWorkSessionsOutput(sessions=[session_result])),
+    )
+
+    mock_llm = _mock_llm_with_route("scheduling")
+    graph = build_orchestrator_graph(
+        llm_client=mock_llm,
+        use_llm_respond=False,
+        scheduling_pool=AsyncMock(),
+        scheduling_location_id=uuid4(),
+    )
+    initial: OrchestratorState = {
+        "trace_id": uuid4(),
+        "user_message": "đặt lịch khám tối mai",
+        # Pre-fill so we go straight to find_doctor and exercise the real tool path.
+        "step": "find_doctor",
+        "preferred_date": "2026-05-25",
+        "preferred_time": "evening",
+        "turn_count": 2,
+    }
+    config = {"configurable": {"thread_id": "test-scheduling-real"}}
+    final_state = await graph.ainvoke(initial, config=config)
+
+    assert final_state.get("handled_by") == "scheduling_subgraph"
+    assert final_state.get("step") in {"ask_date", "ask_time", "confirm", "done"}
+
+
+@pytest.mark.asyncio
 async def test_graph_routes_general_to_respond():
     """End-to-end: classify=general → respond_node template (non-empty)."""
     mock_llm = _mock_llm_with_route("general")

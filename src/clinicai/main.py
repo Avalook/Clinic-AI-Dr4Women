@@ -1,7 +1,9 @@
 """ClinicAI FastAPI application entry point."""
 
+import os
 from contextlib import AsyncExitStack, asynccontextmanager
 from typing import AsyncIterator
+from uuid import UUID
 
 import asyncpg.exceptions
 import structlog
@@ -39,9 +41,16 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
             stack.push_async_callback(llm_client.close)
             app.state.llm_client = llm_client
 
+            default_location_id_env = os.environ.get("DEFAULT_LOCATION_ID")
+            scheduling_location_id: UUID | None = (
+                UUID(default_location_id_env) if default_location_id_env else None
+            )
+
             app.state.orchestrator_service = OrchestratorService(
                 checkpointer=checkpointer,
                 llm_client=llm_client,
+                scheduling_pool=app.state.db_pool,
+                scheduling_location_id=scheduling_location_id,
             )
 
             logger.info("app_startup_complete")

@@ -1,31 +1,37 @@
-"""Scheduling-domain tools."""
+"""Scheduling-domain tools.
+
+Each tool lives in its own submodule with the same name as the function
+(e.g. find_work_sessions.find_work_sessions). To avoid shadowing the submodule
+on the package namespace, we DO NOT re-export the function symbols at the
+package level — import them from the submodule directly:
+
+    from clinicai.tools.scheduling.find_work_sessions import find_work_sessions
+
+The Pydantic input/output schemas are re-exported here for ergonomic typing
+because there's no naming collision with submodules.
+"""
 
 from clinicai.tools.scheduling.cancel_appointment import (
     CancelAppointmentInput,
     CancelAppointmentOutput,
-    cancel_appointment,
 )
 from clinicai.tools.scheduling.confirm_appointment import (
     ConfirmAppointmentInput,
     ConfirmAppointmentOutput,
-    confirm_appointment,
 )
 from clinicai.tools.scheduling.create_appointment import (
     AppointmentConflictError,
     CreateAppointmentInput,
     CreateAppointmentOutput,
-    create_appointment,
 )
 from clinicai.tools.scheduling.find_oncall import (
     FindOncallInput,
     OncallStaffOutput,
-    find_oncall_staff,
 )
 from clinicai.tools.scheduling.find_work_sessions import (
     FindWorkSessionsInput,
     FindWorkSessionsOutput,
     WorkSessionResult,
-    find_work_sessions,
 )
 
 __all__ = [
@@ -41,9 +47,4 @@ __all__ = [
     "FindWorkSessionsOutput",
     "OncallStaffOutput",
     "WorkSessionResult",
-    "cancel_appointment",
-    "confirm_appointment",
-    "create_appointment",
-    "find_oncall_staff",
-    "find_work_sessions",
 ]

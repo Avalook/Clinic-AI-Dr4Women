@@ -1,9 +1,11 @@
 from typing import Optional
+from uuid import UUID
 
 from langgraph.checkpoint.base import BaseCheckpointSaver
 from langgraph.checkpoint.memory import MemorySaver
 from langgraph.graph import END, START, StateGraph
 
+from clinicai.graphs.scheduling import build_scheduling_subgraph
 from clinicai.llm.anthropic_client import AnthropicClient
 from clinicai.orchestrator.llm_nodes import (
     make_classify_intent_llm_node,
@@ -41,6 +43,8 @@ def build_orchestrator_graph(
     checkpointer: Optional[BaseCheckpointSaver] = None,
     llm_client: Optional[AnthropicClient] = None,
     use_llm_respond: bool = True,
+    scheduling_pool: Optional[object] = None,
+    scheduling_location_id: Optional[UUID] = None,
 ):
     """Factory.
 
@@ -48,9 +52,12 @@ def build_orchestrator_graph(
     - llm_client=None   → rule-based classify + template respond (offline)
     - llm_client given  → Haiku classify; respond uses Sonnet if use_llm_respond,
                           else template respond_node.
+    - scheduling_pool + scheduling_location_id given → wire the real scheduling
+      sub-graph (build_scheduling_subgraph). Otherwise fall back to the stub
+      node so legacy tests and offline development keep working.
 
-    Conditional edges: classify → 5 sub-graph stubs OR respond (general).
-    Each stub → END directly (no loop back to respond).
+    Conditional edges: classify → 5 sub-graphs/stubs OR respond (general).
+    Each branch → END directly (no loop back to respond).
     """
     if checkpointer is None:
         checkpointer = MemorySaver()
@@ -67,10 +74,18 @@ def build_orchestrator_graph(
         else respond_node
     )
 
+    if scheduling_pool is not None and scheduling_location_id is not None:
+        scheduling_node = build_scheduling_subgraph(
+            pool=scheduling_pool,
+            location_id=scheduling_location_id,
+        )
+    else:
+        scheduling_node = scheduling_stub_node
+
     graph = StateGraph(OrchestratorState)
     graph.add_node("classify_intent", classify_node)
     graph.add_node("respond", respond)
-    graph.add_node("scheduling_stub", scheduling_stub_node)
+    graph.add_node("scheduling_stub", scheduling_node)
     graph.add_node("lab_triage_stub", lab_triage_stub_node)
     graph.add_node("communication_stub", communication_stub_node)
     graph.add_node("task_manager_stub", task_manager_stub_node)

@@ -17,9 +17,15 @@ class OrchestratorService:
         checkpointer: Optional[BaseCheckpointSaver] = None,
         llm_client: Optional[AnthropicClient] = None,
         use_llm_respond: bool = True,
+        scheduling_pool: Optional[object] = None,
+        scheduling_location_id: Optional[UUID] = None,
     ):
         self._graph = build_orchestrator_graph(
-            checkpointer, llm_client, use_llm_respond
+            checkpointer,
+            llm_client,
+            use_llm_respond,
+            scheduling_pool=scheduling_pool,
+            scheduling_location_id=scheduling_location_id,
         )
 
     async def chat(

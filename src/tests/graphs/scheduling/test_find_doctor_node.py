@@ -2,12 +2,12 @@
 
 from __future__ import annotations
 
-import sys
 from unittest.mock import AsyncMock
 from uuid import uuid4
 
 import pytest
 
+import clinicai.tools.scheduling.find_work_sessions as _fws_module
 from clinicai.graphs.scheduling import (
     build_scheduling_subgraph,
     make_find_doctor_node,
@@ -17,11 +17,6 @@ from clinicai.tools.scheduling.find_work_sessions import (
     FindWorkSessionsOutput,
     WorkSessionResult,
 )
-
-# Package __init__ re-exports the function, shadowing the module attribute on
-# `clinicai.tools.scheduling`. Go through sys.modules to get the real module so
-# monkeypatch.setattr targets the function actually invoked by the node.
-_fws_module = sys.modules["clinicai.tools.scheduling.find_work_sessions"]
 
 
 def _session_result(doctor_name: str = "BS Trần Thị A") -> WorkSessionResult:
