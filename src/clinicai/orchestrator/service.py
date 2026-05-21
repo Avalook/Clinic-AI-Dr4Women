@@ -20,6 +20,7 @@ class OrchestratorService:
         scheduling_pool: Optional[object] = None,
         scheduling_location_id: Optional[UUID] = None,
         lab_triage_pool: Optional[object] = None,
+        task_manager_pool: Optional[object] = None,
     ):
         self._graph = build_orchestrator_graph(
             checkpointer,
@@ -28,6 +29,7 @@ class OrchestratorService:
             scheduling_pool=scheduling_pool,
             scheduling_location_id=scheduling_location_id,
             lab_triage_pool=lab_triage_pool,
+            task_manager_pool=task_manager_pool,
         )
 
     async def chat(

@@ -1,14 +1,17 @@
 """Lab triage sub-graph builder.
 
 Flow:
-    receive → fetch → classify → {advise | hard_block} → END
+    receive → fetch → classify → {advise | hard_block → create_review_tasks} → END
 
 The GROUP_C → hard_block routing is the safety gate: patient-facing
 responses are suppressed and an escalation note is set for BS review.
+P9.3: hard_block is followed by create_review_tasks, which enqueues
+exactly one URGENT LAB_REVIEW staff task with SLA=4h.
 
 Args:
     pool: asyncpg Pool. When None, fetch_node short-circuits with an
-        error and the graph terminates early.
+        error and the graph terminates early. create_review_tasks also
+        no-ops without a pool (escalation_note alone carries the alert).
     llm_client: AnthropicClient. When None, classify_node safety-falls
         back to PENDING + requires_doctor_review=True and routes to
         hard_block.
@@ -28,6 +31,7 @@ from langgraph.graph import END, StateGraph
 from clinicai.graphs.lab_triage.nodes import (
     make_advise_node,
     make_classify_node,
+    make_create_review_tasks_node,
     make_fetch_node,
     make_hard_block_node,
     make_receive_node,
@@ -77,6 +81,7 @@ def build_lab_triage_subgraph(
     sg.add_node("classify", make_classify_node(pool, llm_client))
     sg.add_node("advise", make_advise_node(pool))
     sg.add_node("hard_block", make_hard_block_node(pool))
+    sg.add_node("create_review_tasks", make_create_review_tasks_node(pool))
 
     sg.set_entry_point("receive")
 
@@ -96,6 +101,7 @@ def build_lab_triage_subgraph(
         {"advise": "advise", "hard_block": "hard_block"},
     )
     sg.add_edge("advise", END)
-    sg.add_edge("hard_block", END)
+    sg.add_edge("hard_block", "create_review_tasks")
+    sg.add_edge("create_review_tasks", END)
 
     return sg.compile()

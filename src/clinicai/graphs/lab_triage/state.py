@@ -6,7 +6,7 @@ from enum import Enum
 from typing import Any, Optional
 from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field
 
 
 class LabTriageStep(str, Enum):
@@ -48,3 +48,6 @@ class LabTriageState(BaseModel):
     response_to_patient: Optional[str] = None  # None nếu GROUP_C (hard block)
     escalation_note: Optional[str] = None
     error: Optional[str] = None
+
+    # Task creation (P9.3: GROUP_C → LAB_REVIEW URGENT task, SLA=4h)
+    task_ids: list[UUID] = Field(default_factory=list)

@@ -7,6 +7,8 @@ clients of the tools layer call the Python functions directly.
 
 from __future__ import annotations
 
+from uuid import UUID
+
 import asyncpg
 from fastapi import APIRouter, Depends, Request
 
@@ -44,10 +46,16 @@ from clinicai.tools.scheduling.find_oncall import (
     OncallStaffOutput,
     find_oncall_staff,
 )
-from clinicai.tools.task.create import (
+from clinicai.tools.task.check_sla import SlaCheckResult, check_task_sla
+from clinicai.tools.task.create_task import (
     CreateTaskInput,
-    CreateTaskOutput,
+    TaskRow,
     create_task,
+)
+from clinicai.tools.task.query_tasks import QueryTasksFilter, query_tasks
+from clinicai.tools.task.update_task_status import (
+    UpdateTaskStatusInput,
+    update_task_status,
 )
 
 router = APIRouter(prefix="/tools", tags=["tools"])
@@ -120,9 +128,33 @@ async def _lab_classify(
     return await classify_lab_result(row, llm_client, new_trace())
 
 
-@router.post("/task/create", response_model=CreateTaskOutput)
+@router.post("/task/create", response_model=TaskRow)
 async def _task_create(
     input: CreateTaskInput,
     pool: asyncpg.Pool = Depends(get_db_pool),
-) -> CreateTaskOutput:
-    return await create_task(input, pool)
+) -> TaskRow:
+    return await create_task(pool, input, new_trace())
+
+
+@router.post("/task/query", response_model=list[TaskRow])
+async def _task_query(
+    filters: QueryTasksFilter,
+    pool: asyncpg.Pool = Depends(get_db_pool),
+) -> list[TaskRow]:
+    return await query_tasks(pool, filters, new_trace())
+
+
+@router.post("/task/update-status", response_model=TaskRow)
+async def _task_update_status(
+    input: UpdateTaskStatusInput,
+    pool: asyncpg.Pool = Depends(get_db_pool),
+) -> TaskRow:
+    return await update_task_status(pool, input, new_trace())
+
+
+@router.get("/task/check-sla/{task_id}", response_model=SlaCheckResult)
+async def _task_check_sla(
+    task_id: UUID,
+    pool: asyncpg.Pool = Depends(get_db_pool),
+) -> SlaCheckResult:
+    return await check_task_sla(pool, task_id, new_trace())

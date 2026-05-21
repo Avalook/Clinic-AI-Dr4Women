@@ -1,15 +1,19 @@
 """Nodes for lab_triage sub-graph (T-P9.2-04 wires real fetch + classify).
 
 Flow: receive (validate) → fetch (load row) → classify (rule+LLM) →
-{advise | hard_block} → END.
+{advise | (hard_block → create_review_tasks)} → END.
 
 The single-row architecture is intentional: each invocation triages one
 lab_result_id end-to-end. Multi-row batch triage (notify-many flow) is
 deferred to a later phase via a separate sub-graph builder.
+
+P9.3 wires `create_review_tasks_node` after `hard_block`: a GROUP_C hit
+enqueues exactly one URGENT LAB_REVIEW staff task with SLA=4h.
 """
 
 from __future__ import annotations
 
+from datetime import datetime, timedelta, timezone
 from typing import TYPE_CHECKING, Optional
 
 import asyncpg
@@ -19,6 +23,7 @@ from clinicai.graphs.lab_triage.state import LabTriageState, LabTriageStep
 from clinicai.tools._common.context import new_trace
 from clinicai.tools.lab.classify import classify_lab_result
 from clinicai.tools.lab.query_lab_result import LabResultRow
+from clinicai.tools.task.create_task import CreateTaskInput, create_task
 
 if TYPE_CHECKING:
     from clinicai.llm.anthropic_client import AnthropicClient
@@ -223,7 +228,12 @@ def make_advise_node(pool: Optional[asyncpg.Pool]):
 
 
 def make_hard_block_node(pool: Optional[asyncpg.Pool]):
-    """GROUP_C — HARD BLOCK: no patient response, escalation note for BS."""
+    """GROUP_C — HARD BLOCK: no patient response, escalation note for BS.
+
+    Step is left at HARD_BLOCK (not DONE) so the graph can route into
+    create_review_tasks afterwards. The final DONE transition happens
+    inside create_review_tasks_node.
+    """
 
     async def hard_block_node(state: LabTriageState) -> LabTriageState:
         logger.warning(
@@ -239,9 +249,99 @@ def make_hard_block_node(pool: Optional[asyncpg.Pool]):
                     "Yêu cầu bác sĩ xem xét ngay."
                 ),
                 "requires_doctor_review": True,
-                "step": LabTriageStep.DONE,
+                "step": LabTriageStep.HARD_BLOCK,
                 "turn_count": state.turn_count + 1,
             }
         )
 
     return hard_block_node
+
+
+# SLA target for GROUP_C lab review — 4 hours from creation. Locked by
+# clinical safety: P9.3 task spec. Do not relax without sign-off.
+_LAB_REVIEW_SLA_HOURS = 4
+
+
+def make_create_review_tasks_node(pool: Optional[asyncpg.Pool]):
+    """After HARD_BLOCK, enqueue exactly one URGENT LAB_REVIEW staff task.
+
+    Single-row architecture: one lab_triage invocation triages one
+    lab_result_id, so this node creates at most one task per run (a list
+    is returned for symmetry with the future batch flow).
+
+    Safety bias: if the pool is missing or the task INSERT fails we still
+    let the graph terminate (escalation_note already carries the alert)
+    but log loudly and surface `error` on the state.
+    """
+
+    async def create_review_tasks_node(state: LabTriageState) -> LabTriageState:
+        if state.lab_result_id is None:
+            logger.warning("lab_triage.create_review_tasks.no_lab_result_id")
+            return state.model_copy(
+                update={
+                    "step": LabTriageStep.DONE,
+                    "turn_count": state.turn_count + 1,
+                }
+            )
+
+        if pool is None:
+            logger.warning(
+                "lab_triage.create_review_tasks.no_pool",
+                lab_result_id=str(state.lab_result_id),
+            )
+            return state.model_copy(
+                update={
+                    "step": LabTriageStep.DONE,
+                    "error": "no db pool wired",
+                    "turn_count": state.turn_count + 1,
+                }
+            )
+
+        row = state.lab_result_row
+        test_name = getattr(row, "test_name", None) or "lab result"
+        due_at = datetime.now(tz=timezone.utc) + timedelta(hours=_LAB_REVIEW_SLA_HOURS)
+
+        task_input = CreateTaskInput(
+            task_type="LAB_REVIEW",
+            priority="URGENT",
+            source_type="LAB_RESULT",
+            source_id=state.lab_result_id,
+            title=f"Review {test_name} — GROUP_C",
+            description=state.triage_reason,
+            due_at=due_at,
+            sla_hours=_LAB_REVIEW_SLA_HOURS,
+        )
+
+        trace = new_trace()
+        try:
+            created = await create_task(pool, task_input, trace)
+        except Exception as exc:
+            logger.error(
+                "lab_triage.create_review_tasks.failed",
+                lab_result_id=str(state.lab_result_id),
+                error=str(exc),
+                error_type=type(exc).__name__,
+            )
+            return state.model_copy(
+                update={
+                    "step": LabTriageStep.DONE,
+                    "error": "create_review_task_failed",
+                    "turn_count": state.turn_count + 1,
+                }
+            )
+
+        logger.info(
+            "lab_triage.create_review_tasks.ok",
+            lab_result_id=str(state.lab_result_id),
+            task_id=str(created.task_id),
+        )
+
+        return state.model_copy(
+            update={
+                "task_ids": [*state.task_ids, created.task_id],
+                "step": LabTriageStep.DONE,
+                "turn_count": state.turn_count + 1,
+            }
+        )
+
+    return create_review_tasks_node

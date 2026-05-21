@@ -116,7 +116,9 @@ async def test_hard_block_node_directly(mock_pool) -> None:
     assert result.response_to_patient is None
     assert result.escalation_note is not None
     assert result.requires_doctor_review is True
-    assert result.step == LabTriageStep.DONE
+    # P9.3: hard_block leaves step=HARD_BLOCK so create_review_tasks runs next.
+    # The final DONE transition happens inside create_review_tasks_node.
+    assert result.step == LabTriageStep.HARD_BLOCK
 
 
 # ──────────────────────── Real fetch + classify wire ────────────────────────

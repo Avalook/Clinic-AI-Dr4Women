@@ -8,6 +8,10 @@ from langgraph.graph import END, START, StateGraph
 from clinicai.graphs.lab_triage import build_lab_triage_subgraph
 from clinicai.graphs.lab_triage.state import LabTriageState
 from clinicai.graphs.scheduling import build_scheduling_subgraph
+from clinicai.graphs.task_manager import (
+    TaskManagerState,
+    build_task_manager_subgraph,
+)
 from clinicai.llm.anthropic_client import AnthropicClient
 from clinicai.orchestrator.llm_nodes import (
     make_classify_intent_llm_node,
@@ -33,6 +37,15 @@ _VALID_ROUTES: set[str] = {
 }
 
 _LAB_TRIAGE_HANDLED_BY = "lab_triage_subgraph"
+_TASK_MANAGER_HANDLED_BY = "task_manager_subgraph"
+
+_TASK_MANAGER_ACK_DEFAULT = (
+    "Em đã ghi nhận yêu cầu liên quan tới công việc. "
+    "Bộ phận điều phối sẽ kiểm tra và phản hồi sớm."
+)
+_TASK_MANAGER_ACK_OVERDUE = (
+    "Em đã kiểm tra: hiện có {count} công việc đang quá hạn cần xử lý."
+)
 
 _LAB_TRIAGE_ACK_NO_ID = (
     "Em đã ghi nhận yêu cầu về kết quả xét nghiệm. "
@@ -111,6 +124,37 @@ def _make_lab_triage_wrapper_node(
     return lab_triage_wrapper
 
 
+def _make_task_manager_wrapper_node(pool: object):
+    """Wrap the task_manager sub-graph behind the orchestrator state surface.
+
+    Conservative default: today's orchestrator routing only signals "this
+    intent is about tasks" — it doesn't yet carry structured CreateTask /
+    UpdateTask payloads. The wrapper therefore runs a read-only flow
+    (empty filter → no tasks → empty SLA list) and returns a generic ack.
+    Future routing can attach `task_input`/`update_input` to the parent
+    state and have this wrapper forward them.
+    """
+    sub_graph = build_task_manager_subgraph(pool=pool)
+
+    async def task_manager_wrapper(state: OrchestratorState) -> dict:
+        sub_state = TaskManagerState()
+        result_dict = await sub_graph.ainvoke(sub_state)
+
+        sla_results = result_dict.get("sla_results", []) or []
+        overdue = sum(1 for r in sla_results if getattr(r, "is_overdue", False))
+        if overdue:
+            response = _TASK_MANAGER_ACK_OVERDUE.format(count=overdue)
+        else:
+            response = _TASK_MANAGER_ACK_DEFAULT
+
+        return {
+            "handled_by": _TASK_MANAGER_HANDLED_BY,
+            "response": response,
+        }
+
+    return task_manager_wrapper
+
+
 def build_orchestrator_graph(
     checkpointer: Optional[BaseCheckpointSaver] = None,
     llm_client: Optional[AnthropicClient] = None,
@@ -118,6 +162,7 @@ def build_orchestrator_graph(
     scheduling_pool: Optional[object] = None,
     scheduling_location_id: Optional[UUID] = None,
     lab_triage_pool: Optional[object] = None,
+    task_manager_pool: Optional[object] = None,
 ):
     """Factory.
 
@@ -165,13 +210,20 @@ def build_orchestrator_graph(
     else:
         lab_triage_node = lab_triage_stub_node
 
+    if task_manager_pool is not None:
+        task_manager_node = _make_task_manager_wrapper_node(
+            pool=task_manager_pool,
+        )
+    else:
+        task_manager_node = task_manager_stub_node
+
     graph = StateGraph(OrchestratorState)
     graph.add_node("classify_intent", classify_node)
     graph.add_node("respond", respond)
     graph.add_node("scheduling_stub", scheduling_node)
     graph.add_node("lab_triage_stub", lab_triage_node)
     graph.add_node("communication_stub", communication_stub_node)
-    graph.add_node("task_manager_stub", task_manager_stub_node)
+    graph.add_node("task_manager_stub", task_manager_node)
     graph.add_node("previsit_brief_stub", previsit_brief_stub_node)
 
     graph.add_edge(START, "classify_intent")

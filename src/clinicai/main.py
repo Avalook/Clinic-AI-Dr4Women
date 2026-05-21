@@ -52,6 +52,7 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
                 scheduling_pool=app.state.db_pool,
                 scheduling_location_id=scheduling_location_id,
                 lab_triage_pool=app.state.db_pool,
+                task_manager_pool=app.state.db_pool,
             )
 
             logger.info("app_startup_complete")
