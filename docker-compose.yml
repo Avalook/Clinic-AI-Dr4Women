@@ -1,15 +1,32 @@
-version: "3.9"
+version: "3.8"
+
 services:
   rabbitmq:
-    image: rabbitmq:3.13-management
+    image: rabbitmq:3.13-management-alpine
+    container_name: clinicai_rabbitmq
+    restart: unless-stopped
     ports:
-      - "5672:5672"
-      - "15672:15672"
+      - "5672:5672"       # AMQP protocol
+      - "15672:15672"     # Management UI (http://localhost:15672)
     environment:
-      RABBITMQ_DEFAULT_USER: guest
-      RABBITMQ_DEFAULT_PASS: guest
+      RABBITMQ_DEFAULT_USER: clinicai
+      RABBITMQ_DEFAULT_PASS: clinicai_dev_pass
+      RABBITMQ_DEFAULT_VHOST: clinicai
+    volumes:
+      - ./docker/rabbitmq/data:/var/lib/rabbitmq
+      - ./docker/rabbitmq/log:/var/log/rabbitmq
+      - ./docker/rabbitmq/definitions.json:/etc/rabbitmq/definitions.json:ro
+      - ./docker/rabbitmq/rabbitmq.conf:/etc/rabbitmq/rabbitmq.conf:ro
     healthcheck:
       test: ["CMD", "rabbitmq-diagnostics", "ping"]
       interval: 10s
       timeout: 5s
       retries: 5
+      start_period: 30s
+    networks:
+      - clinicai_dev_net
+
+networks:
+  clinicai_dev_net:
+    driver: bridge
+    name: clinicai_dev_net

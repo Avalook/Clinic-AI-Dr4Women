@@ -133,6 +133,9 @@ class MPIService:
 
         async with pool.acquire() as conn:
             for candidate in candidates:
+                if candidate.clinic_patient_id == new_patient_id:
+                    continue
+
                 # Build a temporary DTO for the new patient to score
                 # We need the new patient's data — fetch it
                 new_row = await conn.fetchrow(

@@ -1,45 +1,84 @@
 # CURRENT_PROGRESS.md
-_Cập nhật: 2026-05-20. File này = bộ nhớ chuyển giao session._
+_Cập nhật: cuối session P9.1 DONE. Handoff cho P9.2 Lab Triage._
 
-## Phase hiện tại: P1 — Bootstrap Infrastructure
-**Task gần nhất:** T-P1-01 ✅ FastAPI + Poetry + docker-compose
-**Đang chạy:** T-P1-02 (Kiro — logging + exceptions), T-P1-03 (pre-commit hooks)
-**Task tiếp theo:** T-P1-04 (GitHub Actions CI) → T-P1-05 (Supabase connect)
+## Phase tổng quan
+P1-P6                       ✅ DONE
+P8 Orchestrator             ✅ DONE  v0.8.0-orchestrator
+P9.1 Scheduling sub-graph   ✅ DONE  v0.9.1-scheduling
+P9.2 Lab Triage sub-graph   ⏭ NEXT
+P9.3-P9.5                   ⏳
 
-## Đã hoàn thành (P0 + P1 early)
-- T-P0-03 ✅ repo structure + CLAUDE.md
-- T-P0-04 ✅ 12 canon files committed, CURRENT_PROGRESS.md seeded
-- T-P1-01 ✅ FastAPI /health, Poetry 2.4.1, Python 3.12.9, docker-compose RabbitMQ
-  - 1 test passed, ruff clean, commit 5923c94
+## Test count: 242 passed + 6 skipped
+- scheduling tests: 34 (24 conversation + 5 tool + 6 mapper + 5 node + 4 E2E/routing)
 
-## Stack confirmed
-- Python 3.12.9 (pyenv local) + Poetry 2.4.1
-- FastAPI 0.115.12 + Pydantic 2.11.4
-- Docker 29.4.3 (RabbitMQ local only)
-- Supabase Cloud ap-southeast-1 (credentials trong .env local, KHÔNG commit)
-- Anthropic API (Sonnet + Haiku) — D014 confirmed
+## Stack confirmed (KHÔNG ĐỔI)
+- Models: MAIN_BRAIN=claude-sonnet-4-6, GATEWAY=claude-haiku-4-5-20251001
+- LangGraph 0.6.11 + checkpointer Postgres async
+- Anthropic 0.52.0 + tenacity 9.1.4
 
-## Blockers còn mở
-- H-1: v6 schema 35 vs 28 entities — chờ Anh Quang confirm
-- H-7: Antigravity vs Kiro boundary — Kiro đang dùng thực tế cho UI tasks
-- H-8: Qwen3-14B Mac Mini vs VPS — chờ Anh Quang confirm
-- MANUAL PENDING: Tuyền điền .env local (SUPABASE_URL, DATABASE_URL, ANTHROPIC_API_KEY)
+## Git state
+Branch: feature/p8-orchestrator (pushed, clean)
+HEAD: a9eed37 T-P9.1-04 wire scheduling sub-graph into orchestrator
+Tags: v0.6.0-tools-layer | v0.8.0-orchestrator | v0.9.1-scheduling
+Main = 4f7cd62 (P3) — nợ merge (dồn sau P9.x done)
 
-## Quyết định vận hành mới (session này)
-- Kiro (AWS) thay Codex cho single-file + UI tasks (Codex lỗi)
-- Kiro dùng Claude Sonnet (Opus 4.7 bị overload)
-- Enterprise-coding standards nhúng vào MỌI task prompt
-- Tôi (Claude Chat) tự compact + update progress sau mỗi 3 task
+## Module structure confirmed
+src/clinicai/
+├── orchestrator/
+│   ├── state.py         (+scheduling fields: step/turn_count/preferred_*/candidate_doctors/confirmed)
+│   ├── graph.py         (scheduling_pool + scheduling_location_id params)
+│   ├── service.py       (propagates pool + location_id)
+│   ├── stubs.py         (4 stubs còn lại: lab_triage/communication/task_manager/previsit_brief)
+│   └── ...
+├── graphs/
+│   └── scheduling/      ✅ COMPLETE
+│       ├── state.py     (SchedulingState + SchedulingStep + SchedulingIntent)
+│       ├── parsers.py   (parse_date/parse_time_slot/parse_yes_no VN)
+│       ├── session_mapper.py (weekday→EVENING, weekend→MORNING/AFTERNOON)
+│       ├── nodes.py     (ask_date/ask_time/make_find_doctor_node/confirm)
+│       └── graph.py     (build_scheduling_subgraph(pool, location_id))
+├── tools/
+│   └── scheduling/
+│       ├── find_oncall.py           (existing)
+│       ├── find_work_sessions.py    ✅ NEW
+│       ├── create_appointment.py    ✅ NEW (AppointmentConflictError Safety Gate)
+│       ├── confirm_appointment.py   ✅ NEW
+│       └── cancel_appointment.py   ✅ NEW
 
-## Ghi chú kỹ thuật
-- pyenv shim cần eval "$(pyenv init -)" trong shell mới — Claude Code đã handle
-- pytest.ini có pythonpath = src (src-layout)
-- .ruff.toml ở root (không trong pyproject.toml)
+## Orchestrator graph state (full)
+START → classify_intent (Haiku) → route_by_intent
+  ├─ scheduling   → scheduling sub-graph (REAL) → END
+  ├─ lab          → lab_triage_stub → END         ← P9.2 NEXT
+  ├─ communication→ communication_stub → END
+  ├─ task         → task_manager_stub → END
+  ├─ previsit     → previsit_brief_stub → END
+  └─ general      → respond (Sonnet) → END
 
-## Chuỗi task tiếp theo (theo thứ tự)
-1. T-P1-02 Kiro: logging + exceptions (đang chạy)
-2. T-P1-03 Claude Code: pre-commit hooks (đang chạy)
-3. T-P1-04 Claude Code: GitHub Actions CI
-4. T-P1-05 Claude Code: Supabase asyncpg connect + /health/db endpoint
-5. T-P2-01 Claude Code: migration runner (simple Python)
-6. T-P2-02 Claude Code: migration 001-003 master data
+## P9.2 Lab Triage SCOPE (session sau)
+Pattern giống P9.1 — 4 micro-tasks:
+  T-P9.2-01 skeleton graphs/lab_triage/{state,nodes,graph}.py
+  T-P9.2-02 conversation logic: ask_lab_type → triage_classify → advise
+  T-P9.2-03 tool: query lab_result table (verify schema migration 013/014)
+  T-P9.2-04 wire into orchestrator (thay lab_triage_stub)
+
+Key difference vs P9.1:
+  - GROUP_C lab results = Medical Safety Gate (HARD BLOCK application-level, AI chỉ gợi ý)
+  - Không có slot-filling multi-turn; flow ngắn hơn (2-3 node)
+  - Cần verify bảng lab_result schema từ migrations trước khi code
+
+## Decisions đã chốt (không bàn lại)
+- Slot-filling: mỗi node END sau 1 turn, conditional entry từ START theo state.step → TEMPLATE P9.x
+- Pool injection: closure factory pattern make_*_node(pool) → TEMPLATE P9.x
+- session_type: EVENING (weekday) / WEEKEND_MORNING / WEEKEND_AFTERNOON (không có weekday daytime)
+- scheduling_stub_node GIỮ LẠI trong stubs.py làm safety net CI no-DB
+
+## Nợ kỹ thuật mở
+- Merge nhánh vào main (sau P9.x done)
+- RabbitMQ T-P5-02 bind mount
+- confirm_node trong sub-graph chưa gọi create_appointment thật (P9.1-05 nếu cần, hoặc P10)
+
+## Workflow rules
+1. BƯỚC 0 verify git + pytest trước mọi task
+2. Test path: src/tests/... (KHÔNG phải tests/...)
+3. Worklog: context/CURRENT_PROGRESS.md
+4. Tuyền paste output → Claude verify → packet tiếp

@@ -111,6 +111,40 @@ class PatientService:
             return None
         return _record_to_dto(row)
 
+    async def get_summary_data(self, clinic_patient_id: UUID) -> dict | None:
+        """Return raw summary fields for the tools layer.
+
+        Joins patient + EXISTS pregnancy(ONGOING) + MAX appointment(COMPLETED).
+        Returns None if patient does not exist. The tool layer wraps the dict
+        into PatientSummaryOutput — keeping shaping out of the service.
+        """
+        query = """
+            SELECT
+                p.clinic_patient_id,
+                p.patient_code,
+                p.full_name,
+                p.phone_primary,
+                p.date_of_birth,
+                (
+                    SELECT MAX(a.slot_start)::date
+                    FROM appointment a
+                    WHERE a.clinic_patient_id = p.clinic_patient_id
+                      AND a.status = 'COMPLETED'
+                ) AS last_visit_date,
+                EXISTS (
+                    SELECT 1 FROM pregnancy pr
+                    WHERE pr.clinic_patient_id = p.clinic_patient_id
+                      AND pr.outcome = 'ONGOING'
+                ) AS active_pregnancy
+            FROM patient p
+            WHERE p.clinic_patient_id = $1;
+        """
+        async with self._pool.acquire() as conn:
+            row = await conn.fetchrow(query, clinic_patient_id)
+        if row is None:
+            return None
+        return dict(row)
+
     async def get_by_phone(self, phone: str) -> list[PatientDTO]:
         """Return all patients matching a phone number (primary or secondary)."""
         query = """

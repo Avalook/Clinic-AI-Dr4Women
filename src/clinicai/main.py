@@ -1,16 +1,27 @@
 """ClinicAI FastAPI application entry point."""
 
-from contextlib import asynccontextmanager
+import os
+from contextlib import AsyncExitStack, asynccontextmanager
 from typing import AsyncIterator
+from uuid import UUID
 
+import asyncpg.exceptions
 import structlog
 from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
 
 from clinicai.api.v1.health import router as health_router
+from clinicai.api.v1.patients import router as patients_router
+from clinicai.api.v1.routers.orchestrator import router as orchestrator_router
+from clinicai.api.v1.routers.scheduling import router as scheduling_router
+from clinicai.api.v1.routers.staff import router as staff_router
+from clinicai.api.v1.routers.tools import router as tools_router
 from clinicai.core.database import close_pool, create_pool
 from clinicai.core.exceptions import ClinicAIBaseException
 from clinicai.core.logging import setup_logging
+from clinicai.llm.anthropic_client import AnthropicClient
+from clinicai.orchestrator.checkpointer import make_checkpointer
+from clinicai.orchestrator.service import OrchestratorService
 
 # Initialize structured JSON logging
 setup_logging()
@@ -20,10 +31,32 @@ logger = structlog.get_logger()
 
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncIterator[None]:
-    """Manage the asyncpg pool over the application lifetime."""
+    """Manage the asyncpg pool + LangGraph checkpointer over the app lifetime."""
     app.state.db_pool = await create_pool()
     try:
-        yield
+        async with AsyncExitStack() as stack:
+            checkpointer = await stack.enter_async_context(make_checkpointer())
+
+            llm_client = AnthropicClient()
+            stack.push_async_callback(llm_client.close)
+            app.state.llm_client = llm_client
+
+            default_location_id_env = os.environ.get("DEFAULT_LOCATION_ID")
+            scheduling_location_id: UUID | None = (
+                UUID(default_location_id_env) if default_location_id_env else None
+            )
+
+            app.state.orchestrator_service = OrchestratorService(
+                checkpointer=checkpointer,
+                llm_client=llm_client,
+                scheduling_pool=app.state.db_pool,
+                scheduling_location_id=scheduling_location_id,
+                lab_triage_pool=app.state.db_pool,
+            )
+
+            logger.info("app_startup_complete")
+            yield
+            logger.info("app_shutdown_starting")
     finally:
         await close_pool(app.state.db_pool)
 
@@ -36,6 +69,47 @@ app = FastAPI(
 )
 
 app.include_router(health_router)
+app.include_router(patients_router, prefix="/api/v1")
+app.include_router(staff_router, prefix="/api/v1", tags=["staff"])
+app.include_router(scheduling_router, prefix="/api/v1", tags=["scheduling"])
+app.include_router(tools_router, prefix="/api/v1")
+app.include_router(orchestrator_router, prefix="/api/v1")
+
+
+@app.exception_handler(asyncpg.exceptions.ExclusionViolationError)
+async def exclusion_violation_handler(
+    request: Request, exc: asyncpg.exceptions.ExclusionViolationError
+) -> JSONResponse:
+    """Global handler for database exclusion violation errors (HTTP 409)."""
+    logger.warning(
+        "exclusion_violation",
+        message="Lịch hẹn xung đột khung giờ với appointment khác",
+    )
+    return JSONResponse(
+        status_code=409,
+        content={
+            "error": "CONFLICT_ERROR",
+            "message": "Lịch hẹn xung đột khung giờ với appointment khác",
+        },
+    )
+
+
+@app.exception_handler(asyncpg.exceptions.UniqueViolationError)
+async def unique_violation_handler(
+    request: Request, exc: asyncpg.exceptions.UniqueViolationError
+) -> JSONResponse:
+    """Global handler for database unique constraint violations (HTTP 409)."""
+    logger.warning(
+        "unique_violation",
+        message="Resource already exists",
+    )
+    return JSONResponse(
+        status_code=409,
+        content={
+            "error": "CONFLICT_ERROR",
+            "message": "Resource already exists",
+        },
+    )
 
 
 @app.exception_handler(ClinicAIBaseException)
