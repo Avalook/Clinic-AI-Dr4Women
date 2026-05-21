@@ -27,11 +27,19 @@ from clinicai.tools.kb.read_policy import (
     ReadPolicyInput,
     read_policy,
 )
-from clinicai.tools.lab.classify import (
-    ClassifyLabInput,
-    LabClassificationOutput,
-    classify_lab_result,
-)
+
+# TODO(T-P9.2-04): re-wire /lab/classify endpoint after sub-graph wiring.
+# Stub `classify_lab_result(input)` was replaced in T-P9.2-03 by
+# `classify_lab_result(row, gateway, trace) -> ClassifyResult`. The new
+# signature needs an injected AnthropicClient + pre-fetched LabResultRow,
+# which the dev/doc router cannot provide on its own. Kept commented to
+# avoid silently exposing a broken endpoint; old stub preserved at
+# tools/lab/_classify_stub_backup.py for reference.
+# from clinicai.tools.lab.classify import (
+#     ClassifyLabInput,
+#     LabClassificationOutput,
+#     classify_lab_result,
+# )
 from clinicai.tools.patient.get_summary import (
     GetPatientSummaryInput,
     PatientSummaryOutput,
@@ -99,9 +107,12 @@ async def _communication_send_zalo(input: SendZaloInput) -> SendZaloOutput:
     return await send_zalo_message(input)
 
 
-@router.post("/lab/classify", response_model=LabClassificationOutput)
-async def _lab_classify(input: ClassifyLabInput) -> LabClassificationOutput:
-    return await classify_lab_result(input)
+# TODO(T-P9.2-04): restore /lab/classify endpoint with the real signature
+# (needs AnthropicClient dependency + LabResultRow lookup before calling
+# classify_lab_result). See import block above for context.
+# @router.post("/lab/classify", response_model=LabClassificationOutput)
+# async def _lab_classify(input: ClassifyLabInput) -> LabClassificationOutput:
+#     return await classify_lab_result(input)
 
 
 @router.post("/task/create", response_model=CreateTaskOutput)
