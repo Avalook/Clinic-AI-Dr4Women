@@ -5,6 +5,8 @@ from langgraph.checkpoint.base import BaseCheckpointSaver
 from langgraph.checkpoint.memory import MemorySaver
 from langgraph.graph import END, START, StateGraph
 
+from clinicai.graphs.lab_triage import build_lab_triage_subgraph
+from clinicai.graphs.lab_triage.state import LabTriageState
 from clinicai.graphs.scheduling import build_scheduling_subgraph
 from clinicai.llm.anthropic_client import AnthropicClient
 from clinicai.orchestrator.llm_nodes import (
@@ -30,6 +32,20 @@ _VALID_ROUTES: set[str] = {
     "general",
 }
 
+_LAB_TRIAGE_HANDLED_BY = "lab_triage_subgraph"
+
+_LAB_TRIAGE_ACK_NO_ID = (
+    "Em đã ghi nhận yêu cầu về kết quả xét nghiệm. "
+    "Vui lòng cung cấp mã kết quả để em tra cứu giúp ạ."
+)
+_LAB_TRIAGE_ACK_SAFE = (
+    "Kết quả xét nghiệm đã được phân loại. Bộ phận chăm sóc khách hàng sẽ liên hệ sớm."
+)
+_LAB_TRIAGE_ACK_BLOCKED = (
+    "Kết quả xét nghiệm cần bác sĩ xem xét. "
+    "Bác sĩ sẽ liên hệ chị trong thời gian sớm nhất."
+)
+
 
 def route_by_intent(state: OrchestratorState) -> str:
     """Map classify route → conditional edge target. Fallback 'general'."""
@@ -39,12 +55,69 @@ def route_by_intent(state: OrchestratorState) -> str:
     return "general"
 
 
+def _make_lab_triage_wrapper_node(
+    pool: Optional[object],
+    llm_client: Optional[AnthropicClient],
+):
+    """Wrap the lab_triage sub-graph behind an orchestrator-state interface.
+
+    The sub-graph uses a Pydantic BaseModel state; the orchestrator uses a
+    TypedDict. Instead of forcing the two to share a schema, this wrapper
+    translates: extract `lab_result_id` / `patient_id` from parent state,
+    invoke the compiled sub-graph, and serialise the result back into
+    orchestrator-state keys (response + handled_by + triage flags).
+    """
+    sub_graph = build_lab_triage_subgraph(pool=pool, llm_client=llm_client)
+
+    async def lab_triage_wrapper(state: OrchestratorState) -> dict:
+        lab_result_id = state.get("lab_result_id")
+        if not lab_result_id:
+            # No specific lab result attached → orchestrator can only ack.
+            return {
+                "handled_by": _LAB_TRIAGE_HANDLED_BY,
+                "response": _LAB_TRIAGE_ACK_NO_ID,
+            }
+
+        sub_state = LabTriageState(
+            lab_result_id=lab_result_id,
+            clinic_patient_id=state.get("patient_id"),
+        )
+        result_dict = await sub_graph.ainvoke(sub_state)
+
+        triage_group = result_dict.get("triage_group")
+        escalation_note = result_dict.get("escalation_note")
+        response_to_patient = result_dict.get("response_to_patient")
+
+        # Pick a top-level response string for the orchestrator surface.
+        if response_to_patient:
+            response = response_to_patient
+        elif escalation_note:
+            response = _LAB_TRIAGE_ACK_BLOCKED
+        else:
+            # Fall back to a generic ack when neither field is populated
+            # (e.g. fetch error before classify ran).
+            response = _LAB_TRIAGE_ACK_SAFE
+
+        return {
+            "handled_by": _LAB_TRIAGE_HANDLED_BY,
+            "response": response,
+            "triage_group": triage_group,
+            "requires_doctor_review": bool(
+                result_dict.get("requires_doctor_review", False)
+            ),
+            "escalation_note": escalation_note,
+        }
+
+    return lab_triage_wrapper
+
+
 def build_orchestrator_graph(
     checkpointer: Optional[BaseCheckpointSaver] = None,
     llm_client: Optional[AnthropicClient] = None,
     use_llm_respond: bool = True,
     scheduling_pool: Optional[object] = None,
     scheduling_location_id: Optional[UUID] = None,
+    lab_triage_pool: Optional[object] = None,
 ):
     """Factory.
 
@@ -53,8 +126,10 @@ def build_orchestrator_graph(
     - llm_client given  → Haiku classify; respond uses Sonnet if use_llm_respond,
                           else template respond_node.
     - scheduling_pool + scheduling_location_id given → wire the real scheduling
-      sub-graph (build_scheduling_subgraph). Otherwise fall back to the stub
-      node so legacy tests and offline development keep working.
+      sub-graph. Otherwise fall back to the stub node.
+    - lab_triage_pool given → wire the real lab_triage sub-graph (uses
+      `llm_client` when supplied; otherwise classify safety-falls back to
+      hard_block). Without a pool the legacy stub keeps test coverage.
 
     Conditional edges: classify → 5 sub-graphs/stubs OR respond (general).
     Each branch → END directly (no loop back to respond).
@@ -82,11 +157,19 @@ def build_orchestrator_graph(
     else:
         scheduling_node = scheduling_stub_node
 
+    if lab_triage_pool is not None:
+        lab_triage_node = _make_lab_triage_wrapper_node(
+            pool=lab_triage_pool,
+            llm_client=llm_client,
+        )
+    else:
+        lab_triage_node = lab_triage_stub_node
+
     graph = StateGraph(OrchestratorState)
     graph.add_node("classify_intent", classify_node)
     graph.add_node("respond", respond)
     graph.add_node("scheduling_stub", scheduling_node)
-    graph.add_node("lab_triage_stub", lab_triage_stub_node)
+    graph.add_node("lab_triage_stub", lab_triage_node)
     graph.add_node("communication_stub", communication_stub_node)
     graph.add_node("task_manager_stub", task_manager_stub_node)
     graph.add_node("previsit_brief_stub", previsit_brief_stub_node)

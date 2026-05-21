@@ -3,37 +3,48 @@
 from __future__ import annotations
 
 from enum import Enum
-from typing import Optional
+from typing import Any, Optional
 from uuid import UUID
 
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict
 
 
 class LabTriageStep(str, Enum):
-    RECEIVE = "receive"  # nhận lab_result_id từ orchestrator
-    CLASSIFY = "classify"  # rule-based + AI fallback → GROUP_A/B/C
-    ADVISE = "advise"  # GROUP_A/B: soạn message cho BN/BS
-    HARD_BLOCK = "hard_block"  # GROUP_C: block, escalate BS
+    RECEIVE = "receive"
+    FETCH = "fetch"
+    CLASSIFY = "classify"
+    ADVISE = "advise"
+    HARD_BLOCK = "hard_block"
     DONE = "done"
 
 
 class LabTriageState(BaseModel):
     """State passed through lab_triage sub-graph nodes."""
 
+    # Pydantic carries LabResultRow (BaseModel) and ClassifyResult (BaseModel)
+    # without per-field type registration; allow arbitrary types so we don't
+    # have to import from tools/ here for typing alone.
+    model_config = ConfigDict(arbitrary_types_allowed=True)
+
     # Input từ orchestrator
     lab_result_id: Optional[UUID] = None
     clinic_patient_id: Optional[UUID] = None
 
+    # Loaded by fetch_node
+    lab_result_row: Optional[Any] = None  # tools.lab.query_lab_result.LabResultRow
+
     # Triage output
-    triage_group: Optional[str] = None  # GROUP_A / GROUP_B / GROUP_C
+    triage_group: Optional[str] = None  # GROUP_A / GROUP_B / GROUP_C / PENDING
     triage_reason: Optional[str] = None
     requires_doctor_review: bool = False
+    classify_source: Optional[str] = None  # "RULE" / "LLM_HAIKU" / "LLM_SONNET"
+    matched_rule_key: Optional[str] = None
 
     # Flow control
     step: LabTriageStep = LabTriageStep.RECEIVE
     turn_count: int = 0
 
-    # Output message
+    # Output
     response_to_patient: Optional[str] = None  # None nếu GROUP_C (hard block)
-    escalation_note: Optional[str] = None  # cho BS khi GROUP_B/C
+    escalation_note: Optional[str] = None
     error: Optional[str] = None

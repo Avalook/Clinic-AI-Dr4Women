@@ -19,6 +19,7 @@ class OrchestratorService:
         use_llm_respond: bool = True,
         scheduling_pool: Optional[object] = None,
         scheduling_location_id: Optional[UUID] = None,
+        lab_triage_pool: Optional[object] = None,
     ):
         self._graph = build_orchestrator_graph(
             checkpointer,
@@ -26,6 +27,7 @@ class OrchestratorService:
             use_llm_respond,
             scheduling_pool=scheduling_pool,
             scheduling_location_id=scheduling_location_id,
+            lab_triage_pool=lab_triage_pool,
         )
 
     async def chat(

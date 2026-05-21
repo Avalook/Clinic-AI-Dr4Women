@@ -8,10 +8,12 @@ clients of the tools layer call the Python functions directly.
 from __future__ import annotations
 
 import asyncpg
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Request
 
 from clinicai.core.database import get_db_pool
 from clinicai.event_bus.publisher import IEventPublisher, MockEventPublisher
+from clinicai.llm.anthropic_client import AnthropicClient
+from clinicai.tools._common.context import new_trace
 from clinicai.tools.communication.send_zalo import (
     SendZaloInput,
     SendZaloOutput,
@@ -27,19 +29,11 @@ from clinicai.tools.kb.read_policy import (
     ReadPolicyInput,
     read_policy,
 )
-
-# TODO(T-P9.2-04): re-wire /lab/classify endpoint after sub-graph wiring.
-# Stub `classify_lab_result(input)` was replaced in T-P9.2-03 by
-# `classify_lab_result(row, gateway, trace) -> ClassifyResult`. The new
-# signature needs an injected AnthropicClient + pre-fetched LabResultRow,
-# which the dev/doc router cannot provide on its own. Kept commented to
-# avoid silently exposing a broken endpoint; old stub preserved at
-# tools/lab/_classify_stub_backup.py for reference.
-# from clinicai.tools.lab.classify import (
-#     ClassifyLabInput,
-#     LabClassificationOutput,
-#     classify_lab_result,
-# )
+from clinicai.tools.lab.classify import (
+    ClassifyResult,
+    classify_lab_result,
+)
+from clinicai.tools.lab.query_lab_result import LabResultRow
 from clinicai.tools.patient.get_summary import (
     GetPatientSummaryInput,
     PatientSummaryOutput,
@@ -67,6 +61,11 @@ _PUBLISHER: IEventPublisher = MockEventPublisher()
 def get_event_publisher() -> IEventPublisher:
     """FastAPI dependency: yields the dev-mode publisher."""
     return _PUBLISHER
+
+
+def get_llm_client(request: Request) -> AnthropicClient:
+    """FastAPI dependency: yields the application's AnthropicClient singleton."""
+    return request.app.state.llm_client
 
 
 @router.post("/patient/get-summary", response_model=PatientSummaryOutput)
@@ -107,12 +106,18 @@ async def _communication_send_zalo(input: SendZaloInput) -> SendZaloOutput:
     return await send_zalo_message(input)
 
 
-# TODO(T-P9.2-04): restore /lab/classify endpoint with the real signature
-# (needs AnthropicClient dependency + LabResultRow lookup before calling
-# classify_lab_result). See import block above for context.
-# @router.post("/lab/classify", response_model=LabClassificationOutput)
-# async def _lab_classify(input: ClassifyLabInput) -> LabClassificationOutput:
-#     return await classify_lab_result(input)
+@router.post("/lab/classify", response_model=ClassifyResult)
+async def _lab_classify(
+    row: LabResultRow,
+    llm_client: AnthropicClient = Depends(get_llm_client),
+) -> ClassifyResult:
+    """Classify a single lab result via rules + LLM fallback.
+
+    Dev/doc surface: POST a fully-populated LabResultRow JSON; receive
+    the ClassifyResult. Production callers invoke the Python function
+    directly and don't go through this endpoint.
+    """
+    return await classify_lab_result(row, llm_client, new_trace())
 
 
 @router.post("/task/create", response_model=CreateTaskOutput)

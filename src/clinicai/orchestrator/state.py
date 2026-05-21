@@ -29,3 +29,11 @@ class OrchestratorState(TypedDict, total=False):
     preferred_doctor: NotRequired[str | None]
     candidate_doctors: NotRequired[list[dict[str, Any]]]
     confirmed: NotRequired[bool]
+    # ----- lab_triage sub-graph hand-off fields -----
+    # Set by upstream caller (worker / event handler) when a specific lab
+    # result needs triaging. When absent the lab branch returns a generic
+    # acknowledgement instead of invoking the real sub-graph.
+    lab_result_id: NotRequired[UUID | None]
+    triage_group: NotRequired[str | None]
+    requires_doctor_review: NotRequired[bool]
+    escalation_note: NotRequired[str | None]
