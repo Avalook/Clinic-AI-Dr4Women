@@ -78,3 +78,7 @@ src/dashboard/node_modules/
 src/dashboard/.next/
 src/dashboard/.env.local
 src/dashboard/.env.*.local
+
+# Seed ETL artifacts (Task A — contains real patient data, never commit)
+scripts/seed/seed_sample.json
+scripts/seed/*.csv
