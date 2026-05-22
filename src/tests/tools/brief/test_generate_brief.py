@@ -66,7 +66,6 @@ async def test_generate__llm_json_response__parsed_correctly(make_llm) -> None:
     # Metadata stamped from context + LLM response, not from JSON payload.
     assert brief.clinic_patient_id == ctx.clinic_patient_id
     assert brief.patient_code == ctx.patient_code
-    assert brief.source_mode == ctx.source_mode
     assert brief.llm_model == "claude-sonnet-4-6"
 
 

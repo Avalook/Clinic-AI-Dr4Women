@@ -19,6 +19,7 @@ def make_patient_context(**overrides) -> PatientContext:
         "patient_code": "BN-2026-000001",
         "full_name": "Nguyễn Thị A",
         "date_of_birth": None,
+        "phone_primary": None,
         "current_ga_weeks": None,
         "current_pregnancy_id": None,
         "pregnancy_complications": [],
@@ -29,12 +30,14 @@ def make_patient_context(**overrides) -> PatientContext:
         "last_visit_date": None,
         "last_visit_summary": None,
         "last_visit_diagnosis": [],
+        "total_visits": 0,
+        "next_appointment_at": None,
+        "next_appointment_status": None,
         "latest_lab_results": [],
         "pending_lab_review": [],
         "latest_ultrasound_summary": [],
         "ongoing_issues": [],
         "data_freshness": datetime.now(tz=timezone.utc),
-        "source_mode": "ON_DEMAND",
     }
     defaults.update(overrides)
     return PatientContext(**defaults)

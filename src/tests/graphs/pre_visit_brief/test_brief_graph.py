@@ -49,6 +49,7 @@ def _patient_context() -> PatientContext:
         patient_code="BN-2026-000001",
         full_name="Nguyễn Thị A",
         date_of_birth=None,
+        phone_primary="0901234567",
         current_ga_weeks=24.0,
         current_pregnancy_id=UUID("22222222-2222-2222-2222-222222222222"),
         pregnancy_complications=["Tiền sản giật"],
@@ -59,12 +60,14 @@ def _patient_context() -> PatientContext:
         last_visit_date=None,
         last_visit_summary=None,
         last_visit_diagnosis=[],
+        total_visits=0,
+        next_appointment_at=None,
+        next_appointment_status=None,
         latest_lab_results=[],
         pending_lab_review=[],
         latest_ultrasound_summary=[],
         ongoing_issues=[],
         data_freshness=_NOW,
-        source_mode="ON_DEMAND",
     )
 
 
@@ -164,3 +167,82 @@ async def test_brief_graph__graph_invokable__no_state_corruption(
     assert out["brief"] is not None
     # The state we passed in carried `other_id`; nothing in the graph rewrites it.
     assert out["clinic_patient_id"] == other_id
+
+
+@pytest.mark.asyncio
+async def test_previsit_brief__wire_summary__builds_7_fields(monkeypatch) -> None:
+    """P9.7c happy-path: patient_summary VIEW + ultrasound_record → 7-field brief.
+
+    Verifies the new wiring surfaces phone_primary, total_visits,
+    next_appointment_at, and latest_ultrasound_summary on PatientContext,
+    and that the LLM user prompt reflects those slots before parsing the
+    7-field brief (per D025).
+    """
+    next_at = datetime(2026, 6, 1, 9, 0, tzinfo=timezone.utc)
+    ctx = PatientContext(
+        clinic_patient_id=_PATIENT_ID,
+        patient_code="BN-2026-000001",
+        full_name="Nguyễn Thị A",
+        date_of_birth=None,
+        phone_primary="0901234567",
+        current_ga_weeks=24.0,
+        current_pregnancy_id=UUID("22222222-2222-2222-2222-222222222222"),
+        pregnancy_complications=["Tiền sản giật"],
+        chronic_diseases=[],
+        current_medications=["Folate 5mg"],
+        allergies=[],
+        blood_type="A+",
+        last_visit_date=datetime(2026, 5, 1, 9, 0, tzinfo=timezone.utc),
+        last_visit_summary=None,
+        last_visit_diagnosis=[],
+        total_visits=4,
+        next_appointment_at=next_at,
+        next_appointment_status="CONFIRMED",
+        latest_lab_results=[],
+        pending_lab_review=[],
+        latest_ultrasound_summary=[
+            {
+                "ultrasound_id": "u-1",
+                "ultrasound_type": "2D",
+                "gestational_age_weeks": 24.5,
+                "findings": {"BPD": "5.8cm"},
+                "impression": "Bình thường",
+                "performed_at": "2026-05-15T09:00:00+00:00",
+            }
+        ],
+        ongoing_issues=[],
+        data_freshness=_NOW,
+    )
+    monkeypatch.setattr(
+        _pvb_nodes,
+        "aggregate_patient_context",
+        AsyncMock(return_value=ctx),
+    )
+    llm = _mock_llm(json.dumps(_VALID_BRIEF_JSON))
+
+    graph = build_pre_visit_brief_subgraph(pool=MagicMock(), llm_client=llm)
+    out = await graph.ainvoke(PreVisitBriefState(clinic_patient_id=_PATIENT_ID))
+
+    assert out.get("error") is None
+    assert out["brief"] is not None
+
+    # Verify the LLM saw the wired slots in its user prompt.
+    user_prompt = llm.chat.call_args.kwargs["messages"][0]["content"]
+    assert "tổng số visit: 4" in user_prompt
+    assert "Lịch hẹn sắp tới" in user_prompt
+    assert "CONFIRMED" in user_prompt
+    assert "Siêu âm gần đây" in user_prompt
+    assert "Bình thường" in user_prompt
+
+    # 7 BS-facing content fields per D025 are present and non-None on the brief.
+    brief = out["brief"]
+    seven = (
+        brief.headline,
+        brief.key_points,
+        brief.follow_up_items,
+        brief.medications,
+        brief.allergies,
+        brief.pregnancy_context,
+        brief.suggested_questions,
+    )
+    assert all(v is not None for v in seven)

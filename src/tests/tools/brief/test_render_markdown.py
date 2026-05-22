@@ -23,7 +23,6 @@ def _brief(**overrides) -> PreVisitBrief:
         "pregnancy_context": "Thai kỳ 24 tuần",
         "risk_flags": ["Tiền sản giật"],
         "suggested_questions": ["Q1?", "Q2?"],
-        "source_mode": "ON_DEMAND",
         "llm_model": "claude-sonnet-4-6",
         "confidence": 0.8,
     }

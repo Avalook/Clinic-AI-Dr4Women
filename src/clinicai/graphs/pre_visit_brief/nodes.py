@@ -50,8 +50,9 @@ def make_aggregate_context_node(pool: "asyncpg.Pool"):
         logger.info(
             "pre_visit_brief.aggregate.ok",
             clinic_patient_id=str(state.clinic_patient_id),
-            source_mode=ctx.source_mode,
+            total_visits=ctx.total_visits,
             lab_count=len(ctx.latest_lab_results),
+            ultrasound_count=len(ctx.latest_ultrasound_summary),
         )
         return {"patient_context": ctx}
 

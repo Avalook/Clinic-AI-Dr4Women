@@ -1,21 +1,19 @@
-"""Patient context aggregation for the pre-visit brief flow (P9.5).
+"""Patient context aggregation for the pre-visit brief flow (P9.7c).
 
-Pulls patient demographics, medical profile, current pregnancy (if any),
-last completed appointment date, and recent lab results into a single
-PatientContext value. The brief LLM consumes this object — no clinical
-decisions are encoded here, only data shaping.
+Pulls patient demographics + last/next visit + medical profile + current
+pregnancy + recent labs + latest ultrasound into a single PatientContext
+value. The brief LLM consumes this object — no clinical decisions are
+encoded here, only data shaping.
 
-Mode selection:
-- The materialized `patient_summary` table does NOT exist in the current
-  schema. `USE_MATERIALIZED` is therefore hard-coded `False` (Mode B).
-  When P13 ships the materialized view, flip this flag (and add a
-  `_fetch_materialized` branch) without touching call sites.
-
-Visit substitute:
-- The spec assumed a `visit` table. The codebase has no such table; the
-  closest analog already used by `patient_service.get_summary_data()` is
-  `appointment(status='COMPLETED')`. Clinical fields (summary, diagnosis,
-  ultrasound, ongoing_issues) have no source today and degrade to empty.
+Data sources (per P9.7c wiring):
+- `patient_summary` VIEW (migration 018): identity (incl. phone_primary),
+  total_visits, last_visit_at, next upcoming appointment, last-lab snapshot.
+- `patient_medical_profile`: chronic diseases, medications, allergies, blood type.
+- `pregnancy` (ONGOING): LMP → gestational age, high-risk reason.
+- `lab_result` (recent N): full set for the brief; the VIEW only carries
+  the single latest snapshot.
+- `ultrasound_record` (migration 018, latest by performed_at): mốc siêu âm
+  gần nhất cho BS xem trước ca khám.
 """
 
 from __future__ import annotations
@@ -23,7 +21,7 @@ from __future__ import annotations
 import asyncio
 import logging
 from datetime import date, datetime, timezone
-from typing import TYPE_CHECKING, Any, Literal
+from typing import TYPE_CHECKING, Any
 from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field
@@ -35,14 +33,9 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 
-# Hard-coded until P13 ships the materialized view.
-# TODO(P13): auto-detect via `to_regclass('public.patient_summary')`.
-USE_MATERIALIZED = False
-
-SourceMode = Literal["MATERIALIZED", "ON_DEMAND"]
-
 # Recent record caps — keep the LLM input tight.
 _RECENT_LAB_LIMIT = 5
+_RECENT_ULTRASOUND_LIMIT = 3
 
 
 class PatientContext(BaseModel):
@@ -54,6 +47,7 @@ class PatientContext(BaseModel):
     patient_code: str
     full_name: str
     date_of_birth: date | None
+    phone_primary: str | None = None
 
     # Pregnancy (nullable when no ONGOING pregnancy)
     current_ga_weeks: float | None
@@ -66,45 +60,58 @@ class PatientContext(BaseModel):
     allergies: list[str] = Field(default_factory=list)
     blood_type: str | None
 
-    # Latest visit — sourced from appointment(status='COMPLETED')
+    # Visit snapshot — sourced from patient_summary VIEW (real visit table)
     last_visit_date: datetime | None
     last_visit_summary: dict[str, Any] | None
     last_visit_diagnosis: list[str] = Field(default_factory=list)
+    total_visits: int = 0
+
+    # Upcoming appointment (next SCHEDULED/CONFIRMED in the future)
+    next_appointment_at: datetime | None = None
+    next_appointment_status: str | None = None
 
     # Latest lab results (recent N) + pending GROUP_C queue
     latest_lab_results: list[dict[str, Any]] = Field(default_factory=list)
     pending_lab_review: list[dict[str, Any]] = Field(default_factory=list)
 
-    # Latest ultrasound — no source table today
+    # Latest ultrasound studies (recent N), oldest sourced from ultrasound_record
     latest_ultrasound_summary: list[dict[str, Any]] = Field(default_factory=list)
 
-    # Ongoing issues — no source today (P13 may surface from a clinical
-    # encounter table)
+    # Ongoing issues — no structured source today
     ongoing_issues: list[str] = Field(default_factory=list)
 
     # Metadata
     data_freshness: datetime
-    source_mode: SourceMode
 
 
 # ---------------------------------------------------------------------------
-# Mode B SQL — small, parameterized, no f-string interpolation of values.
+# SQL — small, parameterized, no f-string interpolation of values.
 # ---------------------------------------------------------------------------
 
-_PATIENT_JOIN_PROFILE_SQL = """
+_PATIENT_SUMMARY_SQL = """
     SELECT
-        p.clinic_patient_id,
-        p.patient_code,
-        p.full_name,
-        p.date_of_birth,
-        pmp.blood_type,
-        pmp.allergies,
-        pmp.chronic_diseases,
-        pmp.current_medications
-    FROM patient p
-    LEFT JOIN patient_medical_profile pmp
-        ON pmp.clinic_patient_id = p.clinic_patient_id
-    WHERE p.clinic_patient_id = $1
+        clinic_patient_id,
+        patient_code,
+        full_name,
+        date_of_birth,
+        phone_primary,
+        last_visit_at,
+        total_visits,
+        next_appointment_at,
+        next_appointment_status
+    FROM patient_summary
+    WHERE clinic_patient_id = $1
+    LIMIT 1
+"""
+
+_MEDICAL_PROFILE_SQL = """
+    SELECT
+        blood_type,
+        allergies,
+        chronic_diseases,
+        current_medications
+    FROM patient_medical_profile
+    WHERE clinic_patient_id = $1
     LIMIT 1
 """
 
@@ -124,15 +131,6 @@ _CURRENT_PREGNANCY_SQL = """
     LIMIT 1
 """
 
-_LAST_COMPLETED_APPOINTMENT_SQL = """
-    SELECT slot_start
-    FROM appointment
-    WHERE clinic_patient_id = $1
-      AND status = 'COMPLETED'
-    ORDER BY slot_start DESC
-    LIMIT 1
-"""
-
 _RECENT_LABS_SQL = """
     SELECT
         lab_result_id,
@@ -149,6 +147,20 @@ _RECENT_LABS_SQL = """
     FROM lab_result
     WHERE clinic_patient_id = $1
     ORDER BY result_received_at DESC
+    LIMIT $2
+"""
+
+_LATEST_ULTRASOUND_SQL = """
+    SELECT
+        ultrasound_id,
+        ultrasound_type,
+        gestational_age_weeks,
+        findings,
+        impression,
+        performed_at
+    FROM ultrasound_record
+    WHERE clinic_patient_id = $1
+    ORDER BY COALESCE(performed_at, created_at) DESC
     LIMIT $2
 """
 
@@ -172,11 +184,7 @@ def _compute_ga_weeks(lmp_date: date | None, today: date) -> float | None:
 
 
 def _pregnancy_complications(record: "asyncpg.Record | None") -> list[str]:
-    """Surface high_risk_reason as the sole complication signal we have.
-
-    The schema doesn't carry a free-form complications list. This is the
-    only structured field today; P13 may add per-pregnancy event rows.
-    """
+    """Surface high_risk_reason as the sole complication signal we have."""
     if record is None:
         return []
     if not record.get("is_high_risk"):
@@ -206,22 +214,42 @@ def _lab_to_dict(record: "asyncpg.Record") -> dict[str, Any]:
     }
 
 
-async def _fetch_patient_profile(
+def _ultrasound_to_dict(record: "asyncpg.Record") -> dict[str, Any]:
+    """Project an ultrasound_record row into a brief-friendly dict."""
+    return {
+        "ultrasound_id": str(record["ultrasound_id"]),
+        "ultrasound_type": record["ultrasound_type"],
+        "gestational_age_weeks": (
+            float(record["gestational_age_weeks"])
+            if record["gestational_age_weeks"] is not None
+            else None
+        ),
+        "findings": record["findings"],
+        "impression": record["impression"],
+        "performed_at": (
+            record["performed_at"].isoformat()
+            if record["performed_at"] is not None
+            else None
+        ),
+    }
+
+
+async def _fetch_patient_summary(
     conn: "asyncpg.Connection", clinic_patient_id: UUID
 ) -> "asyncpg.Record | None":
-    return await conn.fetchrow(_PATIENT_JOIN_PROFILE_SQL, clinic_patient_id)
+    return await conn.fetchrow(_PATIENT_SUMMARY_SQL, clinic_patient_id)
+
+
+async def _fetch_medical_profile(
+    conn: "asyncpg.Connection", clinic_patient_id: UUID
+) -> "asyncpg.Record | None":
+    return await conn.fetchrow(_MEDICAL_PROFILE_SQL, clinic_patient_id)
 
 
 async def _fetch_current_pregnancy(
     conn: "asyncpg.Connection", clinic_patient_id: UUID
 ) -> "asyncpg.Record | None":
     return await conn.fetchrow(_CURRENT_PREGNANCY_SQL, clinic_patient_id)
-
-
-async def _fetch_last_completed_appointment(
-    conn: "asyncpg.Connection", clinic_patient_id: UUID
-) -> "asyncpg.Record | None":
-    return await conn.fetchrow(_LAST_COMPLETED_APPOINTMENT_SQL, clinic_patient_id)
 
 
 async def _fetch_recent_labs(
@@ -231,22 +259,62 @@ async def _fetch_recent_labs(
     return list(rows)
 
 
-async def _aggregate_on_demand(
-    pool: "asyncpg.Pool", clinic_patient_id: UUID
-) -> PatientContext:
-    """Mode B: assemble PatientContext from live SELECTs across 4 tables.
+async def _fetch_latest_ultrasounds(
+    conn: "asyncpg.Connection", clinic_patient_id: UUID
+) -> "list[asyncpg.Record]":
+    rows = await conn.fetch(
+        _LATEST_ULTRASOUND_SQL, clinic_patient_id, _RECENT_ULTRASOUND_LIMIT
+    )
+    return list(rows)
 
-    All four queries run concurrently against a single acquired connection.
+
+async def aggregate_patient_context(
+    pool: "asyncpg.Pool",
+    clinic_patient_id: UUID,
+    trace: TraceContext,
+) -> PatientContext:
+    """Aggregate patient data for the pre-visit brief.
+
+    Reads run concurrently against a single acquired connection:
+    patient_summary VIEW, medical profile, ONGOING pregnancy, recent labs,
+    latest ultrasound studies.
+
+    Args:
+        pool: asyncpg connection pool.
+        clinic_patient_id: target patient PK.
+        trace: per-invocation TraceContext for observability.
+
+    Returns:
+        PatientContext.
+
+    Raises:
+        PatientNotFoundError: if patient_summary returns no row.
+        asyncpg errors propagate unchanged.
     """
+    logger.debug(
+        "service.aggregate_patient_context",
+        extra={
+            "trace_id": str(trace.trace_id),
+            "clinic_patient_id": str(clinic_patient_id),
+        },
+    )
+
     async with pool.acquire() as conn:
-        patient_rec, pregnancy_rec, last_appt_rec, lab_rows = await asyncio.gather(
-            _fetch_patient_profile(conn, clinic_patient_id),
+        (
+            summary_rec,
+            profile_rec,
+            pregnancy_rec,
+            lab_rows,
+            us_rows,
+        ) = await asyncio.gather(
+            _fetch_patient_summary(conn, clinic_patient_id),
+            _fetch_medical_profile(conn, clinic_patient_id),
             _fetch_current_pregnancy(conn, clinic_patient_id),
-            _fetch_last_completed_appointment(conn, clinic_patient_id),
             _fetch_recent_labs(conn, clinic_patient_id),
+            _fetch_latest_ultrasounds(conn, clinic_patient_id),
         )
 
-    if patient_rec is None:
+    if summary_rec is None:
         raise PatientNotFoundError(
             f"patient not found: clinic_patient_id={clinic_patient_id}"
         )
@@ -260,6 +328,17 @@ async def _aggregate_on_demand(
             pregnancy_rec.get("lmp_date"), date.today()
         )
 
+    # Medical profile slot — VIEW does not carry it.
+    chronic: list[str] = []
+    meds: list[str] = []
+    allergies: list[str] = []
+    blood_type: str | None = None
+    if profile_rec is not None:
+        chronic = list(profile_rec["chronic_diseases"] or [])
+        meds = list(profile_rec["current_medications"] or [])
+        allergies = list(profile_rec["allergies"] or [])
+        blood_type = profile_rec["blood_type"]
+
     # Lab slots
     latest_labs = [_lab_to_dict(r) for r in lab_rows]
     pending_review = [
@@ -270,65 +349,31 @@ async def _aggregate_on_demand(
         and not labd["is_finalized"]
     ]
 
+    # Ultrasound slot — new in P9.7c via mig018.
+    ultrasounds = [_ultrasound_to_dict(r) for r in us_rows]
+
     return PatientContext(
-        clinic_patient_id=patient_rec["clinic_patient_id"],
-        patient_code=patient_rec["patient_code"],
-        full_name=patient_rec["full_name"],
-        date_of_birth=patient_rec["date_of_birth"],
+        clinic_patient_id=summary_rec["clinic_patient_id"],
+        patient_code=summary_rec["patient_code"],
+        full_name=summary_rec["full_name"],
+        date_of_birth=summary_rec["date_of_birth"],
+        phone_primary=summary_rec["phone_primary"],
         current_ga_weeks=current_ga_weeks,
         current_pregnancy_id=current_pregnancy_id,
         pregnancy_complications=_pregnancy_complications(pregnancy_rec),
-        chronic_diseases=list(patient_rec["chronic_diseases"] or []),
-        current_medications=list(patient_rec["current_medications"] or []),
-        allergies=list(patient_rec["allergies"] or []),
-        blood_type=patient_rec["blood_type"],
-        last_visit_date=(
-            last_appt_rec["slot_start"] if last_appt_rec is not None else None
-        ),
-        last_visit_summary=None,  # appointment carries no clinical summary
-        last_visit_diagnosis=[],  # no source today
+        chronic_diseases=chronic,
+        current_medications=meds,
+        allergies=allergies,
+        blood_type=blood_type,
+        last_visit_date=summary_rec["last_visit_at"],
+        last_visit_summary=None,  # visit-level SOAP retrieval deferred
+        last_visit_diagnosis=[],  # ditto
+        total_visits=int(summary_rec["total_visits"] or 0),
+        next_appointment_at=summary_rec["next_appointment_at"],
+        next_appointment_status=summary_rec["next_appointment_status"],
         latest_lab_results=latest_labs,
         pending_lab_review=pending_review,
-        latest_ultrasound_summary=[],  # no table today
-        ongoing_issues=[],  # no source today
+        latest_ultrasound_summary=ultrasounds,
+        ongoing_issues=[],
         data_freshness=datetime.now(tz=timezone.utc),
-        source_mode="ON_DEMAND",
     )
-
-
-async def aggregate_patient_context(
-    pool: "asyncpg.Pool",
-    clinic_patient_id: UUID,
-    trace: TraceContext,
-) -> PatientContext:
-    """Aggregate patient data for the pre-visit brief.
-
-    Auto-selects Mode A (materialized) or Mode B (live SELECTs). Today
-    only Mode B is wired — the materialized table is not yet created.
-
-    Args:
-        pool: asyncpg connection pool.
-        clinic_patient_id: target patient PK.
-        trace: per-invocation TraceContext for observability.
-
-    Returns:
-        PatientContext.
-
-    Raises:
-        PatientNotFoundError: if no patient row exists.
-        asyncpg errors propagate unchanged.
-    """
-    logger.debug(
-        "service.aggregate_patient_context",
-        extra={
-            "trace_id": str(trace.trace_id),
-            "clinic_patient_id": str(clinic_patient_id),
-            "mode": "MATERIALIZED" if USE_MATERIALIZED else "ON_DEMAND",
-        },
-    )
-    # Single branch today; left as if/else for the P13 flip.
-    if USE_MATERIALIZED:  # pragma: no cover — P13
-        raise NotImplementedError(
-            "MATERIALIZED mode not wired — patient_summary table does not exist yet"
-        )
-    return await _aggregate_on_demand(pool, clinic_patient_id)

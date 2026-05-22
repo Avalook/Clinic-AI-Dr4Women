@@ -53,7 +53,6 @@ class PreVisitBrief(BaseModel):
     risk_flags: list[str] = Field(default_factory=list)
     suggested_questions: list[str] = Field(default_factory=list)
 
-    source_mode: str
     llm_model: str
     confidence: float = Field(ge=0.0, le=1.0)
 
@@ -135,11 +134,19 @@ def _build_user_prompt(context: PatientContext) -> str:
 
     if context.last_visit_date is not None:
         lines.append(
-            "Lần khám gần nhất (status COMPLETED): "
-            f"{context.last_visit_date.isoformat()}"
+            "Lần khám gần nhất: "
+            f"{context.last_visit_date.isoformat()} "
+            f"(tổng số visit: {context.total_visits})"
         )
     else:
         lines.append("Lần khám gần nhất: chưa có dữ liệu.")
+
+    if context.next_appointment_at is not None:
+        lines.append(
+            "Lịch hẹn sắp tới: "
+            f"{context.next_appointment_at.isoformat()} "
+            f"({_format_optional(context.next_appointment_status)})"
+        )
 
     if context.latest_lab_results:
         lines.append("Lab gần đây:")
@@ -163,12 +170,22 @@ def _build_user_prompt(context: PatientContext) -> str:
                 f"reason={_format_optional(lab.get('triage_reason'))}"
             )
 
+    if context.latest_ultrasound_summary:
+        lines.append("Siêu âm gần đây:")
+        for us in context.latest_ultrasound_summary:
+            performed = us.get("performed_at") or "?"
+            lines.append(
+                f"  - {_format_optional(us.get('ultrasound_type'))} "
+                f"GA={_format_optional(us.get('gestational_age_weeks'))}w "
+                f"impression={_format_optional(us.get('impression'))} "
+                f"performed={performed}"
+            )
+
     if not context.ongoing_issues:
         lines.append("Vấn đề đang theo dõi: chưa có dữ liệu cấu trúc.")
     else:
         lines.append("Vấn đề đang theo dõi: " + "; ".join(context.ongoing_issues))
 
-    lines.append(f"Source mode: {context.source_mode}")
     return "\n".join(lines)
 
 
@@ -223,7 +240,6 @@ def _parse_brief_response(
     data["clinic_patient_id"] = context.clinic_patient_id
     data["patient_code"] = context.patient_code
     data["generated_at"] = datetime.now(tz=timezone.utc)
-    data["source_mode"] = context.source_mode
     data["llm_model"] = llm_model
 
     try:
@@ -240,7 +256,7 @@ async def generate_brief(
     """Generate a pre-visit brief from aggregated patient context.
 
     Args:
-        context: aggregated PatientContext (Mode A or Mode B).
+        context: aggregated PatientContext (patient_summary VIEW + ultrasound).
         llm_client: shared AnthropicClient (Sonnet via tier=main_brain).
         trace: per-invocation TraceContext.
 
@@ -257,9 +273,9 @@ async def generate_brief(
         extra={
             "trace_id": str(trace.trace_id),
             "clinic_patient_id": str(context.clinic_patient_id),
-            "source_mode": context.source_mode,
             "lab_recent_count": len(context.latest_lab_results),
             "pending_review_count": len(context.pending_lab_review),
+            "ultrasound_count": len(context.latest_ultrasound_summary),
         },
     )
 

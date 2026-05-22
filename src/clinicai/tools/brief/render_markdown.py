@@ -38,8 +38,7 @@ def render_brief_markdown(brief: PreVisitBrief) -> str:
     sections.append(f"# Brief — {brief.patient_code}")
     sections.append(
         f"_Generated {brief.generated_at.isoformat()}_  \n"
-        f"_Source: {brief.source_mode} · Model: {brief.llm_model} · "
-        f"Confidence: {brief.confidence:.2f}_"
+        f"_Model: {brief.llm_model} · Confidence: {brief.confidence:.2f}_"
     )
     sections.append(f"> **{brief.headline}**")
 
