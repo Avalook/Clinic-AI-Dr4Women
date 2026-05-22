@@ -61,3 +61,14 @@ logs/
 docker/rabbitmq/data/
 docker/rabbitmq/log/
 docker/rabbitmq/mnesia/
+
+# Data audit / patient data — NEVER commit
+# Anchor to repo root so scripts/data_audit/ (audit tooling) stays tracked.
+/data_audit/
+/data_raw/
+*.csv
+*.xlsx
+*.xls
+# Allow seed CSVs that ship with the repo (clinic master data)
+!src/migrations/seed/**/*.csv
+!src/migrations/seed/**/*.xlsx
