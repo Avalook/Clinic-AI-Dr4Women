@@ -83,3 +83,38 @@ class StaffDTO(BaseModel):
     is_active: bool
     created_at: datetime
     updated_at: datetime
+
+
+class Capability(str, Enum):
+    """Allowed values for staff_capability.capability (D019: app-enforced).
+
+    DB column is TEXT (no CHECK). Keep this list in sync with the
+    comment block in migrations/20260522_019_create_staff_capability.sql.
+    """
+
+    RECEPTION = "RECEPTION"
+    CASHIER = "CASHIER"
+    PHLEBOTOMY = "PHLEBOTOMY"
+    ULTRASOUND_NURSE = "ULTRASOUND_NURSE"
+    CSKH = "CSKH"
+    DOCTOR_CONSULTATION = "DOCTOR_CONSULTATION"
+
+
+class ProficiencyLevel(str, Enum):
+    """Allowed values for staff_capability.proficiency_level."""
+
+    TRAINEE = "TRAINEE"
+    COMPETENT = "COMPETENT"
+    EXPERT = "EXPERT"
+
+
+class StaffCapabilityDTO(BaseModel):
+    """A staff_capability row, returned from upsert/query operations."""
+
+    model_config = ConfigDict(from_attributes=True)
+
+    id: UUID
+    staff_id: UUID
+    capability: str
+    proficiency_level: str
+    created_at: datetime

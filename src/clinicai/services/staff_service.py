@@ -9,7 +9,12 @@ import asyncpg
 import structlog
 
 from clinicai.core.exceptions import ResourceNotFoundError, ValidationError
-from clinicai.schemas.staff import StaffCreateDTO, StaffDTO, StaffUpdateDTO
+from clinicai.schemas.staff import (
+    StaffCapabilityDTO,
+    StaffCreateDTO,
+    StaffDTO,
+    StaffUpdateDTO,
+)
 
 logger = structlog.get_logger()
 
@@ -165,3 +170,91 @@ class StaffService:
             raise ResourceNotFoundError(f"Staff {staff_id} not found")
 
         logger.info("staff_deactivated", staff_id=str(staff_id))
+
+
+# ---------------------------------------------------------------------------
+# P9.6 — staff_capability helpers
+# ---------------------------------------------------------------------------
+#
+# Two free functions sit alongside the StaffService class. They take the
+# pool directly to match the rest of the new graph/tool layer (see
+# tools/scheduling/find_work_sessions etc.) — service classes are kept for
+# CRUD endpoints, but capability flows are graph-internal so the leaner
+# function signature reads better at call sites.
+
+
+_ADD_CAPABILITY_SQL = """
+    INSERT INTO staff_capability (staff_id, capability, proficiency_level)
+    VALUES ($1, $2, $3)
+    ON CONFLICT (staff_id, capability) DO UPDATE
+        SET proficiency_level = EXCLUDED.proficiency_level
+    RETURNING id, staff_id, capability, proficiency_level, created_at
+"""
+
+_GET_BY_CAPABILITY_SQL = """
+    SELECT
+        s.id                  AS staff_id,
+        s.full_name           AS full_name,
+        s.short_name          AS short_name,
+        s.primary_department  AS primary_department,
+        sc.capability         AS capability,
+        sc.proficiency_level  AS proficiency_level
+    FROM staff s
+    JOIN staff_capability sc ON sc.staff_id = s.id
+    JOIN work_session_staff wss ON wss.staff_id = s.id
+    JOIN work_session ws ON ws.id = wss.work_session_id
+    WHERE sc.capability = $1
+      AND ws.location_id = $2
+      AND s.is_active = TRUE
+      AND (NOT $3::boolean OR s.is_training = FALSE)
+"""
+
+
+async def add_capability(
+    pool: asyncpg.Pool,
+    staff_id: UUID,
+    capability: str,
+    proficiency_level: str = "COMPETENT",
+) -> StaffCapabilityDTO:
+    """Upsert a capability for a staff member.
+
+    On the (staff_id, capability) conflict we update proficiency_level so
+    callers can promote / demote without a separate code path. The
+    `capability` value is enforced at the application layer
+    (see clinicai.schemas.staff.Capability); the DB column is TEXT (D019).
+    """
+    async with pool.acquire() as conn:
+        row = await conn.fetchrow(
+            _ADD_CAPABILITY_SQL, staff_id, capability, proficiency_level
+        )
+
+    logger.info(
+        "staff_capability_upserted",
+        staff_id=str(staff_id),
+        capability=capability,
+        proficiency_level=proficiency_level,
+    )
+    return StaffCapabilityDTO.model_validate(dict(row))
+
+
+async def get_staff_by_capability(
+    pool: asyncpg.Pool,
+    capability: str,
+    location_id: UUID,
+    exclude_training: bool = True,
+) -> list[dict[str, object]]:
+    """Return on-duty staff at `location_id` who hold `capability`.
+
+    On-duty = has a row in work_session_staff for a work_session at the
+    given location. Inactive staff (`is_active=FALSE`) are always
+    excluded; trainees (`is_training=TRUE`) are excluded when
+    `exclude_training=True` (default, per D023).
+    """
+    async with pool.acquire() as conn:
+        rows = await conn.fetch(
+            _GET_BY_CAPABILITY_SQL,
+            capability,
+            location_id,
+            exclude_training,
+        )
+    return [dict(row) for row in rows]
