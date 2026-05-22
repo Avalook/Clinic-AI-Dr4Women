@@ -139,10 +139,14 @@ D024  Lab notification batch model (không SLA countdown cứng).
       Source: CLAUDE.md Loại B Session 24.
       Status: locked.
 
-D025  Pre-visit Brief 7 fields (BS Hùng).
-      Rationale: BS Hùng đã confirm Session 24; BS Thành có thể tweak Phase 2.
-      Source: CLAUDE.md Loại B Session 24.
-      Status: tentative (pending BS Thành Phase 2).
+D025  Pre-visit Brief: 9 fields = 7 clinical core (BS Hùng) + 2 AI scaffolding.
+      7 core (chờ BS Thành P2 sign-off tên chính xác): key_points, follow_up_items,
+      pending_reviews, medications, allergies, pregnancy_context, risk_flags.
+      2 scaffolding (AI-generated, không cần BS duyệt): headline, suggested_questions.
+      Ultrasound + next-appointment hòa vào core fields qua LLM, không có slot riêng.
+      Rationale: BS Hùng confirm 7 core Session 24; 2 scaffolding là UX đọc nhanh.
+      Source: CLAUDE.md Loại B Session 24 + code verify P9.7c (9d9b3b0).
+      Status: tentative (pending BS Thành Phase 2 sign-off tên 7 core).
 
 D026  CSKH intake 5 fields khi BN lần đầu liên hệ.
       Rationale: BS Hùng baseline standard.
