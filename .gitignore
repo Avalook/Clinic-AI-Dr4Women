@@ -72,3 +72,9 @@ docker/rabbitmq/mnesia/
 # Allow seed CSVs that ship with the repo (clinic master data)
 !src/migrations/seed/**/*.csv
 !src/migrations/seed/**/*.xlsx
+
+# Next.js dashboard (P7a)
+src/dashboard/node_modules/
+src/dashboard/.next/
+src/dashboard/.env.local
+src/dashboard/.env.*.local
