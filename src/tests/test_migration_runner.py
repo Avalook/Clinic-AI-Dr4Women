@@ -100,6 +100,61 @@ async def test_apply_idempotent_skips_applied(
 
 
 @pytest.mark.asyncio
+async def test_mark_applied_records_without_executing_sql(
+    mock_db: tuple[MagicMock, AsyncMock], tmp_path: pathlib.Path
+) -> None:
+    """mark_applied inserts the tracking row but never runs the migration SQL."""
+    pool, conn = mock_db
+
+    # Even if a real .sql file exists, its content must NOT be read/executed.
+    real_file = tmp_path / "fake_001.sql"
+    real_file.write_text("CREATE TABLE should_not_run (id INT);", encoding="utf-8")
+
+    # No migrations tracked yet.
+    conn.fetch.return_value = []
+
+    runner = MigrationRunner(pool=pool, migrations_dir=str(tmp_path))
+    marked = await runner.mark_applied(["fake_001.sql"])
+
+    assert marked == ["fake_001.sql"]
+
+    # The tracking INSERT must have happened with the exact filename.
+    conn.execute.assert_any_await(
+        "INSERT INTO schema_migrations (filename) VALUES ($1);",
+        "fake_001.sql",
+    )
+
+    # The migration file's own SQL must NEVER be executed; only the
+    # schema_migrations bookkeeping (ensure_table + INSERT) is allowed.
+    for call in conn.execute.await_args_list:
+        sql = call[0][0]
+        assert "should_not_run" not in sql
+        if "CREATE TABLE" in sql:
+            assert "schema_migrations" in sql
+
+
+@pytest.mark.asyncio
+async def test_mark_applied_idempotent_skips_tracked(
+    mock_db: tuple[MagicMock, AsyncMock], tmp_path: pathlib.Path
+) -> None:
+    """mark_applied skips filenames already present in schema_migrations."""
+    pool, conn = mock_db
+
+    # File is already tracked.
+    conn.fetch.return_value = [{"filename": "fake_001.sql"}]
+
+    runner = MigrationRunner(pool=pool, migrations_dir=str(tmp_path))
+    marked = await runner.mark_applied(["fake_001.sql"])
+
+    assert marked == []
+
+    # No INSERT should be issued for an already-tracked file.
+    for call in conn.execute.await_args_list:
+        sql = call[0][0]
+        assert "INSERT INTO schema_migrations" not in sql
+
+
+@pytest.mark.asyncio
 async def test_rollback_no_applied_migrations(
     mock_db: tuple[MagicMock, AsyncMock], tmp_path: pathlib.Path
 ) -> None:

@@ -74,6 +74,44 @@ class MigrationRunner:
 
         return applied_list
 
+    async def mark_applied(self, filenames: List[str]) -> List[str]:
+        """Record migrations as applied WITHOUT executing their SQL.
+
+        Inserts each given filename into ``schema_migrations`` so the runner
+        treats it as already applied. Used to backfill tracking for migrations
+        that were applied out-of-band (e.g. via the SQL editor). Idempotent:
+        filenames already present are skipped. No ``.sql`` content is ever read
+        or executed.
+
+        Returns the list of filenames that were newly inserted.
+        """
+        marked_list: List[str] = []
+
+        async with self.pool.acquire() as conn:
+            await self.ensure_table(conn)
+
+            # Retrieve all already tracked migrations for idempotency
+            rows = await conn.fetch("SELECT filename FROM schema_migrations;")
+            applied_set = {row["filename"] for row in rows}
+
+            for filename in filenames:
+                if filename in applied_set:
+                    logger.info(
+                        "migration_mark_skipped",
+                        filename=filename,
+                        reason="already_tracked",
+                    )
+                    continue
+
+                await conn.execute(
+                    "INSERT INTO schema_migrations (filename) VALUES ($1);",
+                    filename,
+                )
+                logger.info("migration_marked_applied", filename=filename)
+                marked_list.append(filename)
+
+        return marked_list
+
     async def rollback(self) -> Optional[str]:
         """Rollback latest applied migration using its down counterpart."""
         async with self.pool.acquire() as conn:
