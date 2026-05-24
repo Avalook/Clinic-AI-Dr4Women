@@ -1,20 +1,41 @@
-version: "3.8"
+# ClinicAI LOCAL slice (Task C1) — api + rabbitmq + dashboard on one Mac Mini.
+# DB is Supabase Cloud (no local postgres). Ports are mapped to the host so a
+# future Tailscale node (C2) can reach them. No Caddy/TLS/ghcr here.
 
 services:
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile.api
+    image: clinicai-api:local
+    container_name: clinicai_api
+    restart: unless-stopped
+    env_file: .env
+    ports:
+      - "8000:8000"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 40s
+    networks:
+      - internal
+
   rabbitmq:
     image: rabbitmq:3.13-management-alpine
     container_name: clinicai_rabbitmq
     restart: unless-stopped
-    ports:
-      - "5672:5672"       # AMQP protocol
-      - "15672:15672"     # Management UI (http://localhost:15672)
     environment:
+      # Local dev defaults (also documented in .env.example); not production secrets.
       RABBITMQ_DEFAULT_USER: clinicai
       RABBITMQ_DEFAULT_PASS: clinicai_dev_pass
       RABBITMQ_DEFAULT_VHOST: clinicai
+    ports:
+      - "5672:5672" # AMQP
+      - "15672:15672" # Management UI
     volumes:
-      - ./docker/rabbitmq/data:/var/lib/rabbitmq
-      - ./docker/rabbitmq/log:/var/log/rabbitmq
+      - rabbitmq_data:/var/lib/rabbitmq
       - ./docker/rabbitmq/definitions.json:/etc/rabbitmq/definitions.json:ro
       - ./docker/rabbitmq/rabbitmq.conf:/etc/rabbitmq/rabbitmq.conf:ro
     healthcheck:
@@ -24,9 +45,37 @@ services:
       retries: 5
       start_period: 30s
     networks:
-      - clinicai_dev_net
+      - internal
+
+  dashboard:
+    build:
+      context: ./src/dashboard
+      dockerfile: Dockerfile.dashboard
+      args:
+        # PUBLIC anon-tier values, sourced from root .env via compose interpolation.
+        NEXT_PUBLIC_SUPABASE_URL: ${SUPABASE_URL}
+        NEXT_PUBLIC_SUPABASE_ANON_KEY: ${SUPABASE_ANON_KEY}
+    image: clinicai-dashboard:local
+    container_name: clinicai_dashboard
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    depends_on:
+      api:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000/"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    networks:
+      - internal
 
 networks:
-  clinicai_dev_net:
+  internal:
     driver: bridge
-    name: clinicai_dev_net
+    name: clinicai_internal
+
+volumes:
+  rabbitmq_data:
