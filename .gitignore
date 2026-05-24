@@ -82,3 +82,6 @@ src/dashboard/.env.*.local
 # Seed ETL artifacts (Task A — contains real patient data, never commit)
 scripts/seed/seed_sample.json
 scripts/seed/*.csv
+
+# T-TRANSFORM-01 staged outputs (real patient data — never commit)
+scripts/data_migration/output/
