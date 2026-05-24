@@ -35,19 +35,11 @@ from pathlib import Path
 from typing import Any
 from uuid import UUID
 
-# Ensure the project's ``src`` directory is importable when this script is
-# invoked from the repo root. The project doesn't install ``clinicai`` as an
-# editable package, so we adjust sys.path before the package import.
-_REPO_ROOT = Path(__file__).resolve().parents[2]
-_SRC = _REPO_ROOT / "src"
-if str(_SRC) not in sys.path:
-    sys.path.insert(0, str(_SRC))
+import asyncpg
+from dotenv import load_dotenv
 
-import asyncpg  # noqa: E402
-from dotenv import load_dotenv  # noqa: E402
-
-from clinicai.schemas.patient import PatientCreateDTO  # noqa: E402
-from clinicai.services.patient_service import PatientService  # noqa: E402
+from clinicai.schemas.patient import PatientCreateDTO
+from clinicai.services.patient_service import PatientService
 
 logger = logging.getLogger("seed.demo_seed")
 
