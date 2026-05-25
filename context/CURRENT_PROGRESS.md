@@ -1,66 +1,95 @@
-# CURRENT_PROGRESS — Handoff Worklog
-> Cập nhật: 2026-05-24 (web chat planning, phiên EDA + transform) · Phiên sau đọc file này trước
+# ClinicAI — Handoff Worklog
+> Cập nhật: 2026-05-25 (cuối session) · Dev: Tuyền (solo) · Executor: Claude Code
+> File NGUỒN DUY NHẤT cho tiến độ (đã hợp nhất worklog/ + .ai/worklog/ ngày 25/5). CLAUDE.md §1 trỏ vào đây.
 
-## TRẠNG THÁI HỆ THỐNG
-- Lõi VỮNG: schema 35 entities + migrations/rollback, Patient/MPI, safety-gate 017
-  (5/5 pass, chặn thật), 5/6 sub-graph (P9.1-9.3,9.5,9.7), Docker local C1 (3 svc healthy).
-- CHƯA chạy end-to-end. Gap: (1) data BN thật chưa vào DB — ĐANG XỬ qua T-TRANSFORM-01,
-  (2) P9.4 Lab Triage chưa code, (3) Zalo còn stub (P12), (4) chưa deploy prod (C2/C3).
+---
+## TRẠNG THÁI HIỆN TẠI
+- Branch: feat/t-transform-01, đã PUSH lên GitHub (github.com/nguyencongtuyenlp/Clinic-AI-Dr4Women), working tree clean.
+- Code clone về Windows (D:\ClinicAI Dr4Women\Clinic-AI-Dr4Women) CHỈ để đọc/sửa, KHÔNG dựng môi trường. Mọi việc CHẠY (migration/test/load) vẫn ở Mac Mini qua Claude Code. Windows pull trước khi sửa, Mac pull trước khi chạy.
+- Mac Mini Tailscale: tên máy mac-mini-ca-quang, IP đã đổi thành 100.116.210.82 (IP cũ 100.119.13.22 chết). Dùng tên máy thay IP cho bền.
 
-## QUYẾT ĐỊNH CHỐT PHIÊN NÀY
-- Định danh: clinic_patient_id = UUID tự sinh. Dedup = phone+tên+DOB (KHÔNG có CCCD).
-  CCCD = NULL, backfill giai đoạn sau (phòng khám thu dần khi dùng dashboard). Khớp schema mục 3.
-- Migration 2 NHỊP: NHỊP 1 TRANSFORM (CSV→file sạch, KHÔNG ghi DB) → NHỊP 2 LOAD
-  (staging→review rổ vàng→prod). Đang ở NHỊP 1.
-- Demo phòng khám = DEMO-1 read-only dashboard hiển thị BN thật + shadow-mode
-  (CSKH nhập song song Notion + dashboard tới cuối tháng). Bẫy: nhập song song = gấp đôi việc,
-  dashboard phải NHANH hơn/cho thứ Notion không có (gõ SĐT ra lịch sử) nếu không CSKH bỏ.
+## KHẢO SÁT THẬT SESSION NÀY (3 file, đã đồng bộ với Planner)
+### A. IMPORT_FACTS_FOR_REPORT.md (data cũ)
+- THỰC TẾ 14 file/7 dataset (KHÔNG phải 16). Code chỉ dùng 5/7.
+- 2 dataset LỚN NHẤT chưa import: CSKH Action 31.179 + Dịch vụ 15.075 = 46.254 dòng (nhiều hơn cả phần đã xử lý 42.752). CHƯA khảo sát nội dung 2 file này.
+- Patient: 5.728 (🟢2.771 đủ DOB+gender / 🟡2.957 skeleton). reject 415 (100% do SĐT hỏng tại nguồn, 0 do tên rỗng; 55 dòng rỗng hoàn toàn).
+- MPI thật chỉ 3 nhãn: SINGLE 5.419 / AUTO_MERGE 99 / REVIEW_CONFLICT 210 (KHÔNG có AUTO_MATCH/CREATE_NEW như doc).
+- review_queue 220 dòng = 100% SAME_PHONE_DIFFERENT_NAME (phần lớn đặt hộ — LÀNH). Code KHÔNG có rule gỡ hậu tố "(huỷ)".
+- 🚩 TRIPWIRE BỊ VƯỢT: kế hoạch ghi "reject hàng trăm → DỪNG", thực tế 415 vẫn xuất+commit. CHƯA soi tay 415 dòng này.
 
-## PHÁT HIỆN EDA QUAN TRỌNG (đã verify bằng Python trên data thật)
-- **Memory #9 SAI**: KHÔNG phải "0 CCCD, không tabular, SĐT nhồi 1 string". Thực tế bảng
-  hành chính ĐÃ có cột `//họ tên (neat)` + `//sdt (neat)` tách sẵn (99% phủ), DOB 94%.
-- **CỐT LÕI: phòng khám có ~2974 BN, KHÔNG phải 588.** Bảng hành chính (594) chỉ là
-  ~573 người CSKH đã làm hồ sơ kỹ. ~2400 SĐT khác CHỈ nằm trong lịch hẹn/XN/thuốc.
-  → Patient phải dựng từ UNION mọi SĐT trên 7 bảng. Đây cũng là GIÁ TRỊ bán cho Sếp:
-  gom BN rải 6 trang Notion về 1 hồ sơ — Notion họ không làm được.
-- Quan hệ giữa bảng: KHÔNG có FK, link bằng chuỗi text "Tên 0xxxxxxxxx". Resolve bằng
-  regex bóc SĐT (0\d{9}) từ toàn bộ field → normalize E.164 → tra index phone→uuid.
-- 3 rổ: 🟢 XANH ~573 (hồ sơ đủ) | 🟡 VÀNG ~2400 (chỉ tên+SĐT, skeleton) | 🔴 ĐỎ ~50 dòng (không SĐT, reject).
-- Rổ ĐỎ chỉ ~1% → data import được gần như toàn bộ. Không có thảm họa data.
+### B. SYSTEM_STATE_ACTUAL.md (hệ thống)
+- DB: 17/35 bảng (+mpi_merge_queue +patient_summary VIEW). D4 đủ 5/5. D7 Finance + D8 Inventory = 0 bảng.
+- Data BN THẬT CHƯA vào DB: patient=30 (demo), transform 5.728 còn ở file. NHỊP 2 LOAD CHƯA chạy.
+- Seed DỞ: service_type=1 (cần 15), staff=0 (file seed 29 tồn tại nhưng chưa apply — cần điều tra vì sao).
+- Code: 4/5 sub-graph THẬT (scheduling, lab_triage, task_manager, pre_visit_brief). communication = stub. pre_visit_brief CHƯA nối orchestrator. 412 test/12 skip.
+- ⚠️ Voice-to-EMR = 0% (không có speech-to-text, chỉ có 3 cột DB chờ). Worklog cũ ghi sai — phải bỏ khỏi mọi danh sách DONE.
+- 3 nợ Phase-1: patient_contact_channel (THIẾU → chưa có zalo_user_id), booking_channel (TEXT trần không FK), patient_next_of_kin (chưa có, defer được).
 
-## DATA — sự thật kỹ thuật (cho transform/audit)
-- 7 nhóm CSV, LUÔN dùng bản hậu tố `_all` (đầy đủ hơn bản thường: XN 64 vs 5033!).
+### C. Khảo sát Dashboard
+- src/dashboard: Next.js 16.2.6 + React 19 + Supabase auth. ~40-50%, KHÔNG phải mockup.
+- Route có: /login (auth thật), /work-sessions, /patients, /tasks — đều nối THẲNG Supabase qua RLS, KHÔNG qua FastAPI.
+- Login ✅ (Supabase, gate proxy.ts + layout). Phân quyền role ❌ CHƯA (không role/RBAC/guard).
+- Backend API: patient CRUD ✅, appointment create/get/confirm/cancel ✅ nhưng THIẾU GET /appointments lọc theo bác sĩ/ngày. Backend KHÔNG có auth (mở hoàn toàn), không CORS.
+
+## QUYẾT ĐỊNH KIẾN TRÚC SESSION NÀY
+- Đổi hướng: KHÔNG demo nhẹ nữa, build lát cắt production thật.
+- Zalo/Pancake: chỉ xây KHUNG + adapter + mock (~"90% phần chủ động"), 10% cuối cắm key thật + sửa theo tài liệu thật khi có account.
+- Phase 1 = Dashboard luồng "CSKH ghi khách+lịch → bác sĩ xem lịch+BN mình khám".
+- Kiến trúc data-path Phase 1: ĐỀ XUẤT "Lai" (tạo BN qua FastAPI chạy MPI chống trùng + đọc qua Supabase). Tuyền nói muốn "bài bản + chống trùng" — CẦN LÀM RÕ đầu session sau: Lai hay full Đường B (full B kéo theo auth backend → trượt tuần 1).
+- Scope: làm ĐỦ (không cắt), Tuyền làm thêm buổi tối ở nhà.
+
+## VIỆC TIẾP THEO (đầu session sau)
+1. CHỐT kiến trúc data-path: Lai hay full B (đang treo).
+2. Đóng 3 Task Packet build Phase 1 theo thứ tự:
+   - PACKET 1: nền phân quyền (role CSKH/DOCTOR vào staff + map auth user↔staff_id + guard role ở dashboard proxy.ts Next16 + auth tối thiểu cho backend vì API đang mở).
+   - PACKET 2: luồng CSKH ghi (form tạo BN qua POST /patients chạy MPI + tạo lịch qua POST /appointments + xử ca MPI nghi trùng).
+   - PACKET 3: luồng bác sĩ (thêm endpoint GET /appointments theo bác sĩ+ngày + trang "Lịch của tôi" + acc demo).
+   - Thứ tự bắt buộc 1→2→3.
+   - LƯU Ý: Next.js 16 — convention khác bản cũ (middleware = proxy.ts), dặn Claude Code không dùng pattern Next 14/15.
+
+## NỢ / VIỆC TỒN ĐỌNG (chưa làm, đừng quên)
+- Vá nền trước LOAD: patient_contact_channel + booking_channel + bảng prescription (rx 15.319 PARKED) + seed service_type 15 + apply staff 29. (Đã soạn Task Packet gộp A+B+C nhưng CHƯA chạy — Tuyền chuyển hướng sang dashboard trước.)
+- Soi tay 415 dòng reject + 3 BN full_name rỗng (vi phạm NOT NULL khi LOAD).
+- Khảo sát nội dung 2 file CSKH 31k + Dịch vụ 15k → quyết chúng map bảng nào (CSKH có zalo_user_id? Dịch vụ có giá tiền → invoice?). Treo con số "data lấp được 6-16/35 bảng".
+- Sửa worklog cũ: bỏ Voice-to-EMR khỏi danh sách DONE.
+
+## ĐÃ GIAO PM
+- File "ClinicAI — Hiện trạng & Kế hoạch làm việc của DEV": kế hoạch 4 tuần có cờ 🟢🟡🔴.
+  - Tuần 1 dashboard (cam kết) · Tuần 2 speech-to-text+VPS (làm dần, ~2 tuần) · Tuần 3 Zalo/Pancake (phụ thuộc key, 1 tuần TỪ LÚC NHẬN KEY) · Tuần 4 tự gửi tin (họp lại).
+  - Nhấn: "dùng thử song song ≠ production"; nút thắt = sếp lấy key Zalo/Pancake sớm.
+- 3 phương án nhập liệu chờ HỌP sếp/PM chốt: (1) nhập song song (2) nhập sau ca (3) cấp quyền Notion để dev cắm API (PA3 = dự án con, không nằm tuần 1).
+
+## NÚT THẮT CẦN TEAM (không phải việc dev)
+- Sếp/chị Hoa: API key Zalo OA + Pancake → chặn tuần 3-4.
+- Sếp/PM: chốt luồng nhập liệu (3 phương án), chốt cách tính công/lương (theo buổi, 8 buổi/tuần).
+
+## QUY TRÌNH (giữ nguyên)
+- Mỗi session/lần làm: Claude Code xuất file trạng thái thật → Tuyền đưa Planner → đồng bộ. KHÔNG tin doc cũ (đã lệch nhiều lần).
+- Task Packet: Step 0 verify → 1 khảo sát read-only → 2-3 code+test → 4 lint/mypy/pytest → 5 commit local → 6 báo cáo 5 dòng. Packet nhỏ, verify từng phần.
+
+---
+## CARRY-OVER KỸ THUẬT (giữ từ phiên transform 24/5 — T-TRANSFORM-01)
+> Hợp nhất từ bản context/ cũ. Các chi tiết này KHÔNG có trong handoff trên nhưng còn cần cho NHỊP 2 LOAD.
+
+### 3 LỆCH SCHEMA cho NHỊP 2 LOAD (QUAN TRỌNG)
+1. prescription KHÔNG có bảng đích → file PARKED (no_target_table), cần TẠO BẢNG trước khi load rx (15.319 dòng).
+2. clinical_record link qua visit_id (NOT NULL UNIQUE), KHÔNG có clinic_patient_id trực tiếp → LOAD phải TẠO visit trước.
+3. lab_result dùng cột triage_group='PENDING' (KHÔNG phải result_classification).
+
+### NOT NULL thiếu nguồn (LOAD xử lý)
+- patient.location_id (default 1-clinic), patient.patient_code (DB sinh), appointment.location_id/service_type_id (raw TEXT, fk_unresolved=true), appointment.slot_end (suy ra). gender/address giữ ở *_staging.
+- Map raw TEXT (BS Thành / Phụ khoa / Kim Ngưu) → FK master = task con trong NHỊP 2.
+- TIẾP: Tuyền soi TRANSFORM_REPORT + patient_staged + review_queue → OK thì đóng Task Packet NHỊP 2 (LOAD staging). 8 file output ở scripts/data_migration/output/ (gitignore).
+
+### Sự thật kỹ thuật DATA (cho transform/audit)
+- 7 nhóm CSV, LUÔN dùng bản hậu tố `_all` (đầy đủ hơn bản thường — số planning cũ 594/2974 SAI vì từ bản non-_all).
 - Encoding utf-8-sig. CÓ newline trong ô → ĐỌC bằng csv.DictReader, KHÔNG pd.read_csv C-engine (vỡ).
 - File .md = record con xuất riêng, nội dung ĐÃ nằm trong CSV → BỎ QUA toàn bộ .md.
-- Số dòng thật: hành chính 594, lịch hẹn 1891, XN 5033, thuốc 1677, lâm sàng 576, CSKH 3393, dịch vụ 1046.
 
-## VỊ TRÍ DATA (QUAN TRỌNG — chống lộ data y tế)
-- Data BN ĐỂ NGOÀI repo, ngang hàng (vd ../_clinic_data_raw/notion_export/), git KHÔNG thấy.
-- KHÔNG chuyển data vào trong folder repo. transform.py nhận đường dẫn qua --input-dir.
+### VỊ TRÍ DATA (chống lộ data y tế)
+- Data BN ĐỂ NGOÀI repo, ngang hàng (vd ../_clinic_data_raw/notion_export/), git KHÔNG thấy. transform.py nhận đường dẫn qua --input-dir.
 - Output staged files ra scripts/data_migration/output/ (gitignore). KHÔNG commit data BN.
 
-## ĐANG CHỜ / VIỆC TIẾP
-- ĐANG GIAO: T-TRANSFORM-01 (Task Packet đã xuất, file riêng) cho Claude Code chạy full ở máy.
-  NHỊP 1 transform → 8 file output + TRANSFORM_REPORT.md. Read-only với DB.
-- SAU khi Tuyền soi output OK → Claude đóng Task Packet NHỊP 2 (LOAD vào staging).
-- CHỜ Sếp/PM: (1) phòng khám thu CCCD từ giờ không? (2) báo trước data đóng băng ~1 tháng.
-- Mẫu transform 3 BN đã chạy thử thành công trong phiên (chứng minh gom-1-hồ-sơ khả thi).
-
-## NỢ MÔI TRƯỜNG (carry-over từ C1 — giữ cho C3)
-- Mac Mini build qua SSH: đã bỏ credsStore + scout/ai hooks trong ~/.docker/config.json
-  (backup config.json.bak). Rename 2 helper .disabled: docker-credential-desktop +
-  docker-credential-osxkeychain. Pull ẩn danh OK.
+### NỢ MÔI TRƯỜNG (carry-over từ C1 — giữ cho C3)
+- Mac Mini build qua SSH: đã bỏ credsStore + scout/ai hooks trong ~/.docker/config.json (backup config.json.bak). Rename 2 helper .disabled: docker-credential-desktop + docker-credential-osxkeychain. Pull ẩn danh OK.
 - C3 cần docker login đẩy ghcr.io → PHẢI khôi phục 2 helper trước (mv .disabled về tên gốc).
-
-## === CẬP NHẬT: T-TRANSFORM-01 DONE (NHỊP 1) ===
-- Commit ef538d5 nhánh feat/t-transform-01 (CHƯA push). ruff+mypy strict+20/20 test pass. Không ghi DB, không commit data BN.
-- **BASELINE THẬT (số planning cũ 594/2974 SAI — từ bản non-_all; LUÔN dùng _all):**
-  Patient 5728 (🟢 COMPLETE 2771 đủ DOB+gender | 🟡 SKELETON 2957 tên+SĐT).
-  appt 10032→9996 · lab 5033→5010 · rx 15415→15319 · clin 6182→6013. reject 415 (~2%, SĐT lỗi nguồn, KHÔNG phải lỗi parse). review_queue 220 (trùng SĐT khác tên, duyệt tay).
-- 8 file output ở scripts/data_migration/output/ (gitignore).
-- **3 LỆCH SCHEMA cho NHỊP 2 LOAD (QUAN TRỌNG):**
-  (1) prescription KHÔNG có bảng đích → file PARKED (no_target_table), cần tạo bảng trước khi load rx.
-  (2) clinical_record link qua visit_id (NOT NULL UNIQUE), KHÔNG có clinic_patient_id trực tiếp → LOAD phải tạo visit trước.
-  (3) lab_result dùng cột triage_group='PENDING' (KHÔNG phải result_classification).
-- NOT NULL thiếu nguồn (LOAD xử): patient.location_id (default 1-clinic), patient.patient_code (DB sinh), appointment.location_id/service_type_id (raw TEXT fk_unresolved=true), appointment.slot_end (suy ra). gender/address giữ *_staging.
-- TIẾP: Tuyền soi TRANSFORM_REPORT + patient_staged + review_queue → OK thì Claude đóng Task Packet NHỊP 2 (LOAD staging). Cần map raw TEXT (BS Thành/Phụ khoa/Kim Ngưu) → FK master = task con trong NHỊP 2.
