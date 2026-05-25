@@ -1,82 +1,40 @@
 # ClinicAI — Handoff Worklog
-
-> Bộ nhớ chuyển giao giữa các session chat. Đọc file này đầu mỗi session mới.
-> Cập nhật: 2026-05-22 (cuối session) · Dev: Tuyền (solo) · Executor: Claude Code
+> Cập nhật: 2026-05-24 (cuối session) · Dev: Tuyền (solo) · Executor: Claude Code
 
 ---
-
 ## TRẠNG THÁI HIỆN TẠI
+- Clinical domain ĐÓNG TRỌN: P9.7c DONE (ca315c7), bỏ Mode B, wire previsit_brief đọc data thật.
+- Test: 401 pass + 6 skip. main đã PUSH tới ca315c7.
 
-**Branch:** main. Sau session này ĐÃ PUSH (hết local-only).
+## CHIẾN DỊCH IMPORT — NHỊP 1 TRANSFORM DONE (no DB write, branch riêng)
+Output ở: `scripts/data_migration/output/` (gitignore — KHÔNG commit data BN).
+File: patient_staged / appointment_staged / lab_result_staged / clinical_record_staged / prescription_staged / review_queue / TRANSFORM_REPORT.md
 
-**Đã DONE:** P1-P6, P8, P9.1 (a9eed37), P9.2 (e4dd9f3), P9.3 (cd5cd55), P9.5 (f4fa959), P9.7a (a7bd769), **P9.7b (5972dc2)**.
+**Baseline THẬT (chốt):**
+- Patient: 6090 admin rows → 5728 BN (🟢 2771 đủ DOB+gender · 🟡 2957 tên+SĐT)
+  - AUTO_MERGE 99 · REVIEW_CONFLICT 210 · reject 91 (no phone)
+- appointment 10032→9996 (rej 36) · lab 5033→5010 (rej 23)
+- prescription 15415→15319 (rej 96) · clinical 6182→6013 (rej 169)
+- review_queue 220 dòng · reject tổng 415 (~2%, lỗi nguồn đã verify)
 
-**Test baseline:** 398 passed + 6 skipped (sau P9.7b).
+**Soi mắt người DONE (phiên này):** review_queue 30 dòng đầu → ~85-90% đúng là đặt hộ/người nhà (tên khác hẳn, nam đặt hộ nữ). Kết luận LÀNH, không tách đôi hàng loạt. MPI tách đúng.
 
-**Lưu ý lịch sử commit:** P-IMPORT-0 (813a023) nằm TRƯỚC P9.7b trên main. P9.7a (a7bd769) là cha của 813a023. mig018 build trên HEAD 813a023 (đã xác nhận hợp lệ — P-IMPORT-0 chỉ thêm script audit, không đụng migration).
+## 3 ĐIỂM CẦN NHỚ CHO NHỊP 2 (đầu vào quan trọng)
+1. **prescription PARKED** (no_target_table=true): schema v6 CHƯA có bảng đích.
+   → QUYẾT: park rx, NHỊP 2 load 4 bảng kia trước. NHỊP 3 mới thiết kế bảng prescription + load rx.
+2. **3 ca gõ-bẩn trong review_queue** cần xử: tên trùng khít chỉ khác hậu tố rác
+   ("(huỷ)", dấu gạch cuối, khoảng trắng thừa). VD: Đặng Thị Hoà vs "Đặng Thị Hoà (huỷ)"; "Phạm Thu Thuỷ -" vs "Phạm Thu Thuỷ".
+   → ĐỀ XUẤT NHỊP 2: rule normalize BẢO THỦ (trim + bỏ hậu tố huỷ/gạch rác) → auto-merge CHỈ KHI trùng khít 100% sau normalize. Lệch 1 ký tự (vd "Thế Phương Linh" vs "Thế Khánh Linh") → GIỮ trong review queue. CHƯA CHỐT — hỏi Tuyền đầu phiên sau.
+3. **Lệch count 210 vs 220**: REVIEW_CONFLICT báo 210 nhưng review_queue.csv có 220 dòng (lệch 10). Không chặn. Khi duyệt tay duyệt TRỌN file, đừng tin con số 210.
 
----
+## NHỊP 2 (chưa phát — mở đầu phiên sau)
+LOAD vào Supabase staging: patient → appointment → lab_result → clinical_record.
+- Bổ NOT NULL thiếu nguồn: patient.location_id (default single-clinic), patient_code (DB-gen advisory lock), appointment.slot_end (derive từ slot_start+duration), lab test_code/name (fallback ID/'UNKNOWN').
+- clinical_record link qua visit_id (NOT NULL UNIQUE) → LOAD phải tạo parent `visit` trước (visit_unresolved=true).
+- Map FK master (doctor/service_type/location/booking_channel hiện raw TEXT fk_unresolved=true).
+- Theo Task Packet chuẩn: Step 0 verify → 1 khảo sát → 2-3 load+test FK integrity → 4 lint/mypy/pytest → 5 commit local → 6 báo cáo 5 dòng.
 
-## ĐANG DỞ — VIỆC TIẾP THEO NGAY
-
-### P9.7c — CHƯA phát, làm đầu session sau
-- Nội dung: wire lại P9.5 Pre-visit Brief ĐỌC DỮ LIỆU THẬT, **bỏ fallback Mode B**.
-- Repo layer đọc visit + clinical_record + patient_summary (VIEW mig018).
-- Ánh xạ tên canon: tên cũ "ultrasound_summary" SAI → đúng là `ultrasound_record`.
-- VIEW patient_summary expose: patient_code, full_name, date_of_birth, phone_primary, national_id_number, last visit, tổng visit, lịch hẹn tới, lab gần nhất + triage_group.
-- Sửa test cho khớp.
-- → Xong P9.7c là ĐÓNG TRỌN chương clinical domain.
-
----
-
-## NỢ KỸ THUẬT GHI NHẬN (không chặn, xử lý trước production)
-
-- Test toàn bộ ở tầng mock-pool + SQL-content. Repo CHƯA có integration harness Postgres thật.
-- Hệ quả: trigger finalized_block (P9.7a) + FK constraint (P9.7b) + amendment append-only CHƯA được kiểm chứng chạy thật ở tầng DB — chỉ assert nội dung SQL.
-- TODO trước production: dựng Postgres test harness + integration test cho các Medical Safety Gate.
-
----
-
-## CHIẾN DỊCH IMPORT DATA (lớn, làm sau P9.7c)
-
-P-IMPORT-0 đã khảo sát xong (commit 813a023). 4 phát hiện ĐỔI KẾ HOẠCH:
-1. Data 16 CSV Notion subpages (~198k dòng) KHÔNG tabular — SĐT/tên nhồi chung 1 string → ETL regex per-file.
-2. 0/16 file có CCCD → MPI mất anchor mạnh, dùng tổ hợp name+DOB+phone → đa số ca rơi HUMAN_REVIEW_QUEUE.
-3. Trùng chéo file vì 1 BN ở nhiều subpage → gom dọc trước khi dedup.
-4. Header drift mạnh (cột name 6 biến thể + false-positive 'Tên dịch vụ/thuốc/XN') → CẦN file mapping per-source THỦ CÔNG.
-
-Pipeline import 6 lớp: 0 MAPPING (việc người) → 1 EXTRACT (regex) → 2 PROFILE → 3 CLEAN+MPI (gom dọc) → 4 COMMIT.
-
-Bước kế: lớp 0 MAPPING — Tuyền + AI lập file mapping per-source từ PROFILE_REPORT.md, rồi phát P-IMPORT-1 (EXTRACT).
-
-BẢO MẬT: KHÔNG commit data BN lên git. data_audit/ đã gitignore.
-
----
-
-## DASHBOARD (đã có mockup, để sau import)
-
-Mockup tĩnh 4 màn hình đã dựng: Ca làm / Bệnh nhân / Việc cần làm / Lịch hẹn. Layout chốt sơ bộ, dùng làm bản vẽ cho Claude Code build Next.js thật SAU khi import có data. Không build trước (sẽ ra vỏ rỗng).
-
----
-
-## ĐỘ LỆCH DOC vs THỰC TẾ (cần buổi review với anh Quang)
-
-1. AI model: doc ghi Gemini → thực tế Anthropic Sonnet/Haiku. KHÔNG dùng Gemini.
-2. Executor: doc ghi Antigravity → thực tế Claude Code. KHÔNG dùng Antigravity.
-3. LangGraph: doc ghi 1.0 → thực tế 0.6.11.
-4. lab_result: doc ghi result_classification → DB thật triage_group (A/B/C/PENDING) + reviewed_at.
-5. patient: doc ngụ ý cột phone → DB thật phone_primary + phone_secondary.
-6. Thứ tự sub-graph đảo: Communication làm CUỐI (chờ Zalo cred).
-
----
-
-## NÚT THẮT CẦN TEAM GỠ (không phải việc dev)
-
-- Token Zalo OA + Pancake API key (anh Quang/Hoa) → chặn P9.4 Communication + P12.
-- Anh Quang chốt: model = Anthropic, executor = Claude Code, Q-19 = materialized hay on-demand (hiện tạm VIEW on-demand).
-
----
-
-## QUY TRÌNH (giữ nguyên)
-
-Task Packet: Step 0 verify → Step 1 khảo sát read-only → Step 2-3 code+test → Step 4 lint/mypy/pytest → Step 5 commit local → Step 6 báo cáo 5 dòng. AI Chat ra packet, Tuyền paste chạy, dán Step 6, AI verify + update memory/worklog.
+## NỢ / NÚT THẮT (giữ)
+- Chưa có Postgres integration harness → Safety Gates (finalized block, FK, amendment append-only) mới test mock-pool/SQL-content, chưa chạy thật DB. Dựng trước production.
+- Token Zalo OA + Pancake key (anh Quang/Hoa) → chặn P9.4 Communication.
+- Độ lệch doc: Gemini→Anthropic Sonnet/Haiku; Antigravity→Claude Code; LangGraph 1.0→0.6.11. Cần buổi review anh Quang.
