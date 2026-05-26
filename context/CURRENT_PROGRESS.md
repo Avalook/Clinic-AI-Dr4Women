@@ -152,7 +152,11 @@
 
 ### VIỆC ĐANG LÀM (phiên sau tiếp)
 - PACKET B (lab_triage nối orchestrator + e2e): ĐÃ XONG TỪ TRƯỚC (T-P9.2-04), phiên 26/5 chỉ xác minh lại — 4/4 e2e PASS. Không cần code thêm.
-- CÒN LẠI để nối orchestrator: communication + previsit (2 stub thuần). scheduling/task đã có wrapper, chỉ cần truyền pool khi chạy thật. previsit: nối graph thật (đang ở API) vào router thay stub.
+- CÒN LẠI để nối orchestrator: communication + previsit (2 stub thuần). scheduling/task đã có wrapper, chỉ cần truyền pool khi chạy thật.
+- [QUYẾT ĐỊNH 26/5 — HOÃN PACKET C, đóng phần ghép-nối agent giai đoạn A]:
+  * previsit = STUB CÓ CHỦ ĐÍCH, defer tới P13 (cron/event trigger) đúng ghi chú trong orchestrator/stubs.py. Lý do: brief là luồng pull/event-driven (sinh brief cho 1 BN cụ thể), không phải intent hội thoại; graph THẬT đã chạy qua API POST /api/v1/brief/{id} rồi → không nối vào router chat lúc này để tránh nhánh chat ack-thiếu-id vô nghĩa.
+  * communication = STUB CHỜ ZALO (chặn bởi nút thắt key Zalo, chưa có tích hợp kênh).
+  * Phần GHÉP NỐI AGENT của giai đoạn A coi như ĐÓNG: lab_triage nối + verify xanh (4/4 e2e); scheduling/task có wrapper sẵn bật theo pool; previsit/communication hoãn có chủ đích. Không code ghép-nối thêm ở giai đoạn A.
 
 ### NỢ / NÚT THẮT
 - Xin Notion token (read-only, 2 db: File bệnh nhân + LỊCH HẸN) — đẩy PM/sếp. Chặn A.2 làm trên data thật.
