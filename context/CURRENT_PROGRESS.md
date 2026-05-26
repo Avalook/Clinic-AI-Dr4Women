@@ -217,3 +217,29 @@
 ### KẾ HOẠCH
 - Đang A.2 (26/5–5/6), mốc CSDL ver1 = 3/6. Lộ trình A→B→C.
 - Việc tiếp logic: giải 3 nút chặn promote (cần input ngoài) HOẶC Notion token (cần token).
+
+## === HANDOFF — SESSION 26/5 PHIÊN CUỐI ===
+Date: 2026-05-26 · Branch: feat/t-transform-01 · HEAD: e830828 (PUSHED — origin synced)
+
+### COMMITS SESSION NÀY (đã push)
+- bd1752f: demo full-route scheduling + Anthropic thật (Haiku classify 0.98 + Sonnet respond)
+- 79aab1e: wire previsit_brief router. LƯU Ý: wrapper đã bind (4/5 route có wrapper) NHƯNG previsit CHƯA reachable — classifier chưa emit "previsit" (xem GAP e830828). Reachable thật = 3/5 (scheduling/lab/task).
+- 3d95585: DB isolation via DATABASE_URL_TEST (408/48/0; safety_gate_017 5/5 PASS verified vs prod-temp-schema)
+- e830828: docs previsit.trigger GAP report (docs-only, KHÔNG code)
+
+### PHÁT HIỆN KIẾN TRÚC QUAN TRỌNG
+- MỌI input vào orchestrator qua classify_intent — KHÔNG có bypass nào.
+- Lab triage tới bằng route=="lab", KHÔNG bypass classify (giả định cũ SAI).
+- Previsit cron cần: (a) event_type + work_session_id vào OrchestratorState (b) "previsit" vào RouteType + VALID_ROUTES (c) START-conditional mới. CHI TIẾT: scripts/scheduler/PREVISIT_TRIGGER_GAP.md.
+- Đợt docstring EN→VI tự động (48 file) đã REVERT (206 lỗi E501, làm mất doc safety) — không vào history.
+
+### TRẠNG THÁI: A~80% / B~65% / C 0% / D~40%
+TEST: 408 pass / 48 skip / 0 fail. Safety gate 017: 5/5 PASS verified.
+
+### VIỆC TIẾP
+1. Packet State+RouteType (event_type/previsit vào State) — gỡ boundary sửa state.py.
+2. Packet C3 deploy Caddy+TLS Mac Mini 100.119.13.22.
+3. Provision Supabase test DB riêng (chạy 48 DB test, gồm 27 integration DELETE-public).
+4. Wire RabbitMQ thật.
+
+### 3 NÚT CHẶN PROMOTE: DB test riêng + service_type thật + 210 REVIEW_CONFLICT duyệt
