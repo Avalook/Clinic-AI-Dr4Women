@@ -143,13 +143,16 @@
 - CHỈ CÓ 4 SUB-GRAPH THẬT: scheduling, lab_triage, pre_visit_brief, task_manager.
   * communication = chỉ stub trong orchestrator, KHÔNG có thư mục graph.
   * voice_to_emr = KHÔNG TỒN TẠI ở đâu cả (worklog cũ ghi sai, bỏ hẳn khỏi mọi danh sách).
-- 4 GRAPH CHƯA NỐI ORCHESTRATOR: router vẫn trả stub (orchestrator/stubs.py). Chỉ pre_visit_brief nối ra API. Phần GHÉP NỐI (rủi ro nhất) CHƯA làm → luồng xuyên suốt CHƯA verify được.
+- [SỬA SAI 26/5 — câu cũ "4 graph chưa nối / router vẫn trả stub" là SAI, đã khảo sát + chạy test lại]: GHÉP NỐI ORCHESTRATOR đã làm sẵn từ T-P9.2-04, KHÔNG phải chưa làm. Phân loại 5 route trong orchestrator/graph.py:
+  * scheduling / lab / task = đã có WRAPPER THẬT, bật theo pool (scheduling_pool+location_id / lab_triage_pool / task_manager_pool); không có pool → fallback stub. (graph.py:197-218, bind 234/235/237)
+  * communication / previsit = còn STUB THUẦN trong orchestrator (graph.py:225/227). pre_visit_brief có graph thật nhưng chỉ expose qua API, CHƯA nối vào router.
+  * Luồng xuyên suốt lab_triage ĐÃ verify: test_e2e_lab_triage.py 4/4 PASS (no-id ack / GROUP_A advise / GROUP_C safety-gate / no-pool fallback stub). Còn lại CHƯA verify e2e: communication, previsit.
 - Độ sâu LỆCH (không phải vertical-slice mỏng đều): scheduling 421 dòng / lab_triage 407 (sâu) vs pre_visit 141 / task_manager 214 (mỏng). lab_triage (Phase 2-3) sâu hơn scheduling (Phase 1) → đã đào sâu phần rủi ro cao (xét nghiệm/safety) trước, là lựa chọn ưu tiên, KHÔNG thuần "đặc thù code".
 - Test gần 100% mock; chỉ 2 test orchestrator chạm LLM thật (skipif theo key); 0 test chạm DB thật.
 
 ### VIỆC ĐANG LÀM (phiên sau tiếp)
-- PACKET B: nối lab_triage vào orchestrator + test luồng xuyên suốt (đã đóng, dừng ở Step 1 chờ khảo sát router/state). Lý do chọn lab_triage trước: sâu nhất, nối xong có luồng thật đáng tin nhất.
-- Sau đó nối nốt 3 graph còn lại vào orchestrator.
+- PACKET B (lab_triage nối orchestrator + e2e): ĐÃ XONG TỪ TRƯỚC (T-P9.2-04), phiên 26/5 chỉ xác minh lại — 4/4 e2e PASS. Không cần code thêm.
+- CÒN LẠI để nối orchestrator: communication + previsit (2 stub thuần). scheduling/task đã có wrapper, chỉ cần truyền pool khi chạy thật. previsit: nối graph thật (đang ở API) vào router thay stub.
 
 ### NỢ / NÚT THẮT
 - Xin Notion token (read-only, 2 db: File bệnh nhân + LỊCH HẸN) — đẩy PM/sếp. Chặn A.2 làm trên data thật.
