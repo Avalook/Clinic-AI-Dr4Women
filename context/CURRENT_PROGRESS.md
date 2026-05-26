@@ -93,3 +93,36 @@
 ### NỢ MÔI TRƯỜNG (carry-over từ C1 — giữ cho C3)
 - Mac Mini build qua SSH: đã bỏ credsStore + scout/ai hooks trong ~/.docker/config.json (backup config.json.bak). Rename 2 helper .disabled: docker-credential-desktop + docker-credential-osxkeychain. Pull ẩn danh OK.
 - C3 cần docker login đẩy ghcr.io → PHẢI khôi phục 2 helper trước (mv .disabled về tên gốc).
+
+
+
+## CẬP NHẬT 26/05 — KHẢO SÁT NOTION GỐC THẬT (lật giả định lớn)
+- ĐÃ XEM Notion gốc thật của PK (6 ảnh). PHÁT HIỆN LẬT NGƯỢC:
+  Notion gốc LÀ DATABASE CÓ CỘT (Table/Map/Chart view), KHÔNG lỏng
+  như file export tưởng. Export làm méo cấu trúc → đừng dùng export
+  cũ để ước lượng độ khó nữa. Kéo qua API GIỮ NGUYÊN cột → dễ hơn parse export.
+- Kiến trúc Notion PK: 2 file lưu trữ (BN lâm sàng + khách hành chính)
+  + 8 db vận hành (CSKH-Action, LỊCH HẸN, Kê thuốc, Chấm công, Dịch vụ,
+  Xét nghiệm, Phiếu khám, Nhật ký) + lib1-8 + 4 trang BRIDGE (đã có
+  relation/automation giữa các db). "File khách hàng" đếm 601 dòng.
+- CỘT SẠCH kéo ngay: Loại dịch vụ (multi-select), Created time, Link drive,
+  Dự kiến sinh, Tuổi thai, Giới tính, Địa chỉ.
+- CỘT BẨN phải xử: Họ tên = tên+SĐT NHỒI CHUNG 1 cột (tách regex, đã có
+  từ transform). Còn dòng rỗng tên + mã LAMSANG-xxxx skeleton sống trong Notion.
+- DATA VẪN SỐNG: Created time mới nhất 17/5/2026 (PK vẫn nhập đều, cấu
+  trúc y nguyên). Database gốc có icon ⚠️ + bản Notion FREE.
+- QUYẾT ĐỊNH KIẾN TRÚC (đã chốt với Planner):
+  * Source of truth giai đoạn dùng thử = NOTION (đường A). Dashboard CHỈ ĐỌC.
+  * Cơ chế: poll Notion API định kỳ → chuẩn hóa → MPI dedup → đổ Supabase.
+  * BẮT BUỘC READ-ONLY tuyệt đối (DB gốc PK có ⚠️, không ghi ngược).
+  * Đóng khung A là BƯỚC 1 tiến tới nhập-thẳng (đường C), KHÔNG để A vĩnh viễn.
+  * PACKET 2 cũ (form CSKH ghi) → TẠM GÁC, thay bằng "cầu Notion".
+  * PACKET 1 (phân quyền) + PACKET 3 (lịch bác sĩ) KHÔNG đổi, chạy được ngay.
+- ƯỚC LƯỢNG cầu Notion 1 chiều: vài buổi → ~1 tuần (VỚI token). KHÔNG
+  phải dự án vài tuần như lo ban đầu.
+- NÚT THẮT MỚI (đẩy sếp): xin Notion integration token + share READ 2 db
+  (File bệnh nhân + LỊCH HẸN). Giống nút thắt key Zalo.
+- CÒN SOI NỐT (Tuyền đang làm): (1) Last-edited-time (gần như chắc CÓ qua
+  API) (2) LỊCH HẸN nối BN qua Relation hay rời.
+- CAM KẾT TUẦN 1 ĐỔI: từ "CSKH nhập trên dashboard" → "dashboard đọc
+  realtime Notion + bác sĩ xem lịch/BN mình". PHẢI BÁO LẠI PM.
