@@ -181,3 +181,39 @@
 
 ### CẢNH BÁO CHỐNG DRIFT (quan trọng)
 - 3 LẦN DRIFT trong phiên 26/5: (1) worklog ghi "router vẫn trả stub" — thực ra lab_triage đã nối; (2) packet "nối lab_triage" — đã xong từ T-P9.2-04; (3) packet "clean_and_mpi.py" — MPI đã xong trong transform.py. LUÔN đọc code/worklog xác minh TRƯỚC khi ra packet, KHÔNG tin memory/giả định.
+
+## === ĐÓNG PHIÊN 26/5 (phiên dài) ===
+
+### TRẠNG THÁI GIT
+- Branch feat/t-transform-01, HEAD 5b82349, đồng bộ origin (đã push).
+- Tree clean.
+
+### 3 LẦN BẮT DRIFT TRONG PHIÊN (bài học)
+- lab_triage: tưởng chưa nối orchestrator → THẬT đã nối + 4 e2e test xanh (T-P9.2-04).
+- previsit: suýt nối lại → THẬT đã có ở API, nối router defer P13 (cron). Giữ stub.
+- MPI/CLEAN: tưởng phải xây clean_and_mpi.py → THẬT đã xong trong transform.py.
+- RULE: LUÔN đọc code/worklog xác minh TRƯỚC khi ra packet. KHÔNG tin trí nhớ doc.
+
+### AGENT — GIAI ĐOẠN A: ĐÓNG
+- 5 route orchestrator: scheduling+lab+task = WRAPPER THẬT (bật theo pool). communication = stub chờ Zalo. previsit = stub defer P13/cron.
+- 2 stub là CÓ CHỦ ĐÍCH, không phải nợ kỹ thuật.
+- voice_to_emr KHÔNG TỒN TẠI — Phase 2, không động.
+
+### DATA — LOAD DRY-RUN: XONG
+- transform.py (T-TRANSFORM-01): EXTRACT+CLEAN+normalize(phone E.164,DOB ISO)+MPI+review_queue+staged CSV. Test 20/20 PASS.
+- load_to_staging.py (5b82349): load staged→schema tạm (temp_schema_db, rollback+DROP CASCADE), FK-fail=0.
+- Count: patient 5518, appt 9170, visit 5583, clinical 5583, lab 4724, prescription PARKED.
+- patient_code qua pg_advisory_xact_lock; slot_end=slot_start+30'; service_type gom 'KHAC'.
+
+### 3 NÚT CHẶN TRƯỚC PROMOTE THẬT (đều cần input NGOÀI code)
+1. ⚠️ DATABASE_URL trỏ THẲNG prod pooler — PHẢI tách DB test riêng trước khi promote.
+2. service_type thật của Dr4women (hiện gom hết 'KHAC') — chờ danh sách dịch vụ từ phòng khám.
+3. Tải đợt 2: 210 REVIEW_CONFLICT (cần người duyệt) + 142 appointment thiếu slot_start.
+
+### VIỆC TREO KHÁC
+- Notion token read-only — chờ, để soi LỊCH HẸN (Relation nối BN? cột ngày giờ?).
+- Báo cáo A.2 + tin PM/sếp — chưa gửi.
+
+### KẾ HOẠCH
+- Đang A.2 (26/5–5/6), mốc CSDL ver1 = 3/6. Lộ trình A→B→C.
+- Việc tiếp logic: giải 3 nút chặn promote (cần input ngoài) HOẶC Notion token (cần token).
