@@ -126,3 +126,32 @@
   API) (2) LỊCH HẸN nối BN qua Relation hay rời.
 - CAM KẾT TUẦN 1 ĐỔI: từ "CSKH nhập trên dashboard" → "dashboard đọc
   realtime Notion + bác sĩ xem lịch/BN mình". PHẢI BÁO LẠI PM.
+
+
+
+## CẬP NHẬT 26/05 (phiên 2) — ĐỊNH VỊ LẠI KẾ HOẠCH + KHẢO SÁT ĐỘ SÂU CODE
+
+### Lệch kế hoạch đã sửa
+- BỎ "kế hoạch 4 tuần / tuần 1 dashboard" — đó là bản phiên trước tự dựng, KHÔNG phải bản PM-Tuyền chốt. Bản PM thật (Lộ trình 12/5): chia A/B/C/D + 3 Phase (Onboard/Buổi khám/Sau khám), làm A→B→C mỗi phase. Dashboard (C) KHÓA sau A+B. Hiện đang ở A (A.2 chuẩn hóa, 26/5–5/6), hướng mốc CSDL ver 1 = 3/6.
+- Đề xuất đọc-Notion định vị lại = nằm trong A.2 (không phải đổi hướng dashboard). Đã viết báo cáo A.2 gửi PM.
+
+### Quyết định kiến trúc phiên này
+- Data-path = đường LAI (đọc qua Supabase, ghi/đồng bộ qua FastAPI). Vì chọn Notion-là-nguồn nên Lai gần như mặc định.
+- Dashboard tách 2 TẦNG: tầng ĐỌC làm sớm (hiển thị data Notion kéo về, demo + PK kiểm chứng) / tầng GHI làm muộn (cần nền dữ liệu chốt). Đã đưa vào báo cáo dạng GỢI MỞ để PM cho ý kiến, CHƯA chốt.
+
+### KHẢO SÁT ĐỘ SÂU CODE (Claude Code đo, read-only) — SỰ THẬT QUAN TRỌNG
+- CHỈ CÓ 4 SUB-GRAPH THẬT: scheduling, lab_triage, pre_visit_brief, task_manager.
+  * communication = chỉ stub trong orchestrator, KHÔNG có thư mục graph.
+  * voice_to_emr = KHÔNG TỒN TẠI ở đâu cả (worklog cũ ghi sai, bỏ hẳn khỏi mọi danh sách).
+- 4 GRAPH CHƯA NỐI ORCHESTRATOR: router vẫn trả stub (orchestrator/stubs.py). Chỉ pre_visit_brief nối ra API. Phần GHÉP NỐI (rủi ro nhất) CHƯA làm → luồng xuyên suốt CHƯA verify được.
+- Độ sâu LỆCH (không phải vertical-slice mỏng đều): scheduling 421 dòng / lab_triage 407 (sâu) vs pre_visit 141 / task_manager 214 (mỏng). lab_triage (Phase 2-3) sâu hơn scheduling (Phase 1) → đã đào sâu phần rủi ro cao (xét nghiệm/safety) trước, là lựa chọn ưu tiên, KHÔNG thuần "đặc thù code".
+- Test gần 100% mock; chỉ 2 test orchestrator chạm LLM thật (skipif theo key); 0 test chạm DB thật.
+
+### VIỆC ĐANG LÀM (phiên sau tiếp)
+- PACKET B: nối lab_triage vào orchestrator + test luồng xuyên suốt (đã đóng, dừng ở Step 1 chờ khảo sát router/state). Lý do chọn lab_triage trước: sâu nhất, nối xong có luồng thật đáng tin nhất.
+- Sau đó nối nốt 3 graph còn lại vào orchestrator.
+
+### NỢ / NÚT THẮT
+- Xin Notion token (read-only, 2 db: File bệnh nhân + LỊCH HẸN) — đẩy PM/sếp. Chặn A.2 làm trên data thật.
+- Soi nốt LỊCH HẸN trên Notion: có Relation nối BN không + cột ngày giờ hẹn riêng không.
+- Báo cáo gửi PM phiên này: (1) Báo cáo A.2 + xin token (2) Bản toàn cảnh "đã làm gì + vì sao nhanh cho sau" — bản toàn cảnh CẦN SỬA: bỏ voice-to-EMR (không tồn tại), chỉnh "phần khó xong rồi" → đúng thực tế CHƯA nối orchestrator.
