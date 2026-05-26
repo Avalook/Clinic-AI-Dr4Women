@@ -162,3 +162,22 @@
 - Xin Notion token (read-only, 2 db: File bệnh nhân + LỊCH HẸN) — đẩy PM/sếp. Chặn A.2 làm trên data thật.
 - Soi nốt LỊCH HẸN trên Notion: có Relation nối BN không + cột ngày giờ hẹn riêng không.
 - Báo cáo gửi PM phiên này: (1) Báo cáo A.2 + xin token (2) Bản toàn cảnh "đã làm gì + vì sao nhanh cho sau" — bản toàn cảnh CẦN SỬA: bỏ voice-to-EMR (không tồn tại), chỉnh "phần khó xong rồi" → đúng thực tế CHƯA nối orchestrator.
+
+## CẬP NHẬT 26/05 (phiên 3) — TOÀN CẢNH PIPELINE DATA + CHỐNG DRIFT
+
+### MPI + CLEAN + review_queue ĐÃ XONG — KHÔNG LÀM LẠI
+- Toàn bộ EXTRACT → CLEAN(normalize phone+DOB) → MPI(merge rule) → review_queue → rejects ĐÃ hoàn thành trong `scripts/data_migration/transform.py` (T-TRANSFORM-01, commit ef538d5). KHÔNG xây script clean_and_mpi.py mới (sẽ trùng + phân kỳ rule). Đã hủy packet đó.
+- Test transform: `pytest -k transform` = 20/20 PASS (norm_phone / norm_dob dd-mm-yyyy+GMT+7→ISO / extract_phone tách tên+SĐT).
+- MPI rule (transform.py `_PatientIndex`): same phone+name → AUTO_MERGE; same phone+diff name → REVIEW_CONFLICT; còn lại SINGLE. Khóa = `//sdt (neat)` + `//họ tên (neat)`, KHÔNG dùng CCCD (0/16 file có).
+
+### SỐ LIỆU THẬT (TRANSFORM_REPORT.md — authoritative)
+- 5728 BN = 2771 COMPLETE (có DOB+gender) + 2957 SKELETON (chỉ name+phone).
+- AUTO_MERGE 99 · REVIEW_CONFLICT 210 · rejected no-phone 91 · review_queue 220 dòng.
+- Child staged: appointment 9996 · lab 5010 · prescription 15319 · clinical 6013.
+- Output files: scripts/data_migration/output/{patient,appointment,lab_result,prescription,clinical_record}_staged.csv + review_queue.csv + rejects.csv (gitignored, chứa PII — KHÔNG commit).
+
+### BƯỚC DUY NHẤT CÒN THIẾU CỦA PIPELINE DATA
+- **LOAD/COMMIT staged CSV → Supabase** (chưa có script). Cần: insert dedup-aware theo `merge_action`, gán `patient_code` qua advisory lock, resolve FK `location_id`/`service_type`, tạo `visit` parent cho clinical_record (clinical link qua visit_id). transform.py cố ý không mở DB ("no SQL emitted").
+
+### CẢNH BÁO CHỐNG DRIFT (quan trọng)
+- 3 LẦN DRIFT trong phiên 26/5: (1) worklog ghi "router vẫn trả stub" — thực ra lab_triage đã nối; (2) packet "nối lab_triage" — đã xong từ T-P9.2-04; (3) packet "clean_and_mpi.py" — MPI đã xong trong transform.py. LUÔN đọc code/worklog xác minh TRƯỚC khi ra packet, KHÔNG tin memory/giả định.
