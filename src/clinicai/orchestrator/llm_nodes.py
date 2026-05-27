@@ -13,25 +13,39 @@ from typing import Awaitable, Callable
 import structlog
 
 from clinicai.llm.anthropic_client import AnthropicClient
-from clinicai.orchestrator.nodes import classify_intent_rule_based, respond_node
+from clinicai.orchestrator.nodes import (
+    classify_intent_rule_based,
+    map_event_to_route,
+    respond_node,
+)
 from clinicai.orchestrator.state import OrchestratorState
 
 logger = structlog.get_logger(__name__)
 
-VALID_ROUTES: set[str] = {"scheduling", "lab", "communication", "general", "unknown"}
+VALID_ROUTES: set[str] = {
+    "scheduling",
+    "lab",
+    "communication",
+    "task",
+    "previsit",
+    "general",
+    "unknown",
+}
 
 CLASSIFY_SYSTEM_PROMPT = """\
 Bạn là bộ phân loại ý định cho hệ thống AI phòng khám sản phụ khoa Dr4Women.
-Phân loại tin nhắn bệnh nhân vào ĐÚNG MỘT trong 5 route sau:
+Phân loại tin nhắn bệnh nhân vào ĐÚNG MỘT trong 7 route sau:
 
 - "scheduling": Đặt/hủy/đổi lịch hẹn khám, hỏi giờ khám, đăng ký khám
 - "lab": Hỏi kết quả xét nghiệm, yêu cầu xét nghiệm, hỏi quy trình xét nghiệm
 - "communication": Yêu cầu nhắn tin Zalo, gửi thông báo, nhắc nhở
-- "general": Tin nhắn chung (chào hỏi, hỏi thông tin chung, tư vấn ngoài 3 nhóm trên)
+- "task": Công việc nội bộ nhân viên, giao việc, hỏi việc quá hạn / SLA
+- "previsit": Yêu cầu tóm tắt hồ sơ bệnh nhân trước khám (pre-visit brief)
+- "general": Tin nhắn chung (chào hỏi, hỏi thông tin chung, tư vấn ngoài các nhóm trên)
 - "unknown": Tin nhắn trống, không hiểu được, hoặc spam
 
 CHỈ trả về JSON object đúng format sau, KHÔNG markdown, KHÔNG text khác:
-{"route": "<one_of_5>", "confidence": <0.0-1.0>, "reasoning": "<vietnamese 1 sentence>"}
+{"route": "<one_of_7>", "confidence": <0.0-1.0>, "reasoning": "<vietnamese 1 sentence>"}
 
 Ví dụ:
 Input: "Tôi muốn đặt lịch khám ngày mai"
@@ -39,6 +53,12 @@ Output: {"route": "scheduling", "confidence": 0.98, "reasoning": "Yêu cầu đ�
 
 Input: "Cho tôi xem kết quả siêu âm hôm qua"
 Output: {"route": "lab", "confidence": 0.95, "reasoning": "Hỏi kết quả siêu âm"}
+
+Input: "Có việc nào quá hạn SLA chưa xử lý không"
+Output: {"route": "task", "confidence": 0.93, "reasoning": "Hỏi công việc quá hạn"}
+
+Input: "Tóm tắt hồ sơ bệnh nhân trước khám giúp tôi"
+Output: {"route": "previsit", "confidence": 0.94, "reasoning": "Tóm tắt trước khám"}
 
 Input: "Xin chào bác sĩ"
 Output: {"route": "general", "confidence": 0.9, "reasoning": "Lời chào chung"}
@@ -67,6 +87,19 @@ def make_classify_intent_llm_node(
     async def classify_intent_llm_node(state: OrchestratorState) -> dict:
         msg = state.get("user_message", "")
         trace_id = state.get("trace_id")
+
+        # Event-driven dispatch (RabbitMQ): route straight from the event,
+        # skip the LLM classifier entirely.
+        event_type = state.get("event_type")
+        if event_type:
+            route = map_event_to_route(event_type)
+            logger.info(
+                "classify_intent_event_driven",
+                trace_id=str(trace_id),
+                event_type=event_type,
+                route=route,
+            )
+            return {"route": route}
 
         if not msg or not msg.strip():
             logger.info("classify_intent_empty_message", trace_id=str(trace_id))
