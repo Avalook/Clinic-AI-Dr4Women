@@ -1,5 +1,5 @@
 # ClinicAI — Handoff Worklog
-> Cập nhật: 2026-05-25 (cuối session) · Dev: Tuyền (solo) · Executor: Claude Code
+> Cập nhật: 2026-05-27 (cuối session) · Dev: Tuyền (solo) · Executor: Claude Code
 > File NGUỒN DUY NHẤT cho tiến độ (đã hợp nhất worklog/ + .ai/worklog/ ngày 25/5). CLAUDE.md §1 trỏ vào đây.
 
 ---
@@ -243,3 +243,34 @@ TEST: 408 pass / 48 skip / 0 fail. Safety gate 017: 5/5 PASS verified.
 4. Wire RabbitMQ thật.
 
 ### 3 NÚT CHẶN PROMOTE: DB test riêng + service_type thật + 210 REVIEW_CONFLICT duyệt
+
+## === HANDOFF — SESSION 27/5 (dashboard read-tier + tool registry) ===
+Date: 2026-05-27 · Branch: feat/t-transform-01 · HEAD: d1ad3ca (PUSHED — origin synced) · Tree clean
+
+### COMMITS SESSION NÀY (đã push, theo thứ tự)
+- e1bca28: feat dashboard /appointments — 2 tab (Chờ xác nhận / Đã xác nhận) qua ?tab=pending|confirmed. Server Component, appointment JOIN patient + staff(doctor LEFT) + service_type. Filter hôm nay, slot_start ASC, limit 50. Nav thêm "Lịch hẹn".
+- c6d1ab8: refactor relocate test orchestrator src/tests/orchestrator/* → src/tests/services/orchestrator/ (12 file rename 100%, có sẵn uncommitted đầu phiên, không phải việc của packet).
+- f540848: feat dashboard /patients/[id] — chi tiết BN + lịch sử lịch hẹn (appointment JOIN staff + service_type, slot_start DESC, limit 20). Tên BN ở list → link detail.
+- d57537a: feat redesign UI Linear/Vercel — sidebar tối #0a0a0a 220px + active indigo border; cards/tables trắng hairline radius8 shadow; pill tabs; StatusBadge dùng chung 6 token màu status; Geist qua font-sans wrapper.
+- 289dfbe: feat lucide icons + stats cards + polish — Nav emoji→lucide-react; stats row (3 count-only card Promise.all) ở patients + appointments; PatientsList sticky header + row cursor + icon empty state; globals.css sửa Arial→Geist.
+- d1ad3ca: feat tools/registry.py — central tool registry self-register (xem mục dưới).
+
+### DASHBOARD (tầng ĐỌC — khớp định hướng "đọc sớm/ghi muộn")
+- Route MỚI: /appointments (2 tab), /patients/[id] (detail + lịch sử). Đều Server Component, đọc THẲNG Supabase qua getSupabaseServer() (RLS), KHÔNG qua FastAPI, KHÔNG join national_id_number (D-identity).
+- UI redesign theo DESIGN TOKENS chốt ở commit d57537a (sidebar #0a0a0a / canvas #fafafa / ink #171717 / hairline #e4e4e7 / accent indigo #6366f1 + 6 status badge color). lucide-react = dep MỚI DUY NHẤT được thêm.
+- Next.js 16: Server Component pattern giữ nguyên; active-nav cần usePathname → tách Nav.tsx (client). StatusBadge.tsx + StatCard.tsx = component dùng chung (không phải route).
+- npm run build PASS, TypeScript clean ở mọi commit.
+
+### TOOL REGISTRY (d1ad3ca) — nền cho agent gọi tool
+- src/clinicai/tools/registry.py: ToolMeta + ToolRegistry (register/get/list_toolset/list_all/to_anthropic_tools) + singleton REGISTRY. 16 tool / 8 toolset tự register khi import.
+- QUYẾT ĐỊNH (chốt với Planner giữa phiên):
+  * Register CẢ 5 scheduling tool (create/cancel/confirm/find_oncall_staff/find_work_sessions), KHÔNG phải 4 như packet — code có đủ 5 tool sạch. Test assert list_toolset("scheduling")==5.
+  * LOẠI render_brief_markdown (sync, trả str — không phải LLM-callable tool). → brief=1 tool. Tổng=16.
+  * input_schema nới thành type[BaseModel] | None (task.check_task_sla nhận raw UUID, không có Input model); tool trả list[Model] → output_schema = element model.
+- ⚠️ CIRCULAR IMPORT (đã fix): services.patient_context_service import tools._common.context (TraceContext); brief/generate_brief import ngược patient_context_service. Khi tools/__init__ import eager toàn bộ toolset → re-enter service nửa chừng → vỡ. FIX trong scope: LAZY LOAD — REGISTRY gọi load_all() lần đọc đầu, KHÔNG import toolset lúc package-import. KHÔNG sửa services / tool functions (đúng boundary).
+- Test src/tests/tools/test_registry.py 5/5 PASS. Full non-db suite 413 PASS (không regression). ruff + mypy clean.
+
+### LƯU Ý CHO PHIÊN SAU
+- Registry mới này là điểm vào để orchestrator/agent liệt kê tool gọi Claude API (to_anthropic_tools). communication.send_zalo vẫn [STUB].
+- Nếu sau này muốn import eager toolset ở tools/__init__: phải gỡ vòng services↔tools._common (vd dời TraceContext ra clinicai.core) — hiện lazy-load né được, chưa cần.
+- Dashboard ghi (form CSKH) vẫn GÁC theo quyết định 26/5 (Notion = nguồn, dashboard chỉ đọc).
