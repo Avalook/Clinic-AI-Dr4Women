@@ -1,6 +1,7 @@
 // Server component that runs the query. Receives searchParams from the page.
 
 import Link from "next/link";
+import { Inbox } from "lucide-react";
 import { getSupabaseServer } from "../../../lib/supabase-server";
 
 interface PatientRow {
@@ -27,6 +28,9 @@ function ageFromDob(dob: string | null): string {
   return String(age);
 }
 
+const TH =
+  "sticky top-0 z-10 border-b border-[#e4e4e7] bg-white px-4 py-2.5 font-medium";
+
 export default async function PatientsList({
   searchParams,
 }: {
@@ -48,6 +52,7 @@ export default async function PatientsList({
   }
 
   const { data, error } = await query;
+  const rows = (data as PatientRow[] | null) ?? [];
 
   return (
     <div className="space-y-3">
@@ -82,24 +87,29 @@ export default async function PatientsList({
 
       <div className="overflow-x-auto rounded-lg border border-[#e4e4e7] bg-white shadow-[0_1px_3px_rgba(0,0,0,0.08)]">
         <table className="min-w-full divide-y divide-[#e4e4e7] text-sm">
-          <thead className="bg-[#fafafa] text-left text-[11px] uppercase tracking-wide text-[#71717a]">
+          <thead className="text-left text-[11px] uppercase tracking-wide text-[#71717a]">
             <tr>
-              <th className="px-4 py-2.5 font-medium">Code</th>
-              <th className="px-4 py-2.5 font-medium">Họ tên</th>
-              <th className="px-4 py-2.5 font-medium">DOB</th>
-              <th className="px-4 py-2.5 font-medium">Tuổi</th>
-              <th className="px-4 py-2.5 font-medium">SĐT</th>
-              <th className="px-4 py-2.5 font-medium">Tạo lúc</th>
+              <th className={TH}>Code</th>
+              <th className={TH}>Họ tên</th>
+              <th className={TH}>DOB</th>
+              <th className={TH}>Tuổi</th>
+              <th className={TH}>SĐT</th>
+              <th className={TH}>Tạo lúc</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-[#f4f4f5]">
-            {(data as PatientRow[] | null)?.map((p) => (
+            {rows.map((p) => (
               <tr
                 key={p.clinic_patient_id}
-                className="transition-colors duration-150 hover:bg-[#f9fafb]"
+                className="cursor-pointer transition-colors duration-150 hover:bg-[#f9fafb]"
               >
-                <td className="px-4 py-2.5 font-mono text-xs text-[#6366f1]">
-                  {p.patient_code}
+                <td className="px-4 py-2.5 font-mono text-xs">
+                  <Link
+                    href={`/patients/${p.clinic_patient_id}`}
+                    className="text-[#6366f1] hover:underline"
+                  >
+                    {p.patient_code}
+                  </Link>
                 </td>
                 <td className="px-4 py-2.5 text-[#171717]">
                   <Link
@@ -123,13 +133,17 @@ export default async function PatientsList({
                 </td>
               </tr>
             ))}
-            {(!data || data.length === 0) && (
+            {rows.length === 0 && (
               <tr>
-                <td
-                  colSpan={6}
-                  className="px-4 py-6 text-center text-[#888888]"
-                >
-                  {term ? `Không tìm thấy BN khớp "${term}".` : "Chưa có BN."}
+                <td colSpan={6} className="px-4 py-10 text-center">
+                  <div className="flex flex-col items-center gap-2 text-[#888888]">
+                    <Inbox size={28} strokeWidth={1.5} />
+                    <span className="text-sm">
+                      {term
+                        ? `Không tìm thấy BN khớp "${term}".`
+                        : "Chưa có BN."}
+                    </span>
+                  </div>
                 </td>
               </tr>
             )}

@@ -5,12 +5,19 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import {
+  Calendar,
+  Users,
+  ClipboardList,
+  CheckSquare,
+  type LucideIcon,
+} from "lucide-react";
 
-const NAV = [
-  { href: "/work-sessions", label: "Ca trực", icon: "🗓" },
-  { href: "/patients", label: "Bệnh nhân", icon: "👤" },
-  { href: "/appointments", label: "Lịch hẹn", icon: "📋" },
-  { href: "/tasks", label: "Công việc", icon: "✓" },
+const NAV: { href: string; label: string; icon: LucideIcon }[] = [
+  { href: "/work-sessions", label: "Ca trực", icon: Calendar },
+  { href: "/patients", label: "Bệnh nhân", icon: Users },
+  { href: "/appointments", label: "Lịch hẹn", icon: ClipboardList },
+  { href: "/tasks", label: "Công việc", icon: CheckSquare },
 ];
 
 export default function Nav() {
@@ -18,21 +25,20 @@ export default function Nav() {
 
   return (
     <nav className="space-y-0.5">
-      {NAV.map((item) => {
-        const active =
-          pathname === item.href || pathname.startsWith(item.href + "/");
+      {NAV.map(({ href, label, icon: Icon }) => {
+        const active = pathname === href || pathname.startsWith(href + "/");
         return (
           <Link
-            key={item.href}
-            href={item.href}
+            key={href}
+            href={href}
             className={
               active
-                ? "flex items-center gap-2.5 border-l-2 border-[#6366f1] bg-[#1a1a1a] px-3 py-2 text-sm font-medium text-white transition-colors duration-150"
+                ? "flex items-center gap-2.5 border-l-2 border-[#6366f1] bg-[#1f1f1f] px-3 py-2 text-sm font-medium text-white transition-colors duration-150"
                 : "flex items-center gap-2.5 border-l-2 border-transparent px-3 py-2 text-sm text-[#a1a1aa] transition-colors duration-150 hover:bg-[#1a1a1a] hover:text-[#d4d4d8]"
             }
           >
-            <span className="w-4 text-center text-[13px]">{item.icon}</span>
-            <span>{item.label}</span>
+            <Icon size={16} strokeWidth={2} className="shrink-0" />
+            <span>{label}</span>
           </Link>
         );
       })}
