@@ -270,7 +270,15 @@ Date: 2026-05-27 · Branch: feat/t-transform-01 · HEAD: d1ad3ca (PUSHED — ori
 - ⚠️ CIRCULAR IMPORT (đã fix): services.patient_context_service import tools._common.context (TraceContext); brief/generate_brief import ngược patient_context_service. Khi tools/__init__ import eager toàn bộ toolset → re-enter service nửa chừng → vỡ. FIX trong scope: LAZY LOAD — REGISTRY gọi load_all() lần đọc đầu, KHÔNG import toolset lúc package-import. KHÔNG sửa services / tool functions (đúng boundary).
 - Test src/tests/tools/test_registry.py 5/5 PASS. Full non-db suite 413 PASS (không regression). ruff + mypy clean.
 
+### ORCHESTRATOR — EVENT-DRIVEN ROUTING (2 packet sau, đã push)
+- 20c1193 (Packet State+RouteType): state.py — RouteType thêm "task"+"previsit" (graph.py đã dùng trong _VALID_ROUTES nhưng RouteType chưa khai); OrchestratorState thêm event_type + work_session_id (NotRequired) cho event-driven. Non-db suite 413 PASS.
+- c4ca058 (Packet START-conditional event-driven): nodes.py + llm_nodes.py — cả rule-based VÀ LLM classify check state["event_type"] TRƯỚC, route thẳng qua map_event_to_route() (lab_result_received→lab, appointment_created→scheduling, previsit_trigger→previsit, task_overdue→task, default→general), SKIP LLM. VALID_ROUTES + prompt mở 5→7 route. Test mới test_event_driven_route.py 6/6 PASS, non-db suite 419 PASS.
+- KIẾN TRÚC: KHÔNG cần START-conditional edge riêng — node classify tự short-circuit theo event_type → đạt mục tiêu "skip LLM khi event-driven" mà KHÔNG sửa graph.py (đúng boundary). Muốn bỏ hẳn node classify bằng conditional edge từ START = packet riêng cho graph.py.
+- previsit/task giờ ĐÃ reachable qua event_type (RabbitMQ dispatch). Trước đây previsit chỉ tới qua API; classifier chat vẫn emit được "previsit"/"task" theo keyword nhưng luồng chính là event-driven.
+- LƯU Ý mypy: nodes.py/llm_nodes.py còn lỗi `dict` bare type-arg PRE-EXISTING (mypy strict, KHÔNG nằm trong pre-commit) — không sửa vì ngoài scope, không phải lỗi mới.
+
 ### LƯU Ý CHO PHIÊN SAU
 - Registry mới này là điểm vào để orchestrator/agent liệt kê tool gọi Claude API (to_anthropic_tools). communication.send_zalo vẫn [STUB].
 - Nếu sau này muốn import eager toolset ở tools/__init__: phải gỡ vòng services↔tools._common (vd dời TraceContext ra clinicai.core) — hiện lazy-load né được, chưa cần.
 - Dashboard ghi (form CSKH) vẫn GÁC theo quyết định 26/5 (Notion = nguồn, dashboard chỉ đọc).
+- HEAD cuối phiên 27/5 = c4ca058 (cập nhật sau khi block này viết: thêm 20c1193 + c4ca058).
