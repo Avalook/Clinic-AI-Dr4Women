@@ -2,6 +2,7 @@
 // SECURITY: national_id_number (CCCD) is NOT selected — D-identity gate.
 
 import Link from "next/link";
+import StatusBadge from "../../StatusBadge";
 import { getSupabaseServer } from "../../../../lib/supabase-server";
 
 interface PatientRow {
@@ -55,6 +56,15 @@ function fmtDateTime(ts: string): string {
   });
 }
 
+function Field({ label, value }: { label: string; value: React.ReactNode }) {
+  return (
+    <div>
+      <dt className="text-[12px] text-[#888888]">{label}</dt>
+      <dd className="mt-0.5 text-[14px] text-[#171717]">{value}</dd>
+    </div>
+  );
+}
+
 export default async function PatientDetail({ id }: { id: string }) {
   const supabase = await getSupabaseServer();
 
@@ -78,7 +88,7 @@ export default async function PatientDetail({ id }: { id: string }) {
 
   if (error) {
     return (
-      <div className="rounded bg-red-50 px-3 py-2 text-sm text-red-700">
+      <div className="rounded-md bg-[#fee2e2] px-3 py-2 text-sm text-[#dc2626]">
         {error.message}
       </div>
     );
@@ -87,10 +97,13 @@ export default async function PatientDetail({ id }: { id: string }) {
   if (!patient) {
     return (
       <div className="space-y-3">
-        <div className="rounded bg-gray-50 px-3 py-6 text-center text-gray-500">
+        <div className="rounded-lg border border-[#e4e4e7] bg-white px-3 py-6 text-center text-[#888888]">
           Không tìm thấy bệnh nhân.
         </div>
-        <Link href="/patients" className="text-sm text-blue-600 hover:underline">
+        <Link
+          href="/patients"
+          className="text-sm text-[#6366f1] hover:underline"
+        >
           ← Về danh sách BN
         </Link>
       </div>
@@ -99,64 +112,66 @@ export default async function PatientDetail({ id }: { id: string }) {
 
   return (
     <div className="space-y-6">
-      <Link href="/patients" className="text-sm text-blue-600 hover:underline">
+      <Link href="/patients" className="text-sm text-[#6366f1] hover:underline">
         ← Về danh sách BN
       </Link>
 
-      <section className="rounded border border-gray-200 bg-white p-4">
-        <h2 className="mb-3 text-lg font-semibold text-gray-900">
+      <section className="rounded-lg border border-[#e4e4e7] bg-white p-6 shadow-[0_1px_3px_rgba(0,0,0,0.08)]">
+        <h2 className="mb-4 text-lg font-semibold text-[#171717]">
           {patient.full_name}
         </h2>
-        <dl className="grid grid-cols-2 gap-x-6 gap-y-2 text-sm md:grid-cols-4">
-          <div>
-            <dt className="text-xs uppercase text-gray-500">Mã BN</dt>
-            <dd className="font-mono text-xs">{patient.patient_code}</dd>
-          </div>
-          <div>
-            <dt className="text-xs uppercase text-gray-500">Ngày sinh</dt>
-            <dd className="font-mono text-xs">{patient.date_of_birth ?? "—"}</dd>
-          </div>
-          <div>
-            <dt className="text-xs uppercase text-gray-500">Tuổi</dt>
-            <dd>{ageFromDob(patient.date_of_birth)}</dd>
-          </div>
-          <div>
-            <dt className="text-xs uppercase text-gray-500">SĐT</dt>
-            <dd className="font-mono text-xs">{patient.phone_primary ?? "—"}</dd>
-          </div>
+        <dl className="grid grid-cols-2 gap-x-6 gap-y-4 md:grid-cols-4">
+          <Field label="Mã BN" value={patient.patient_code} />
+          <Field label="Ngày sinh" value={patient.date_of_birth ?? "—"} />
+          <Field label="Tuổi" value={ageFromDob(patient.date_of_birth)} />
+          <Field label="SĐT" value={patient.phone_primary ?? "—"} />
         </dl>
       </section>
 
       <section className="space-y-3">
-        <h3 className="text-base font-semibold text-gray-900">
+        <h3 className="text-base font-semibold text-[#171717]">
           Lịch sử lịch hẹn
         </h3>
-        <div className="overflow-x-auto rounded border border-gray-200 bg-white">
-          <table className="min-w-full divide-y divide-gray-200 text-sm">
-            <thead className="bg-gray-50 text-left text-xs uppercase text-gray-600">
+        <div className="overflow-x-auto rounded-lg border border-[#e4e4e7] bg-white shadow-[0_1px_3px_rgba(0,0,0,0.08)]">
+          <table className="min-w-full divide-y divide-[#e4e4e7] text-sm">
+            <thead className="bg-[#fafafa] text-left text-[11px] uppercase tracking-wide text-[#71717a]">
               <tr>
-                <th className="px-3 py-2">Ngày giờ</th>
-                <th className="px-3 py-2">Dịch vụ</th>
-                <th className="px-3 py-2">Bác sĩ</th>
-                <th className="px-3 py-2">Trạng thái</th>
-                <th className="px-3 py-2">Kênh đặt</th>
+                <th className="px-4 py-2.5 font-medium">Ngày giờ</th>
+                <th className="px-4 py-2.5 font-medium">Dịch vụ</th>
+                <th className="px-4 py-2.5 font-medium">Bác sĩ</th>
+                <th className="px-4 py-2.5 font-medium">Trạng thái</th>
+                <th className="px-4 py-2.5 font-medium">Kênh đặt</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-gray-100">
+            <tbody className="divide-y divide-[#f4f4f5]">
               {appointments.map((a) => (
-                <tr key={a.id}>
-                  <td className="px-3 py-2 font-mono text-xs">
+                <tr
+                  key={a.id}
+                  className="transition-colors duration-150 hover:bg-[#f9fafb]"
+                >
+                  <td className="px-4 py-2.5 font-mono text-xs text-[#4d4d4d]">
                     {fmtDateTime(a.slot_start)}
                   </td>
-                  <td className="px-3 py-2">{a.service?.name ?? "—"}</td>
-                  <td className="px-3 py-2">{a.doctor?.full_name ?? "—"}</td>
-                  <td className="px-3 py-2">{a.status}</td>
-                  <td className="px-3 py-2">{a.booking_channel ?? "—"}</td>
+                  <td className="px-4 py-2.5 text-[#171717]">
+                    {a.service?.name ?? "—"}
+                  </td>
+                  <td className="px-4 py-2.5 text-[#4d4d4d]">
+                    {a.doctor?.full_name ?? "—"}
+                  </td>
+                  <td className="px-4 py-2.5">
+                    <StatusBadge status={a.status} />
+                  </td>
+                  <td className="px-4 py-2.5 text-[#4d4d4d]">
+                    {a.booking_channel ?? "—"}
+                  </td>
                 </tr>
               ))}
               {appointments.length === 0 && (
                 <tr>
-                  <td colSpan={5} className="px-3 py-6 text-center text-gray-500">
+                  <td
+                    colSpan={5}
+                    className="px-4 py-6 text-center text-[#888888]"
+                  >
                     Chưa có lịch hẹn.
                   </td>
                 </tr>

@@ -22,13 +22,11 @@ export default async function AppointmentsPage({
   return (
     <div className="space-y-4">
       <header>
-        <h1 className="text-xl font-semibold text-gray-900">Lịch hẹn</h1>
-        <p className="text-sm text-gray-500">
-          Lịch hẹn hôm nay. Read-only.
-        </p>
+        <h1 className="text-xl font-semibold text-[#171717]">Lịch hẹn</h1>
+        <p className="text-sm text-[#888888]">Lịch hẹn hôm nay. Read-only.</p>
       </header>
 
-      <nav className="flex gap-1 border-b border-gray-200">
+      <nav className="flex gap-1">
         {TABS.map((t) => {
           const active = t.key === tab;
           return (
@@ -37,8 +35,8 @@ export default async function AppointmentsPage({
               href={`/appointments?tab=${t.key}`}
               className={
                 active
-                  ? "border-b-2 border-blue-600 px-4 py-2 text-sm font-medium text-blue-600"
-                  : "border-b-2 border-transparent px-4 py-2 text-sm text-gray-500 hover:text-gray-700"
+                  ? "rounded-md bg-[#171717] px-3.5 py-1.5 text-sm font-medium text-white"
+                  : "rounded-md px-3.5 py-1.5 text-sm text-[#71717a] transition-colors duration-150 hover:bg-[#f4f4f5] hover:text-[#171717]"
               }
             >
               {t.label}

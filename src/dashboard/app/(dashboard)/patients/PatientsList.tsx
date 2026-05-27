@@ -56,18 +56,18 @@ export default async function PatientsList({
           name="q"
           defaultValue={q}
           placeholder="Tìm theo patient_code hoặc tên..."
-          className="flex-1 rounded border border-gray-300 px-3 py-2 text-sm"
+          className="h-9 flex-1 rounded-md border border-[#e4e4e7] px-3 text-sm text-[#171717] outline-none focus:border-[#6366f1] focus:ring-2 focus:ring-[#6366f1]/20"
         />
         <button
           type="submit"
-          className="rounded bg-blue-600 px-3 py-2 text-sm text-white hover:bg-blue-700"
+          className="h-9 rounded-md bg-[#6366f1] px-3.5 text-sm font-medium text-white transition-colors duration-150 hover:bg-[#4f46e5]"
         >
           Tìm
         </button>
         {term && (
           <Link
             href="/patients"
-            className="rounded border border-gray-300 px-3 py-2 text-sm text-gray-700 hover:bg-gray-100"
+            className="flex h-9 items-center rounded-md border border-[#e4e4e7] px-3.5 text-sm text-[#4d4d4d] transition-colors duration-150 hover:bg-[#f4f4f5]"
           >
             Xoá
           </Link>
@@ -75,50 +75,60 @@ export default async function PatientsList({
       </form>
 
       {error && (
-        <div className="rounded bg-red-50 px-3 py-2 text-sm text-red-700">
+        <div className="rounded-md bg-[#fee2e2] px-3 py-2 text-sm text-[#dc2626]">
           {error.message}
         </div>
       )}
 
-      <div className="overflow-x-auto rounded border border-gray-200 bg-white">
-        <table className="min-w-full divide-y divide-gray-200 text-sm">
-          <thead className="bg-gray-50 text-left text-xs uppercase text-gray-600">
+      <div className="overflow-x-auto rounded-lg border border-[#e4e4e7] bg-white shadow-[0_1px_3px_rgba(0,0,0,0.08)]">
+        <table className="min-w-full divide-y divide-[#e4e4e7] text-sm">
+          <thead className="bg-[#fafafa] text-left text-[11px] uppercase tracking-wide text-[#71717a]">
             <tr>
-              <th className="px-3 py-2">Code</th>
-              <th className="px-3 py-2">Họ tên</th>
-              <th className="px-3 py-2">DOB</th>
-              <th className="px-3 py-2">Tuổi</th>
-              <th className="px-3 py-2">SĐT</th>
-              <th className="px-3 py-2">Tạo lúc</th>
+              <th className="px-4 py-2.5 font-medium">Code</th>
+              <th className="px-4 py-2.5 font-medium">Họ tên</th>
+              <th className="px-4 py-2.5 font-medium">DOB</th>
+              <th className="px-4 py-2.5 font-medium">Tuổi</th>
+              <th className="px-4 py-2.5 font-medium">SĐT</th>
+              <th className="px-4 py-2.5 font-medium">Tạo lúc</th>
             </tr>
           </thead>
-          <tbody className="divide-y divide-gray-100">
+          <tbody className="divide-y divide-[#f4f4f5]">
             {(data as PatientRow[] | null)?.map((p) => (
-              <tr key={p.clinic_patient_id}>
-                <td className="px-3 py-2 font-mono text-xs">{p.patient_code}</td>
-                <td className="px-3 py-2">
+              <tr
+                key={p.clinic_patient_id}
+                className="transition-colors duration-150 hover:bg-[#f9fafb]"
+              >
+                <td className="px-4 py-2.5 font-mono text-xs text-[#6366f1]">
+                  {p.patient_code}
+                </td>
+                <td className="px-4 py-2.5 text-[#171717]">
                   <Link
                     href={`/patients/${p.clinic_patient_id}`}
-                    className="text-blue-600 hover:underline"
+                    className="text-[#6366f1] hover:underline"
                   >
                     {p.full_name}
                   </Link>
                 </td>
-                <td className="px-3 py-2 font-mono text-xs">
+                <td className="px-4 py-2.5 font-mono text-xs text-[#4d4d4d]">
                   {p.date_of_birth ?? "—"}
                 </td>
-                <td className="px-3 py-2">{ageFromDob(p.date_of_birth)}</td>
-                <td className="px-3 py-2 font-mono text-xs">
+                <td className="px-4 py-2.5 text-[#4d4d4d]">
+                  {ageFromDob(p.date_of_birth)}
+                </td>
+                <td className="px-4 py-2.5 font-mono text-xs text-[#4d4d4d]">
                   {p.phone_primary ?? "—"}
                 </td>
-                <td className="px-3 py-2 font-mono text-xs">
+                <td className="px-4 py-2.5 font-mono text-xs text-[#888888]">
                   {p.created_at.slice(0, 10)}
                 </td>
               </tr>
             ))}
             {(!data || data.length === 0) && (
               <tr>
-                <td colSpan={6} className="px-3 py-6 text-center text-gray-500">
+                <td
+                  colSpan={6}
+                  className="px-4 py-6 text-center text-[#888888]"
+                >
                   {term ? `Không tìm thấy BN khớp "${term}".` : "Chưa có BN."}
                 </td>
               </tr>

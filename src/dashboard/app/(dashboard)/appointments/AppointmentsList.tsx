@@ -2,6 +2,7 @@
 // appointment JOIN patient + staff (doctor, LEFT) + service_type.
 // SECURITY: national_id_number (CCCD) is NOT selected — D-identity gate.
 
+import StatusBadge from "../StatusBadge";
 import { getSupabaseServer } from "../../../lib/supabase-server";
 
 type Tab = "pending" | "confirmed";
@@ -43,6 +44,9 @@ function fmtTime(ts: string): string {
   return d.toLocaleTimeString("vi-VN", { hour: "2-digit", minute: "2-digit" });
 }
 
+const TH = "px-4 py-2.5 font-medium";
+const TD = "px-4 py-2.5";
+
 export default async function AppointmentsList({ tab }: { tab: Tab }) {
   const supabase = await getSupabaseServer();
 
@@ -63,81 +67,99 @@ export default async function AppointmentsList({ tab }: { tab: Tab }) {
 
   const rows = (data as AppointmentRow[] | null) ?? [];
   const isPending = tab === "pending";
-  const colCount = 6;
+  const colCount = 7;
 
   return (
     <div className="space-y-3">
       {error && (
-        <div className="rounded bg-red-50 px-3 py-2 text-sm text-red-700">
+        <div className="rounded-md bg-[#fee2e2] px-3 py-2 text-sm text-[#dc2626]">
           {error.message}
         </div>
       )}
 
-      <div className="overflow-x-auto rounded border border-gray-200 bg-white">
-        <table className="min-w-full divide-y divide-gray-200 text-sm">
-          <thead className="bg-gray-50 text-left text-xs uppercase text-gray-600">
+      <div className="overflow-x-auto rounded-lg border border-[#e4e4e7] bg-white shadow-[0_1px_3px_rgba(0,0,0,0.08)]">
+        <table className="min-w-full divide-y divide-[#e4e4e7] text-sm">
+          <thead className="bg-[#fafafa] text-left text-[11px] uppercase tracking-wide text-[#71717a]">
             <tr>
-              <th className="px-3 py-2">STT</th>
-              <th className="px-3 py-2">Bệnh nhân</th>
+              <th className={TH}>STT</th>
+              <th className={TH}>Bệnh nhân</th>
               {isPending ? (
                 <>
-                  <th className="px-3 py-2">SĐT</th>
-                  <th className="px-3 py-2">Dịch vụ</th>
-                  <th className="px-3 py-2">Giờ hẹn</th>
-                  <th className="px-3 py-2">Kênh đặt</th>
+                  <th className={TH}>SĐT</th>
+                  <th className={TH}>Dịch vụ</th>
+                  <th className={TH}>Giờ hẹn</th>
+                  <th className={TH}>Kênh đặt</th>
                 </>
               ) : (
                 <>
-                  <th className="px-3 py-2">Bác sĩ</th>
-                  <th className="px-3 py-2">Bắt đầu</th>
-                  <th className="px-3 py-2">Kết thúc</th>
-                  <th className="px-3 py-2">Phòng</th>
+                  <th className={TH}>Bác sĩ</th>
+                  <th className={TH}>Bắt đầu</th>
+                  <th className={TH}>Kết thúc</th>
+                  <th className={TH}>Phòng</th>
                 </>
               )}
+              <th className={TH}>Trạng thái</th>
             </tr>
           </thead>
-          <tbody className="divide-y divide-gray-100">
+          <tbody className="divide-y divide-[#f4f4f5]">
             {rows.map((a) => (
-              <tr key={a.id}>
-                <td className="px-3 py-2 font-mono text-xs">
+              <tr
+                key={a.id}
+                className="transition-colors duration-150 hover:bg-[#f9fafb]"
+              >
+                <td className={`${TD} font-mono text-xs text-[#4d4d4d]`}>
                   {a.queue_number ?? "—"}
                 </td>
-                <td className="px-3 py-2">
+                <td className={`${TD} text-[#171717]`}>
                   {a.patient?.full_name ?? "—"}
                   {a.patient?.patient_code && (
-                    <span className="ml-2 font-mono text-xs text-gray-400">
+                    <span className="ml-2 font-mono text-xs text-[#888888]">
                       {a.patient.patient_code}
                     </span>
                   )}
                 </td>
                 {isPending ? (
                   <>
-                    <td className="px-3 py-2 font-mono text-xs">
+                    <td className={`${TD} font-mono text-xs text-[#4d4d4d]`}>
                       {a.patient?.phone_primary ?? "—"}
                     </td>
-                    <td className="px-3 py-2">{a.service?.name ?? "—"}</td>
-                    <td className="px-3 py-2 font-mono text-xs">
+                    <td className={`${TD} text-[#4d4d4d]`}>
+                      {a.service?.name ?? "—"}
+                    </td>
+                    <td className={`${TD} font-mono text-xs text-[#4d4d4d]`}>
                       {fmtTime(a.slot_start)}
                     </td>
-                    <td className="px-3 py-2">{a.booking_channel ?? "—"}</td>
+                    <td className={`${TD} text-[#4d4d4d]`}>
+                      {a.booking_channel ?? "—"}
+                    </td>
                   </>
                 ) : (
                   <>
-                    <td className="px-3 py-2">{a.doctor?.full_name ?? "—"}</td>
-                    <td className="px-3 py-2 font-mono text-xs">
+                    <td className={`${TD} text-[#4d4d4d]`}>
+                      {a.doctor?.full_name ?? "—"}
+                    </td>
+                    <td className={`${TD} font-mono text-xs text-[#4d4d4d]`}>
                       {fmtTime(a.slot_start)}
                     </td>
-                    <td className="px-3 py-2 font-mono text-xs">
+                    <td className={`${TD} font-mono text-xs text-[#4d4d4d]`}>
                       {fmtTime(a.slot_end)}
                     </td>
-                    <td className="px-3 py-2">{a.assigned_station ?? "—"}</td>
+                    <td className={`${TD} text-[#4d4d4d]`}>
+                      {a.assigned_station ?? "—"}
+                    </td>
                   </>
                 )}
+                <td className={TD}>
+                  <StatusBadge status={a.status} />
+                </td>
               </tr>
             ))}
             {rows.length === 0 && (
               <tr>
-                <td colSpan={colCount} className="px-3 py-6 text-center text-gray-500">
+                <td
+                  colSpan={colCount}
+                  className="px-4 py-6 text-center text-[#888888]"
+                >
                   Không có lịch hẹn hôm nay.
                 </td>
               </tr>

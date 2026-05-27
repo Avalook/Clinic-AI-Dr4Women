@@ -34,50 +34,57 @@ export default async function WorkSessionsPage() {
   return (
     <div className="space-y-4">
       <header>
-        <h1 className="text-xl font-semibold text-gray-900">Work Sessions</h1>
-        <p className="text-sm text-gray-500">
+        <h1 className="text-xl font-semibold text-[#171717]">Ca trực</h1>
+        <p className="text-sm text-[#888888]">
           100 ca làm gần nhất, sắp theo ngày giảm dần. Read-only.
         </p>
       </header>
 
       {error && (
-        <div className="rounded bg-red-50 px-3 py-2 text-sm text-red-700">
+        <div className="rounded-md bg-[#fee2e2] px-3 py-2 text-sm text-[#dc2626]">
           {error.message}
         </div>
       )}
 
-      <div className="overflow-x-auto rounded border border-gray-200 bg-white">
-        <table className="min-w-full divide-y divide-gray-200 text-sm">
-          <thead className="bg-gray-50 text-left text-xs uppercase text-gray-600">
+      <div className="overflow-x-auto rounded-lg border border-[#e4e4e7] bg-white shadow-[0_1px_3px_rgba(0,0,0,0.08)]">
+        <table className="min-w-full divide-y divide-[#e4e4e7] text-sm">
+          <thead className="bg-[#fafafa] text-left text-[11px] uppercase tracking-wide text-[#71717a]">
             <tr>
-              <th className="px-3 py-2">Ngày</th>
-              <th className="px-3 py-2">Session</th>
-              <th className="px-3 py-2">Giờ</th>
-              <th className="px-3 py-2">Location</th>
-              <th className="px-3 py-2">Số staff</th>
-              <th className="px-3 py-2">Max BN</th>
+              <th className="px-4 py-2.5 font-medium">Ngày</th>
+              <th className="px-4 py-2.5 font-medium">Session</th>
+              <th className="px-4 py-2.5 font-medium">Giờ</th>
+              <th className="px-4 py-2.5 font-medium">Location</th>
+              <th className="px-4 py-2.5 font-medium">Số staff</th>
+              <th className="px-4 py-2.5 font-medium">Max BN</th>
             </tr>
           </thead>
-          <tbody className="divide-y divide-gray-100">
+          <tbody className="divide-y divide-[#f4f4f5]">
             {(data as WorkSessionRow[] | null)?.map((s) => (
-              <tr key={s.id}>
-                <td className="px-3 py-2 font-mono text-xs">{s.session_date}</td>
-                <td className="px-3 py-2">{s.session_type}</td>
-                <td className="px-3 py-2 font-mono text-xs">
+              <tr
+                key={s.id}
+                className="transition-colors duration-150 hover:bg-[#f9fafb]"
+              >
+                <td className="px-4 py-2.5 font-mono text-xs text-[#4d4d4d]">
+                  {s.session_date}
+                </td>
+                <td className="px-4 py-2.5 text-[#171717]">{s.session_type}</td>
+                <td className="px-4 py-2.5 font-mono text-xs text-[#4d4d4d]">
                   {s.start_time} – {s.end_time}
                 </td>
-                <td className="px-3 py-2">
+                <td className="px-4 py-2.5 text-[#4d4d4d]">
                   {s.clinic_location?.name ?? "—"}
                 </td>
-                <td className="px-3 py-2">
+                <td className="px-4 py-2.5 text-[#4d4d4d]">
                   {s.work_session_staff?.[0]?.count ?? 0}
                 </td>
-                <td className="px-3 py-2">{s.max_patients ?? "—"}</td>
+                <td className="px-4 py-2.5 text-[#4d4d4d]">
+                  {s.max_patients ?? "—"}
+                </td>
               </tr>
             ))}
             {(!data || data.length === 0) && (
               <tr>
-                <td colSpan={6} className="px-3 py-6 text-center text-gray-500">
+                <td colSpan={6} className="px-4 py-6 text-center text-[#888888]">
                   Chưa có ca làm nào.
                 </td>
               </tr>
