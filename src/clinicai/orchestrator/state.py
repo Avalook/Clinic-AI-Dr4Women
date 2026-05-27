@@ -1,7 +1,15 @@
 from typing import Any, Literal, NotRequired, Optional, TypedDict
 from uuid import UUID
 
-RouteType = Literal["scheduling", "lab", "communication", "general", "unknown"]
+RouteType = Literal[
+    "scheduling",
+    "lab",
+    "communication",
+    "task",
+    "previsit",
+    "general",
+    "unknown",
+]
 
 
 class OrchestratorState(TypedDict, total=False):
@@ -37,3 +45,12 @@ class OrchestratorState(TypedDict, total=False):
     triage_group: NotRequired[str | None]
     requires_doctor_review: NotRequired[bool]
     escalation_note: NotRequired[str | None]
+    # ----- event-driven routing fields -----
+    event_type: NotRequired[str | None]
+    # Upstream caller set khi dispatch từ RabbitMQ event
+    # (vd: "lab_result_received", "appointment_created")
+    # Orchestrator dùng để ưu tiên route trước classify_intent.
+
+    work_session_id: NotRequired[UUID | None]
+    # Ca trực hiện tại — dùng để scope task assignment
+    # và pre-visit brief cho đúng session.
