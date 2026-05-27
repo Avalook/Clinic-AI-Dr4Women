@@ -6,6 +6,7 @@ import { redirect } from "next/navigation";
 const NAV = [
   { href: "/work-sessions", label: "Work Sessions" },
   { href: "/patients", label: "Patients" },
+  { href: "/appointments", label: "Lịch hẹn" },
   { href: "/tasks", label: "Tasks" },
 ];
 
