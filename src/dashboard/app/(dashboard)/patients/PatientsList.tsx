@@ -96,7 +96,14 @@ export default async function PatientsList({
             {(data as PatientRow[] | null)?.map((p) => (
               <tr key={p.clinic_patient_id}>
                 <td className="px-3 py-2 font-mono text-xs">{p.patient_code}</td>
-                <td className="px-3 py-2">{p.full_name}</td>
+                <td className="px-3 py-2">
+                  <Link
+                    href={`/patients/${p.clinic_patient_id}`}
+                    className="text-blue-600 hover:underline"
+                  >
+                    {p.full_name}
+                  </Link>
+                </td>
                 <td className="px-3 py-2 font-mono text-xs">
                   {p.date_of_birth ?? "—"}
                 </td>
