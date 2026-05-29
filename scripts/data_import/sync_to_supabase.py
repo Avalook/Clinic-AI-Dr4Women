@@ -68,6 +68,7 @@ from notion_client import AsyncClient
 
 # Reuse the canon transform — same MPI rule, same join policy.
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+from data_import.csv_to_sources import csv_to_sources  # noqa: E402
 from data_import.notion_to_sources import notion_to_sources  # noqa: E402
 from data_migration.transform import (  # noqa: E402
     TransformResult,
@@ -195,14 +196,57 @@ def _resolve_doctor(raw: str, master: dict[str, Any]) -> uuid.UUID | None:
 
 
 async def _truncate_targets(conn: asyncpg.Connection) -> None:
-    """Wipe the five demo-scope tables in dependency order via CASCADE."""
-    # CASCADE handles FK fan-out (appointment.patient_id, visit.patient_id,
-    # clinical_record.visit_id, lab_result.patient_id).
+    """Wipe the five demo-scope tables in dependency order via CASCADE.
+
+    Note: TRUNCATE patient CASCADE *also* wipes patient_contact_channel
+    (FK with ON DELETE CASCADE, migration 027). The sync re-populates
+    that table in ``_backfill_patient_contact_channels`` below.
+    """
     await conn.execute(
         "TRUNCATE TABLE "
         "appointment, lab_result, clinical_record, visit, patient "
         "RESTART IDENTITY CASCADE"
     )
+
+
+async def _backfill_patient_contact_channels(conn: asyncpg.Connection) -> int:
+    """After patient INSERT, re-create one PHONE row per BN.
+
+    Re-runs the logic of ``src/migrations/seed/007_backfill_patient_phone_contact.sql``
+    inside the same transaction so a TRUNCATE-then-INSERT sync does not
+    leave the contact_channel table empty until the operator remembers
+    to re-apply the seed. Idempotent: the NOT EXISTS guards keep this
+    safe even when contact_channel already has rows from a previous run.
+    """
+    await conn.execute(
+        """INSERT INTO patient_contact_channel
+              (clinic_patient_id, channel_type, channel_value,
+               is_primary, is_verified)
+           SELECT p.clinic_patient_id, 'PHONE', p.phone_primary, TRUE, FALSE
+           FROM patient p
+           WHERE p.phone_primary IS NOT NULL AND p.phone_primary <> ''
+             AND NOT EXISTS (
+                 SELECT 1 FROM patient_contact_channel pcc
+                 WHERE pcc.clinic_patient_id = p.clinic_patient_id
+                   AND pcc.channel_type = 'PHONE'
+                   AND pcc.channel_value = p.phone_primary
+             )"""
+    )
+    await conn.execute(
+        """INSERT INTO patient_contact_channel
+              (clinic_patient_id, channel_type, channel_value,
+               is_primary, is_verified)
+           SELECT p.clinic_patient_id, 'PHONE', p.phone_secondary, FALSE, FALSE
+           FROM patient p
+           WHERE p.phone_secondary IS NOT NULL AND p.phone_secondary <> ''
+             AND NOT EXISTS (
+                 SELECT 1 FROM patient_contact_channel pcc
+                 WHERE pcc.clinic_patient_id = p.clinic_patient_id
+                   AND pcc.channel_type = 'PHONE'
+                   AND pcc.channel_value = p.phone_secondary
+             )"""
+    )
+    return int(await conn.fetchval("SELECT count(*) FROM patient_contact_channel"))
 
 
 async def _insert_patients(
@@ -427,17 +471,35 @@ def _render_report(
 # --------------------------------------------------------------------------- #
 
 
-async def run(*, dry_run: bool, limit_per_source: int | None = None) -> int:
+async def run(
+    *,
+    dry_run: bool,
+    source: str = "csv",
+    limit_per_source: int | None = None,
+    csv_dir: Path | None = None,
+) -> int:
+    """``source`` = ``'csv'`` (default — recovers lab + relations from the
+    PK export) or ``'notion'`` (the cloned workspace — relations are
+    broken there because Notion strips cross-DB UUIDs on duplicate)."""
     load_dotenv()
-    token = os.environ.get("NOTION_API_KEY")
     dsn = os.environ.get("DATABASE_URL")
-    if not token or not dsn:
-        raise SystemExit("NOTION_API_KEY or DATABASE_URL missing — check .env.")
+    if not dsn:
+        raise SystemExit("DATABASE_URL missing — check .env.")
     dsn = dsn.replace("postgresql+asyncpg://", "postgresql://", 1)
 
-    notion = AsyncClient(auth=token)
-    logger.info("pull_start")
-    sources = await notion_to_sources(notion, limit_per_source=limit_per_source)
+    if source == "csv":
+        logger.info("pull_start source=csv csv_dir=%s", csv_dir)
+        sources = csv_to_sources(csv_root=csv_dir, limit_per_source=limit_per_source)
+    elif source == "notion":
+        token = os.environ.get("NOTION_API_KEY")
+        if not token:
+            raise SystemExit("NOTION_API_KEY missing — required when --source notion.")
+        notion = AsyncClient(auth=token)
+        logger.info("pull_start source=notion")
+        sources = await notion_to_sources(notion, limit_per_source=limit_per_source)
+    else:
+        raise SystemExit(f"unknown --source {source!r}; expected csv|notion")
+
     counts = " ".join(f"{k}={len(v)}" for k, v in sources.items())
     logger.info("pull_done %s", counts)
 
@@ -474,6 +536,10 @@ async def run(*, dry_run: bool, limit_per_source: int | None = None) -> int:
             inserted["visit"] = n_visit
             inserted["clinical_record"] = n_clin
             n_lab = await _insert_labs(conn, result.lab_results, rc_ids)
+            # Re-populate contact_channel — CASCADE from the TRUNCATE
+            # above wiped the rows; we want one PHONE record per BN.
+            n_contact = await _backfill_patient_contact_channels(conn)
+            inserted["patient_contact_channel"] = n_contact
             inserted["lab_result"] = n_lab
 
             if dry_run:
@@ -535,13 +601,40 @@ def main() -> int:
         "--limit",
         type=int,
         default=None,
-        help="Smoke-test cap — pull at most N rows per Notion source.",
+        help="Smoke-test cap — load at most N rows per source.",
+    )
+    parser.add_argument(
+        "--source",
+        choices=("csv", "notion"),
+        default="csv",
+        help=(
+            "Where to pull rows from. 'csv' (default) reads the PK-exported "
+            "bundle (relations populated as text → recovers lab_result + "
+            "appointment + clinical). 'notion' reads the cloned workspace "
+            "(relations stripped on duplicate)."
+        ),
+    )
+    parser.add_argument(
+        "--csv-dir",
+        type=Path,
+        default=None,
+        help=(
+            "Override the CSV bundle path (default: ../Data khách gửi). "
+            "Only used when --source csv."
+        ),
     )
     args = parser.parse_args()
     logging.basicConfig(
         level=logging.INFO, format="%(levelname)s %(name)s: %(message)s"
     )
-    return asyncio.run(run(dry_run=args.dry_run, limit_per_source=args.limit))
+    return asyncio.run(
+        run(
+            dry_run=args.dry_run,
+            source=args.source,
+            limit_per_source=args.limit,
+            csv_dir=args.csv_dir,
+        )
+    )
 
 
 if __name__ == "__main__":

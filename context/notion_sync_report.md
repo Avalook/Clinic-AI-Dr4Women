@@ -3,36 +3,36 @@
 
 ## Transform counters
 - **patient**:
-  - input_admin_rows: 6403
-  - total: 6024
-  - green_complete: 3081
-  - yellow_skeleton: 2943
-  - admin_rejects: 96
-  - auto_merge: 105
-  - review_conflict: 221
+  - input_admin_rows: 6090
+  - total: 5728
+  - green_complete: 2771
+  - yellow_skeleton: 2957
+  - admin_rejects: 91
+  - auto_merge: 99
+  - review_conflict: 210
 - **appointment**:
-  - input_rows: 10000
-  - staged: 9910
-  - rejected: 90
+  - input_rows: 10032
+  - staged: 9996
+  - rejected: 36
 - **lab**:
-  - input_rows: 5729
-  - staged: 0
-  - rejected: 5729
+  - input_rows: 5033
+  - staged: 5010
+  - rejected: 23
 - **prescription**:
-  - input_rows: 10000
-  - staged: 0
-  - rejected: 10000
+  - input_rows: 15415
+  - staged: 15319
+  - rejected: 96
 - **clinical**:
-  - input_rows: 6505
-  - staged: 5844
-  - rejected: 661
+  - input_rows: 6182
+  - staged: 6013
+  - rejected: 169
 
 ## Rows inserted into Supabase
-- patient: **5803**
-- appointment: **9089**
-- visit: **5460**
-- clinical_record: **5460**
-- lab_result: **0**
+- patient: **5518**
+- appointment: **9170**
+- visit: **5583**
+- clinical_record: **5583**
+- lab_result: **4724**
 
-## Review queue (manual adjudication needed): 233 item(s)
-## Rejects (no usable phone): 16576 row(s)
+## Review queue (manual adjudication needed): 220 item(s)
+## Rejects (no usable phone): 415 row(s)

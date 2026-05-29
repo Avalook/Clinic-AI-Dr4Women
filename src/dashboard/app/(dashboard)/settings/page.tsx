@@ -7,6 +7,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { getSupabaseServer } from "../../../lib/supabase-server";
 import { getCurrentStaff, isAdminRole } from "../../../lib/current-staff";
+import AccountActions from "./AccountActions";
 
 export const dynamic = "force-dynamic";
 
@@ -70,12 +71,11 @@ export default async function SettingsPage() {
       <div className="rounded-md border border-[#e4e4e7] bg-white px-4 py-3 text-sm text-[#4d4d4d]">
         <span className="font-medium text-[#171717]">{linked}</span> /{" "}
         <span className="font-medium text-[#171717]">{rows.length}</span>{" "}
-        nhân viên đã được link với tài khoản đăng nhập. Để link thêm, tạo
-        user trong Supabase Auth rồi chạy{" "}
-        <code className="rounded bg-[#f4f4f5] px-1.5 py-0.5 text-xs font-mono">
-          scripts/seed/link_staff_to_auth.py --map &quot;Tên=uuid&quot;
-        </code>
-        .
+        nhân viên đã được link với tài khoản đăng nhập. Bấm{" "}
+        <span className="font-medium text-[#171717]">+ Thêm tài khoản</span>{" "}
+        để tạo login mới, hoặc dùng nút thao tác ở mỗi dòng để đặt lại mật
+        khẩu / gỡ tài khoản — tất cả ngay trong dashboard, không cần vào
+        console Supabase.
       </div>
 
       {error && (
@@ -93,6 +93,7 @@ export default async function SettingsPage() {
               <th className={TH}>Hợp đồng</th>
               <th className={TH}>Active</th>
               <th className={TH}>Login</th>
+              <th className={TH}>Thao tác</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-[#f4f4f5]">
@@ -138,11 +139,23 @@ export default async function SettingsPage() {
                     </span>
                   )}
                 </td>
+                <td className={TD}>
+                  {r.auth_user_id ? (
+                    <AccountActions staffId={r.id} staffName={r.full_name} />
+                  ) : (
+                    <Link
+                      href="/settings/new-user"
+                      className="text-xs text-[#ec4899] hover:underline"
+                    >
+                      Tạo tài khoản
+                    </Link>
+                  )}
+                </td>
               </tr>
             ))}
             {rows.length === 0 && (
               <tr>
-                <td colSpan={5} className="px-4 py-6 text-center text-[#888888]">
+                <td colSpan={6} className="px-4 py-6 text-center text-[#888888]">
                   Chưa có nhân viên.
                 </td>
               </tr>

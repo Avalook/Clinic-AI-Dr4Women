@@ -1,63 +1,59 @@
-// Admin-only user creation endpoint (F3). The dashboard exposes a
-// form at /settings/new-user that POSTs here with
-//   { email, password, staffId }.
+// Admin-only account management endpoint.
 //
-// Flow:
-//   1. Verify the caller's Supabase session and that the linked staff
-//      row has primary_department === 'MANAGEMENT'. Anything else gets
-//      a 403 with no further info.
-//   2. Verify the target staffId exists and has NO auth_user_id yet
-//      (one staff ↔ one auth user; see migration 025).
-//   3. Use the service-role client to create the Auth user (auto
-//      email_confirm = true so admin-created accounts skip the
-//      activation email).
-//   4. UPDATE staff.auth_user_id = <new uid> via the service-role
-//      client (RLS bypass needed since /settings/new-user fires from
-//      the user's session, which lacks write to staff).
-//   5. Return the new user's id and email; or rollback (delete the
-//      just-created Auth user) on the UPDATE failure.
+//   POST   { email, password, staffId }      → create Auth user + link staff
+//   PATCH  { staffId, action: "reset_password", password }  → reset password
+//   PATCH  { staffId, action: "unlink" }      → revoke: null the FK + delete
+//                                               the Auth user (staff row kept)
+//
+// Every method:
+//   1. Verifies the caller's Supabase session and that the linked staff
+//      row has primary_department === 'MANAGEMENT'. Anything else → 403.
+//   2. Uses the service-role client for the privileged Auth ops.
 //
 // SECURITY
 // - SUPABASE_SERVICE_ROLE_KEY is read from the server environment only.
 //   It is never sent to the client.
-// - The endpoint refuses every method except POST.
-// - The endpoint refuses if SUPABASE_SERVICE_ROLE_KEY is unset, so a
-//   misconfigured deployment fails closed.
+// - Unknown methods get the default 405.
+// - If SUPABASE_SERVICE_ROLE_KEY is unset, every method fails closed (503).
 
 import { NextResponse } from "next/server";
-import { createClient } from "@supabase/supabase-js";
+import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { getSupabaseServer } from "../../../../lib/supabase-server";
-
-interface CreateBody {
-  email?: string;
-  password?: string;
-  staffId?: string;
-}
 
 const MIN_PASSWORD = 8;
 
-export async function POST(request: Request) {
-  // 0. Sanity: env var present?
+type AuthResult =
+  | { ok: true; admin: SupabaseClient }
+  | { ok: false; res: NextResponse };
+
+// Shared gate: env present + caller authenticated + caller is MANAGEMENT.
+// Returns a ready service-role client on success, or the error response.
+async function authorizeAdmin(): Promise<AuthResult> {
   const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const SERVICE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
   if (!SUPABASE_URL || !SERVICE_KEY) {
-    return NextResponse.json(
-      {
-        error:
-          "SUPABASE_SERVICE_ROLE_KEY is not configured on the server. " +
-          "Add it to .env and restart the dashboard.",
-      },
-      { status: 503 },
-    );
+    return {
+      ok: false,
+      res: NextResponse.json(
+        {
+          error:
+            "SUPABASE_SERVICE_ROLE_KEY is not configured on the server. " +
+            "Add it to src/dashboard/.env.local and restart the dashboard.",
+        },
+        { status: 503 },
+      ),
+    };
   }
 
-  // 1. Caller must be authenticated AND admin.
   const callerClient = await getSupabaseServer();
   const {
     data: { user },
   } = await callerClient.auth.getUser();
   if (!user) {
-    return NextResponse.json({ error: "Unauthorised" }, { status: 401 });
+    return {
+      ok: false,
+      res: NextResponse.json({ error: "Unauthorised" }, { status: 401 }),
+    };
   }
   const { data: callerStaff } = await callerClient
     .from("staff")
@@ -65,10 +61,30 @@ export async function POST(request: Request) {
     .eq("auth_user_id", user.id)
     .maybeSingle();
   if (callerStaff?.primary_department !== "MANAGEMENT") {
-    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    return {
+      ok: false,
+      res: NextResponse.json({ error: "Forbidden" }, { status: 403 }),
+    };
   }
 
-  // 2. Parse + validate body.
+  const admin = createClient(SUPABASE_URL, SERVICE_KEY, {
+    auth: { persistSession: false, autoRefreshToken: false },
+  });
+  return { ok: true, admin };
+}
+
+interface CreateBody {
+  email?: string;
+  password?: string;
+  staffId?: string;
+}
+
+// Create a new Auth user and link it to an existing, unlinked staff row.
+export async function POST(request: Request) {
+  const auth = await authorizeAdmin();
+  if (!auth.ok) return auth.res;
+  const { admin } = auth;
+
   let body: CreateBody;
   try {
     body = (await request.json()) as CreateBody;
@@ -94,11 +110,6 @@ export async function POST(request: Request) {
     );
   }
 
-  // 3. Service-role client for the privileged ops.
-  const admin = createClient(SUPABASE_URL, SERVICE_KEY, {
-    auth: { persistSession: false, autoRefreshToken: false },
-  });
-
   // Target staff exists + still unlinked?
   const { data: targetStaff, error: targetErr } = await admin
     .from("staff")
@@ -121,8 +132,8 @@ export async function POST(request: Request) {
     );
   }
 
-  // 4. Create the Auth user (auto-confirmed so the operator can hand
-  //    over the credentials immediately).
+  // Create the Auth user (auto-confirmed so the operator can hand over the
+  // credentials immediately).
   const created = await admin.auth.admin.createUser({
     email,
     password,
@@ -136,8 +147,8 @@ export async function POST(request: Request) {
   }
   const newUserId = created.data.user.id;
 
-  // 5. Link staff.auth_user_id. Rollback the Auth user on failure so
-  //    we don't strand an unlinkable account.
+  // Link staff.auth_user_id. Rollback the Auth user on failure so we don't
+  // strand an unlinkable account.
   const linkRes = await admin
     .from("staff")
     .update({ auth_user_id: newUserId })
@@ -162,4 +173,110 @@ export async function POST(request: Request) {
     staffId,
     staffName: targetStaff.full_name,
   });
+}
+
+interface PatchBody {
+  staffId?: string;
+  action?: "reset_password" | "unlink";
+  password?: string;
+}
+
+// Manage an already-linked account: reset its password, or revoke it
+// entirely (unlink + delete the Auth user, keeping the staff row).
+export async function PATCH(request: Request) {
+  const auth = await authorizeAdmin();
+  if (!auth.ok) return auth.res;
+  const { admin } = auth;
+
+  let body: PatchBody;
+  try {
+    body = (await request.json()) as PatchBody;
+  } catch {
+    return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
+  }
+  const staffId = (body.staffId ?? "").trim();
+  const action = body.action;
+  if (!staffId) {
+    return NextResponse.json({ error: "Thiếu staffId." }, { status: 400 });
+  }
+
+  const { data: target, error: targetErr } = await admin
+    .from("staff")
+    .select("id, full_name, auth_user_id")
+    .eq("id", staffId)
+    .maybeSingle();
+  if (targetErr) {
+    return NextResponse.json({ error: targetErr.message }, { status: 500 });
+  }
+  if (!target) {
+    return NextResponse.json(
+      { error: "Nhân viên không tồn tại." },
+      { status: 404 },
+    );
+  }
+  if (!target.auth_user_id) {
+    return NextResponse.json(
+      { error: "Nhân viên này chưa có tài khoản đăng nhập." },
+      { status: 409 },
+    );
+  }
+
+  if (action === "reset_password") {
+    const password = body.password ?? "";
+    if (password.length < MIN_PASSWORD) {
+      return NextResponse.json(
+        { error: `Mật khẩu phải có ít nhất ${MIN_PASSWORD} ký tự.` },
+        { status: 400 },
+      );
+    }
+    const { error } = await admin.auth.admin.updateUserById(
+      target.auth_user_id,
+      { password },
+    );
+    if (error) {
+      return NextResponse.json({ error: error.message }, { status: 500 });
+    }
+    return NextResponse.json({
+      ok: true,
+      action,
+      staffName: target.full_name,
+    });
+  }
+
+  if (action === "unlink") {
+    // Null the FK first so the staff row is never left pointing at a
+    // deleted Auth user, then delete the Auth user to revoke login.
+    const upd = await admin
+      .from("staff")
+      .update({ auth_user_id: null })
+      .eq("id", staffId);
+    if (upd.error) {
+      return NextResponse.json({ error: upd.error.message }, { status: 500 });
+    }
+    const del = await admin.auth.admin.deleteUser(target.auth_user_id);
+    if (del.error) {
+      // FK already cleared; the orphan Auth user can be removed in the
+      // console. Surface it rather than pretend full success.
+      return NextResponse.json(
+        {
+          ok: true,
+          action,
+          staffName: target.full_name,
+          warning:
+            "Đã gỡ liên kết, nhưng xoá tài khoản Auth lỗi: " + del.error.message,
+        },
+        { status: 200 },
+      );
+    }
+    return NextResponse.json({
+      ok: true,
+      action,
+      staffName: target.full_name,
+    });
+  }
+
+  return NextResponse.json(
+    { error: "action không hợp lệ (reset_password | unlink)." },
+    { status: 400 },
+  );
 }
