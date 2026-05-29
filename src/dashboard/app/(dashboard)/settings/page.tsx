@@ -3,6 +3,7 @@
 // Auth account (the green dot) so they can run
 // ``scripts/seed/link_staff_to_auth.py`` for the missing ones.
 
+import Link from "next/link";
 import { redirect } from "next/navigation";
 import { getSupabaseServer } from "../../../lib/supabase-server";
 import { getCurrentStaff, isAdminRole } from "../../../lib/current-staff";
@@ -51,11 +52,19 @@ export default async function SettingsPage() {
 
   return (
     <div className="space-y-4">
-      <header>
-        <h1 className="text-xl font-semibold text-[#171717]">Cài đặt</h1>
-        <p className="text-sm text-[#888888]">
-          Nhân viên + trạng thái liên kết tài khoản đăng nhập. Read-only.
-        </p>
+      <header className="flex items-start justify-between gap-3">
+        <div>
+          <h1 className="text-xl font-semibold text-[#171717]">Cài đặt</h1>
+          <p className="text-sm text-[#888888]">
+            Nhân viên + trạng thái liên kết tài khoản đăng nhập.
+          </p>
+        </div>
+        <Link
+          href="/settings/new-user"
+          className="rounded-md bg-[#ec4899] px-3.5 py-1.5 text-sm font-medium text-white transition-colors duration-150 hover:bg-[#db2777]"
+        >
+          + Thêm tài khoản
+        </Link>
       </header>
 
       <div className="rounded-md border border-[#e4e4e7] bg-white px-4 py-3 text-sm text-[#4d4d4d]">
