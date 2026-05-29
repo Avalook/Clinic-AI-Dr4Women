@@ -33,6 +33,10 @@
 - visit: **5583**
 - clinical_record: **5583**
 - lab_result: **4724**
+- prescription: **14300**
+- cskh_action: **31179**
+- service_log: **15075**
+- patient_contact_channel: **5518**
 
 ## Review queue (manual adjudication needed): 220 item(s)
 ## Rejects (no usable phone): 415 row(s)

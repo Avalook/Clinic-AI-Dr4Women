@@ -62,6 +62,9 @@ DATASETS: dict[str, str] = {
     "appointment": "Lịch hẹn",
     "lab": "Xét nghiệm",
     "prescription": "Kê thuốc",
+    # E2c: extras consumed by sync_to_supabase directly (not by transform.py).
+    "cskh_action": "CSKH Action",
+    "service": "Dịch vụ",
 }
 
 

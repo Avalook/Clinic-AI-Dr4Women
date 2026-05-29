@@ -56,6 +56,7 @@ import argparse
 import asyncio
 import logging
 import os
+import re
 import sys
 import uuid
 from datetime import datetime, timedelta
@@ -135,6 +136,86 @@ def _parse_dt(value: str | None) -> datetime | None:
         return None
 
 
+# E2c — CSKH Action / Dịch vụ CSVs use Notion's English long-form export
+# ("November 14, 2025 8:11 AM") + the Vietnamese "dd/mm/yyyy h:mm (GMT+7)"
+# form. parse_datetime_vn handles the latter; this covers the former.
+_EN_MONTH = {
+    "january": 1,
+    "february": 2,
+    "march": 3,
+    "april": 4,
+    "may": 5,
+    "june": 6,
+    "july": 7,
+    "august": 8,
+    "september": 9,
+    "october": 10,
+    "november": 11,
+    "december": 12,
+}
+_EN_DT_RE = re.compile(
+    r"@?\s*([A-Za-z]+)\s+(\d{1,2}),\s+(\d{4})"
+    r"(?:\s+(\d{1,2}):(\d{2})\s*(AM|PM)?)?",
+    re.IGNORECASE,
+)
+
+
+def _parse_dt_loose(value: str | None) -> datetime | None:
+    """Best-effort parser for Notion export timestamps.
+
+    Tries: ISO 8601, then the canonical English ("Nov 14, 2025 8:11 AM"
+    with optional leading "@" on Deadline cells), then the Vietnamese
+    ``dd/mm/yyyy h:mm`` shape via ``parse_datetime_vn`` (returns ISO,
+    which we then ``fromisoformat``).
+    """
+    v = _nn(value)
+    if v is None:
+        return None
+    # ISO first (cheapest path).
+    try:
+        return datetime.fromisoformat(v)
+    except ValueError:
+        pass
+    # Vietnamese dd/mm/yyyy via the canon transform helper.
+    from data_migration.transform import parse_datetime_vn
+
+    iso = parse_datetime_vn(v)
+    if iso:
+        try:
+            return datetime.fromisoformat(iso)
+        except ValueError:
+            pass
+    # English long form.
+    m = _EN_DT_RE.search(v)
+    if m:
+        month_name, day, year, hour, minute, ampm = m.groups()
+        month = _EN_MONTH.get(month_name.lower())
+        if month is None:
+            return None
+        try:
+            h = int(hour) if hour else 0
+            mm = int(minute) if minute else 0
+            if ampm and ampm.upper() == "PM" and h < 12:
+                h += 12
+            if ampm and ampm.upper() == "AM" and h == 12:
+                h = 0
+            return datetime(int(year), month, int(day), h, mm)
+        except ValueError:
+            return None
+    return None
+
+
+_INT_RE = re.compile(r"-?\d+")
+
+
+def _parse_int(value: str | None) -> int | None:
+    v = _nn(value)
+    if v is None:
+        return None
+    m = _INT_RE.search(v)
+    return int(m.group(0)) if m else None
+
+
 # --------------------------------------------------------------------------- #
 # Master-data resolution                                                      #
 # --------------------------------------------------------------------------- #
@@ -202,8 +283,12 @@ async def _truncate_targets(conn: asyncpg.Connection) -> None:
     (FK with ON DELETE CASCADE, migration 027). The sync re-populates
     that table in ``_backfill_patient_contact_channels`` below.
     """
+    # E2c — also wipe the 3 new child tables (cskh_action, service_log,
+    # prescription). Order picked so CASCADE handles the dependents; the
+    # explicit list also documents the demo-scope.
     await conn.execute(
         "TRUNCATE TABLE "
+        "cskh_action, service_log, prescription, "
         "appointment, lab_result, clinical_record, visit, patient "
         "RESTART IDENTITY CASCADE"
     )
@@ -259,12 +344,17 @@ async def _insert_patients(
     rows: list[tuple[Any, ...]] = []
     await conn.execute("SELECT pg_advisory_xact_lock($1)", PATIENT_CODE_LOCK_KEY)
     seq = 0
+    now = datetime.now()
     for p in result.patients:
         if p.merge_action == "REVIEW_CONFLICT":
             rc_ids.add(p.clinic_patient_id)
             continue
         seq += 1
         code = f"BN-{PATIENT_CODE_YEAR}-{seq:06d}"
+        # Use the Notion "Created time" PK first saw the BN, not the
+        # sync run's wall-clock.
+        created = _parse_dt_loose(p.source_created_time) or now
+        updated = _parse_dt_loose(p.source_updated_time) or created
         rows.append(
             (
                 uuid.UUID(p.clinic_patient_id),
@@ -276,13 +366,15 @@ async def _insert_patients(
                 None,  # phone_secondary
                 location_id,
                 True,  # is_active
+                created,
+                updated,
             )
         )
     await conn.executemany(
         """INSERT INTO patient (clinic_patient_id, patient_code, national_id_number,
                 full_name, date_of_birth, phone_primary, phone_secondary,
-                location_id, is_active)
-           VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)""",
+                location_id, is_active, created_at, updated_at)
+           VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)""",
         rows,
     )
     return len(rows), rc_ids
@@ -332,6 +424,8 @@ async def _insert_appointments(
                 skipped += 1
             else:
                 kept.append((slot_start, slot_end))
+        created = _parse_dt_loose(r.get("source_created_time")) or slot_start
+        updated = _parse_dt_loose(r.get("source_updated_time")) or created
         rows.append(
             (
                 uuid.UUID(r["clinic_patient_id"]),
@@ -343,13 +437,15 @@ async def _insert_appointments(
                 slot_end,
                 status,
                 _nn(r.get("note")),
+                created,
+                updated,
             )
         )
     await conn.executemany(
         """INSERT INTO appointment (clinic_patient_id, doctor_id, location_id,
                 service_type_id, booking_channel, slot_start, slot_end, status,
-                cancellation_reason)
-           VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)""",
+                cancellation_reason, created_at, updated_at)
+           VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)""",
         rows,
     )
     return len(rows), skipped
@@ -363,10 +459,13 @@ async def _insert_visits_and_clinical(
 ) -> tuple[int, int]:
     visit_rows: list[tuple[Any, ...]] = []
     clinical_inserts: list[tuple[Any, ...]] = []
+    now = datetime.now()
     for r in clinical_rows:
         if r["clinic_patient_id"] in rc_ids:
             continue
         vid = uuid.uuid4()
+        created = _parse_dt_loose(r.get("source_created_time")) or now
+        updated = _parse_dt_loose(r.get("source_updated_time")) or created
         visit_rows.append(
             (
                 vid,
@@ -374,19 +473,22 @@ async def _insert_visits_and_clinical(
                 master["location_id"],
                 _resolve_service(r.get("service_type_raw", ""), master),
                 "OPEN",
+                created,
+                updated,
             )
         )
-        clinical_inserts.append((vid, _nn(r.get("chief_complaint"))))
+        clinical_inserts.append((vid, _nn(r.get("chief_complaint")), created, updated))
 
     await conn.executemany(
         """INSERT INTO visit (visit_id, clinic_patient_id, location_id,
-                service_type_id, status)
-           VALUES ($1,$2,$3,$4,$5)""",
+                service_type_id, status, created_at, updated_at)
+           VALUES ($1,$2,$3,$4,$5,$6,$7)""",
         visit_rows,
     )
     await conn.executemany(
-        """INSERT INTO clinical_record (visit_id, chief_complaint_at_visit)
-           VALUES ($1,$2)""",
+        """INSERT INTO clinical_record (visit_id, chief_complaint_at_visit,
+                created_at, updated_at)
+           VALUES ($1,$2,$3,$4)""",
         clinical_inserts,
     )
     return len(visit_rows), len(clinical_inserts)
@@ -402,6 +504,10 @@ async def _insert_labs(
     for r in labs:
         if r["clinic_patient_id"] in rc_ids:
             continue
+        # Use the Notion source timestamps so the dashboard shows when
+        # PK actually ordered / received the test, not import day.
+        created = _parse_dt_loose(r.get("source_created_time")) or now
+        received = _parse_dt_loose(r.get("source_updated_time")) or created
         rows.append(
             (
                 uuid.UUID(r["clinic_patient_id"]),
@@ -413,17 +519,248 @@ async def _insert_labs(
                 (r.get("triage_group") or "").strip() or "PENDING",
                 _nn(r.get("lab_provider")),
                 _nn(r.get("external_ref")),
-                now,  # result_received_at — NOT NULL with no source
+                received,  # result_received_at
+                created,  # created_at
+                received,  # updated_at
             )
         )
     await conn.executemany(
         """INSERT INTO lab_result (clinic_patient_id, test_code, test_name,
                 panel_code, result_value, result_unit, triage_group,
-                lab_provider, external_ref, result_received_at)
-           VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)""",
+                lab_provider, external_ref, result_received_at,
+                created_at, updated_at)
+           VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)""",
         rows,
     )
     return len(rows)
+
+
+# --------------------------------------------------------------------------- #
+# E2c — extra-source loaders that bypass transform.py                         #
+# (CSKH Action / Dịch vụ / Prescription)                                      #
+# --------------------------------------------------------------------------- #
+
+
+def _build_phone_index(result: TransformResult) -> dict[str, str]:
+    """``phone → clinic_patient_id`` from the patients transform.py
+    already deduped. Used to resolve link-text "Name SDT (URL)" cells in
+    the CSKH Action / Dịch vụ CSVs.
+    """
+    return {
+        norm_phone(p.phone_primary) or p.phone_primary: p.clinic_patient_id
+        for p in result.patients
+        if p.merge_action != "REVIEW_CONFLICT"
+    }
+
+
+def _resolve_patient_from_links(
+    row: dict[str, str],
+    link_fields: tuple[str, ...],
+    phone_to_cpid: dict[str, str],
+) -> str | None:
+    """Mirror of transform.resolve_patient for the post-transform tables.
+
+    Returns the staged clinic_patient_id when extract_phone hits a known
+    BN; NULL otherwise so the parent row is kept but unlinked.
+    """
+    from data_migration.transform import extract_phone
+    from data_migration.transform import norm_phone as _norm
+
+    for field_name in link_fields:
+        text = row.get(field_name) or ""
+        phone = extract_phone(text)
+        if phone is None:
+            continue
+        cpid = phone_to_cpid.get(_norm(phone) or phone)
+        if cpid:
+            return cpid
+    return None
+
+
+async def _insert_cskh_actions(
+    conn: asyncpg.Connection,
+    rows: list[dict[str, str]],
+    phone_to_cpid: dict[str, str],
+) -> int:
+    """Load the ``CSKH Action`` CSV.
+
+    Each row → 1 ``cskh_action`` record. ``clinic_patient_id`` resolved
+    via the same extract_phone pattern transform.py uses; NULL when no
+    known BN matches (row still kept for audit).
+    """
+    out: list[tuple[Any, ...]] = []
+    now = datetime.now()
+    seen_refs: set[str] = set()
+    for r in rows:
+        source_ref = (r.get("//ID") or r.get("Name") or "").strip()
+        if not source_ref or source_ref in seen_refs:
+            continue
+        seen_refs.add(source_ref)
+        cpid_str = _resolve_patient_from_links(
+            r,
+            (
+                "🔑 File khách hàng (hành chính)",
+                "//file lịch hẹn",
+                "//file phiếu khám",
+                "//file xét nghiệm",
+            ),
+            phone_to_cpid,
+        )
+        cpid = uuid.UUID(cpid_str) if cpid_str else None
+        created = _parse_dt_loose(r.get("Giờ khởi tạo")) or now
+        updated = _parse_dt_loose(r.get("Last edited time")) or created
+        deadline = _parse_dt_loose(r.get("Deadline"))
+        rating = _parse_int(r.get("Điểm đánh giá"))
+        out.append(
+            (
+                source_ref,
+                cpid,
+                _nn(r.get("Phân loại")),
+                _nn(r.get("Step")),
+                _nn(r.get("Tình trạng")),
+                _nn(r.get("Dữ liệu thao tác")),
+                _nn(r.get("Mô tả chi tiết")),
+                _nn(r.get("Kết quả thực hiện")),
+                deadline,
+                created,  # source_created_at
+                updated,  # source_updated_at
+                _nn(r.get("Created by")),
+                _nn(r.get("Last edited by")),
+                rating,
+                _nn(r.get("Tag tính tiền")),
+                _nn(r.get("//file lịch hẹn")),
+                _nn(r.get("//file phiếu khám")),
+                _nn(r.get("//file xét nghiệm")),
+                _nn(r.get("🔑 File khách hàng (hành chính)")),
+                created,  # created_at = source_created_at
+                updated,  # updated_at
+            )
+        )
+    await conn.executemany(
+        """INSERT INTO cskh_action (source_ref, clinic_patient_id, category,
+                step, status, action_data, description, result_text,
+                deadline_at, source_created_at, source_updated_at,
+                created_by_text, last_edited_by_text, rating, billing_tag,
+                appointment_link_raw, visit_link_raw, lab_link_raw,
+                patient_link_raw, created_at, updated_at)
+           VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,
+                   $16,$17,$18,$19,$20,$21)""",
+        out,
+    )
+    return len(out)
+
+
+async def _insert_services(
+    conn: asyncpg.Connection,
+    rows: list[dict[str, str]],
+    phone_to_cpid: dict[str, str],
+    master: dict[str, Any],
+) -> int:
+    """Load the ``Dịch vụ`` CSV → ``service_log``."""
+    out: list[tuple[Any, ...]] = []
+    now = datetime.now()
+    seen_refs: set[str] = set()
+    for r in rows:
+        source_ref = (r.get("ID") or r.get("Name") or "").strip()
+        if not source_ref or source_ref in seen_refs:
+            continue
+        seen_refs.add(source_ref)
+        cpid_str = _resolve_patient_from_links(
+            r,
+            ("CSDL bệnh nhân (lâm sàng)", "Phiếu khám"),
+            phone_to_cpid,
+        )
+        cpid = uuid.UUID(cpid_str) if cpid_str else None
+        service_name = (r.get("Tên dịch vụ") or "").strip()
+        # Best-effort service_type FK: text starts with the friendly name
+        # (e.g. "[TT] Soi buồng tử cung chẩn đoán (https://...)"). Strip
+        # the URL and any bracketed prefix before lookup.
+        sname = service_name.split("(http")[0].strip()
+        for prefix in ("[TT]", "[SA]", "[KHAM]", "[XN]"):
+            if sname.startswith(prefix):
+                sname = sname[len(prefix) :].strip()
+                break
+        sid = master["service_by_name"].get(sname.lower())
+        ordered = _parse_dt_loose(r.get("Giờ chỉ định")) or now
+        started = _parse_dt_loose(r.get("//Giờ bắt đầu"))
+        finished = _parse_dt_loose(r.get("//Giờ kết thúc"))
+        out.append(
+            (
+                source_ref,
+                cpid,
+                sid,
+                service_name or None,
+                _nn(r.get("//Người làm")),
+                _nn(r.get("Tình trạng")),
+                _nn(r.get("Kết quả")),
+                ordered,
+                started,
+                finished,
+                _nn(r.get("//created by")),
+                _nn(r.get("Phiếu khám")),
+                _nn(r.get("CSDL bệnh nhân (lâm sàng)")),
+                _nn(r.get("📝 Tờ in kết quả")),
+                ordered,
+                ordered,
+            )
+        )
+    await conn.executemany(
+        """INSERT INTO service_log (source_ref, clinic_patient_id,
+                service_type_id, service_name_raw, performer_text, status,
+                result_text, ordered_at, started_at, finished_at,
+                created_by_text, visit_link_raw, patient_link_raw,
+                result_form_url, created_at, updated_at)
+           VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16)""",
+        out,
+    )
+    return len(out)
+
+
+async def _insert_prescriptions(
+    conn: asyncpg.Connection,
+    rxs: list[dict[str, str]],
+    rc_ids: set[str],
+) -> int:
+    """Load transform.py's staged prescription dicts now that the target
+    table exists (migration 031)."""
+    out: list[tuple[Any, ...]] = []
+    now = datetime.now()
+    for r in rxs:
+        if r["clinic_patient_id"] in rc_ids:
+            continue
+        source_ref = (r.get("source_ref") or "").strip()
+        if not source_ref:
+            continue
+        cpid = uuid.UUID(r["clinic_patient_id"])
+        created = _parse_dt_loose(r.get("source_created_time")) or now
+        updated = _parse_dt_loose(r.get("source_updated_time")) or created
+        out.append(
+            (
+                source_ref,
+                cpid,
+                None,  # visit_id resolved Phase 2 (need URL→visit map)
+                _nn(r.get("drug_name")),
+                _nn(r.get("drug_catalog_ref")),
+                _nn(r.get("dosage_instructions")),
+                _nn(r.get("quantity")),
+                _nn(r.get("quantity_note")),
+                _nn(r.get("note")),  # caution
+                _nn(r.get("standardized_form")),
+                _nn(r.get("exam_raw")),
+                created,
+                updated,
+            )
+        )
+    await conn.executemany(
+        """INSERT INTO prescription (source_ref, clinic_patient_id, visit_id,
+                drug_name_raw, drug_catalog_ref, dosage_instructions,
+                quantity, quantity_note, caution, standardized_form,
+                visit_link_raw, created_at, updated_at)
+           VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13)
+           ON CONFLICT (source_ref) DO NOTHING""",
+        out,
+    )
+    return len(out)
 
 
 # --------------------------------------------------------------------------- #
@@ -536,11 +873,32 @@ async def run(
             inserted["visit"] = n_visit
             inserted["clinical_record"] = n_clin
             n_lab = await _insert_labs(conn, result.lab_results, rc_ids)
+            inserted["lab_result"] = n_lab
+
+            # E2c — Rx / CSKH / Dịch vụ. These bypass transform.py and
+            # do a second extract_phone pass against ``phone_to_cpid`` to
+            # resolve the parent BN. Raw rows survive ``sources`` because
+            # csv_to_sources.py loads the 7 datasets and transform.py
+            # only consumes 5.
+            n_rx = await _insert_prescriptions(conn, result.prescriptions, rc_ids)
+            inserted["prescription"] = n_rx
+            phone_to_cpid = _build_phone_index(result)
+            n_cskh = await _insert_cskh_actions(
+                conn, sources.get("cskh_action", []), phone_to_cpid
+            )
+            inserted["cskh_action"] = n_cskh
+            n_svc = await _insert_services(
+                conn,
+                sources.get("service", []),
+                phone_to_cpid,
+                master,
+            )
+            inserted["service_log"] = n_svc
+
             # Re-populate contact_channel — CASCADE from the TRUNCATE
             # above wiped the rows; we want one PHONE record per BN.
             n_contact = await _backfill_patient_contact_channels(conn)
             inserted["patient_contact_channel"] = n_contact
-            inserted["lab_result"] = n_lab
 
             if dry_run:
                 # Force rollback so a wet-run can verify before committing.

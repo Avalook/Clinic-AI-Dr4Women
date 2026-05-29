@@ -236,6 +236,13 @@ class Patient:
     merge_action: str  # SINGLE | AUTO_MERGE | REVIEW_CONFLICT
     source_refs: list[str] = field(default_factory=list)
     source_tables: set[str] = field(default_factory=set)
+    # Raw Notion-export timestamps (English long form: "November 14, 2025
+    # 8:11 AM"). The sync runner parses these and writes them as the
+    # ``created_at`` / ``updated_at`` columns so the dashboard's "Tạo lúc"
+    # column matches the date PK actually registered the BN — not the
+    # day we imported.
+    source_created_time: str | None = None
+    source_updated_time: str | None = None
 
 
 @dataclass
@@ -318,6 +325,8 @@ class PatientIndex:
         dob: str | None = None,
         gender: str | None = None,
         address: str | None = None,
+        source_created_time: str | None = None,
+        source_updated_time: str | None = None,
     ) -> Patient:
         """Insert a new patient or merge into the existing one for ``phone``."""
         existing = self._by_phone.get(phone)
@@ -333,6 +342,8 @@ class PatientIndex:
                 merge_action="SINGLE",
                 source_refs=[source_ref] if source_ref else [],
                 source_tables={source_table},
+                source_created_time=source_created_time,
+                source_updated_time=source_updated_time,
             )
             self._by_phone[phone] = patient
             return patient
@@ -340,6 +351,19 @@ class PatientIndex:
         existing.source_tables.add(source_table)
         if source_ref and source_ref not in existing.source_refs:
             existing.source_refs.append(source_ref)
+        # Keep the EARLIEST "Created time" we have seen for this phone —
+        # that is when PK first met the patient. The latest
+        # "Last edited time" wins for source_updated_time.
+        if source_created_time and (
+            existing.source_created_time is None
+            or source_created_time < existing.source_created_time
+        ):
+            existing.source_created_time = source_created_time
+        if source_updated_time and (
+            existing.source_updated_time is None
+            or source_updated_time > existing.source_updated_time
+        ):
+            existing.source_updated_time = source_updated_time
 
         incoming_key = name_key(name)
         existing_key = name_key(existing.full_name)
@@ -411,6 +435,8 @@ def build_patient_index(
             dob=norm_dob(row.get("Ngày sinh")),
             gender=norm_gender(row.get("Giới tính")),
             address=(row.get("Địa chỉ") or "").strip() or None,
+            source_created_time=(row.get("Created time") or "").strip() or None,
+            source_updated_time=(row.get("Last edited time") or "").strip() or None,
         )
     return index, rejects
 
@@ -445,6 +471,11 @@ def resolve_patient(
             name=extract_name(link_text),
             source_ref=source_ref,
             source_table=source_table,
+            # Skeleton patients seeded from a child row inherit that row's
+            # "Created time" so the dashboard's "Tạo lúc" still shows a
+            # plausible PK-registration date instead of import day.
+            source_created_time=(row.get("Created time") or "").strip() or None,
+            source_updated_time=(row.get("Last edited time") or "").strip() or None,
         )
     else:
         patient.source_tables.add(source_table)
@@ -498,6 +529,10 @@ def map_appointments(
                 "booking_channel_raw": (row.get("Tình trạng CSKH") or "").strip(),
                 "note": (row.get("Ghi chú") or "").strip(),
                 "fk_unresolved": "true",
+                # Preserved for the sync runner so appointment.created_at /
+                # updated_at match the Notion source instead of import day.
+                "source_created_time": (row.get("Created time") or "").strip(),
+                "source_updated_time": (row.get("Last edited time") or "").strip(),
             }
         )
     return staged, rejects
@@ -544,6 +579,9 @@ def map_lab_results(
                 "external_ref": source_ref,
                 "appointment_raw": (row.get("Phiếu khám") or "").strip(),
                 "fk_unresolved": "true",
+                # Notion source timestamps preserved for the sync runner.
+                "source_created_time": (row.get("Created time") or "").strip(),
+                "source_updated_time": (row.get("//ngày up notion") or "").strip(),
             }
         )
     return staged, rejects
@@ -579,12 +617,17 @@ def map_prescriptions(
                 "clinic_patient_id": cpid,
                 "source_ref": source_ref,
                 "drug_name": (row.get("Tên thuốc") or "").strip(),
+                "drug_catalog_ref": (row.get("//Masterpage - Thuốc") or "").strip(),
                 "quantity": (row.get("Số lượng") or "").strip(),
                 "dosage_instructions": (row.get("Hướng dẫn dùng") or "").strip(),
                 "note": (row.get("Lưu ý") or row.get("Ghi chú số lượng") or "").strip(),
+                "quantity_note": (row.get("Ghi chú số lượng") or "").strip(),
+                "standardized_form": (row.get("//chuẩn form") or "").strip(),
                 "exam_raw": (row.get("Phiếu khám") or "").strip(),
                 "no_target_table": "true",
                 "fk_unresolved": "true",
+                "source_created_time": (row.get("Created time") or "").strip(),
+                "source_updated_time": (row.get("Last edited time") or "").strip(),
             }
         )
     return staged, rejects
@@ -631,6 +674,11 @@ def map_clinical_records(
                 "drive_link": (row.get("Link drive") or "").strip(),
                 "visit_unresolved": "true",
                 "fk_unresolved": "true",
+                # Notion source timestamps preserved for sync. ``Created time``
+                # on File BN lâm sàng = lúc lượt khám lần đầu vào Notion =
+                # gần nhất với ngày khám thật.
+                "source_created_time": (row.get("Created time") or "").strip(),
+                "source_updated_time": (row.get("Last edited time") or "").strip(),
             }
         )
     return staged, rejects
