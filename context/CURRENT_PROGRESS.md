@@ -337,3 +337,62 @@ Date: 2026-05-27 · Branch: feat/t-transform-01 · HEAD: d1ad3ca (PUSHED — ori
 - 5 dòng CSKH default trong staff cần Tuyền verify role có đúng không (Diệu Hoa, Huyền Diệu, Kim Tiến, Kiều Thủy, Trang A).
 - Wet sync kết quả cuối — nếu thành công, Supabase có data thật để verify P4 end-to-end.
 - Áp dụng tay 4 RLS migrations vào prod schema (đã apply runtime trong phiên — nhưng migration runner chưa lưu trạng thái vào `schema_migrations`).
+
+
+## === ĐÓNG PHIÊN 29/5 (phiên dài, ~13 commit) ===
+
+### TRẠNG THÁI CUỐI PHIÊN
+- Branch: `feat/t-transform-01`, HEAD = sẽ cập nhật cuối, **13+ commit local chưa push**.
+- Wet sync Notion → Supabase **DONE** lần cuối session. Data thật trong Supabase prod:
+  - patient = **5803** (5571 complete với DOB+phone, 232 thiếu DOB, 5803 phone unique = không trùng)
+  - appointment = **9089** (8151 NO_SHOW lịch sử + 938 SCHEDULED) — 53 hôm nay, 22 ngày mai
+  - visit + clinical_record = **5460 cặp**
+  - lab_result = **0** (clone đứt relation, EXPECTED)
+  - patient_code chạy đúng: BN-2026-000001 → BN-2026-005803
+  - review_queue = 233 (same-phone-diff-name), rejects = 16576 (Rx/lab không extract được phone từ link rỗng)
+  - Rx 10000 / 15319 — nghi Notion API có soft cap 10k/data_source query, KHÔNG ảnh hưởng demo
+
+### COMMITS SESSION (theo thứ tự)
+1. `3ac3e7c` chore(notion): notion-client + schema inspector + report (1762 dòng)
+2. `0471000` feat(seed): P1 service_type 14 + staff 40 từ Notion + wipe 30 demo
+3. `16ba13b` feat(sec): P2 RLS visit/clinical/lab/appointment + X-API-Key middleware
+4. `30c7028` feat(notion-sync): P3 adapter + dry-runnable loader v1
+5. `6df6aff` docs(worklog): session 29/5
+6. `5721f64` docs(state): refresh row counts
+7. `ea819bf` feat(staff): P4 backend migration 025 + link_staff_to_auth CLI
+8. `900172a` feat(dashboard): P4 UI per-doctor "Lịch của tôi"
+9. `379cf97` chore(gitignore): un-ignore src/dashboard/lib
+10. `28d05db` docs(worklog): append P4
+11. `75697cd` fix(notion-sync): retry 502 + bump attempts 5→8
+12. `36a428d` feat(dashboard): /home + role landing + admin nav + rose theme + realtime
+
+### KIẾN TRÚC ĐÃ CHỐT (giữ làm reference phiên sau)
+1. **Source-of-truth = Notion clone** (LINK_NOTION_PAGE_ID workspace Avalook). Không chờ prod token. CSV cũ bỏ.
+2. **Pipeline**: Notion API → `notion_to_sources.py` (adapter prop-typed→string, ISO→CSV dd/mm/yyyy) → `transform.py` (clean+MPI+join SĐT, KHÔNG sửa) → `sync_to_supabase.py` (TRUNCATE→INSERT 1 tx).
+3. **Notion bug đã fix**: `UnknownHTTPResponseError` (502 Bad Gateway) KHÔNG phải subclass `APIResponseError`; cả 2 cùng parent `HTTPResponseError`. Backoff catch parent + 8 attempts.
+4. **Sync wipe-then-insert** trong 1 tx. Đến commit cuối mới có data. Trước đó tables rỗng = đúng design, KHÔNG phải bug.
+5. **Dashboard**: Next 16 (proxy.ts, no middleware.ts), Supabase SSR client, page query trực tiếp Supabase qua RLS authenticated. Backend FastAPI chỉ cho write path + agent endpoint.
+6. **Phân quyền v1**: `staff.auth_user_id` link Supabase Auth user. `isDoctorRole()` + `isAdminRole()` + `roleLanding()` trong `src/dashboard/lib/current-staff.ts`. Proxy redirect post-login theo dept.
+7. **Color**: rose `#ec4899` / `#db2777` thay indigo. Sidebar đen giữ nguyên.
+8. **Dùng "Lịch của tôi"**: chỉ BS/BS SA (DOCTOR + ULTRASOUND_DOCTOR). `?scope=me` filter `doctor_id = staff.id`.
+
+### CÒN LẠI CHO DEMO (F1+F2+F3 — đang code ngay sau khi viết block này)
+- **F1** Fix login UX: LoginForm hardcoded /work-sessions bypass role-aware → sửa về /login để proxy quyết. Đổi blue-600 → rose. ~30 phút.
+- **F2** Forgot password flow: nút "Quên mật khẩu?" → /forgot-password (email input) → Supabase `resetPasswordForEmail` → email link → /reset-password (handle token + updateUser). ~1 buổi.
+- **F3** Admin tạo user trong /settings: cần `SUPABASE_SERVICE_ROLE_KEY` trong .env (CHƯA CÓ). Server route handler dùng service role gọi `auth.admin.createUser({email, password})` → trả uuid → UPDATE staff link. Form trong /settings/new-user (chỉ Admin). ~1 ngày.
+
+### VIỆC NGOÀI TẦM DEV (chỉ user/sếp làm được)
+- Tạo `SUPABASE_SERVICE_ROLE_KEY` trong Supabase dashboard → paste vào `.env` (cần cho F3).
+- Tạo 2 Supabase Auth user demo (BS Thành + Admin) → chạy `link_staff_to_auth.py` link với staff row.
+- Sau khi F3 xong, có thể tạo user qua dashboard luôn không cần CLI.
+- Verify 5 NV không prefix có role đúng không: Diệu Hoa, Huyền Diệu, Kim Tiến, Kiều Thủy, Trang A (đang default CSKH).
+
+### NỢ KỸ THUẬT BIẾT TRƯỚC (đừng làm Phase 1, ghi để khỏi quên)
+- Apply runtime 4 RLS migration 021-024 + migration 025 chưa qua migration runner → `schema_migrations` table chưa ghi. Phase 2 rerun runner sẽ idempotent skip vì pattern `IF NOT EXISTS`.
+- Rx 5319 dòng còn trên Notion mà sync chỉ pull 10000 → cần kiểm tra Notion API cap thật hay code bug.
+- `lab_result = 0` do clone đứt link. Khi có prod token → relation populated → lab sync được.
+- `prescription` TABLE KHÔNG TỒN TẠI trong Supabase → 10000 dòng Rx pulled rồi REJECT trong transform vì không có target.
+- Cron incremental sync (P3b) — defer. Hiện chạy tay khi cần update.
+
+### BẮT ĐẦU PHIÊN SAU LÀM GÌ
+Đọc CLAUDE.md §1 startup ritual, đọc 3 file ngữ cảnh, đọc block này. Báo cáo 3-5 dòng hiểu hiện trạng. Hỏi user việc tiếp theo. KHÔNG tự push, KHÔNG tự deploy.
