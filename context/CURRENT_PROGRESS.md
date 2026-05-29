@@ -282,3 +282,46 @@ Date: 2026-05-27 · Branch: feat/t-transform-01 · HEAD: d1ad3ca (PUSHED — ori
 - Nếu sau này muốn import eager toolset ở tools/__init__: phải gỡ vòng services↔tools._common (vd dời TraceContext ra clinicai.core) — hiện lazy-load né được, chưa cần.
 - Dashboard ghi (form CSKH) vẫn GÁC theo quyết định 26/5 (Notion = nguồn, dashboard chỉ đọc).
 - HEAD cuối phiên 27/5 = c4ca058 (cập nhật sau khi block này viết: thêm 20c1193 + c4ca058).
+
+
+## === PHIÊN 29/5 — P1+P2+P3 done (Notion clone → Supabase) ===
+
+### Bối cảnh & quyết định kiến trúc
+- Bỏ chờ API prod (chặn ngoài tầm dev). Dùng clone bản Notion bạn duplicate sang workspace Avalook (LINK_NOTION_PAGE_ID=36eccb0e…) làm nguồn duy nhất cho demo Phase 1.
+- Bỏ CSV staged cũ (`scripts/data_migration/output/*.csv`) — không biết PK xuất đủ chưa, dùng clone tiện hơn. transform.py giữ nguyên (cùng MPI rule), CHỈ đổi nguồn từ CSV sang Notion API qua adapter mỏng.
+- Mỗi packet commit local theo Task Packet, KHÔNG push. 4 commit phiên này.
+
+### P1 (ADMIN-RESET-01) — commit 0471000
+- Seed `service_type` 14 (Notion options: Sản 1/2/3, NPĐH, Hồ sơ sinh, Tiền hôn nhân, Hiếm muộn, Nội tiết – Tình dục, Phụ khoa, Nam khoa, Tư vấn chuyên sâu, ***#Thủ thuật, FREE, Khám tiền sản). code = ASCII-upper-underscore của name; Notion option_id giữ comment SQL để sync sau khớp tự động.
+- Seed `staff` 40 (Notion lib 3 = 50 row → loại 4 master + 6 job-role rows → còn 40 NV thật). Mapping department: BS→DOCTOR(11), BS SA→ULTRASOUND_DOCTOR(6), ĐD/TL→NURSE_ULTRASOUND(16), ĐD chỉ có 'Lễ tân' dept→RECEPTION(2), không prefix→CSKH default(5).
+- Xoá 30 demo BN qua `scripts/seed/demo_seed.py --wipe --yes` (an toàn, chỉ DELETE theo phone trong seed_sample.json).
+- Final counts: patient=0, staff=40, service_type=14, clinic_location=2.
+- Sửa lệch spec ban đầu: file seed staff cứng `004_staff.sql` chỉ 29 dòng — KHÔNG apply (drift PK), dùng `005_staff_from_notion.sql` generated.
+- 5 dòng CSKH default (Diệu Hoa, Huyền Diệu, Kim Tiến, Kiều Thủy, Trang A) là heuristic — Tuyền nên verify, fix nhanh bằng UPDATE.
+
+### P2 (SEC-API-01) — commit 16ba13b
+- 4 RLS migrations (021-024) trên visit/clinical_record/lab_result/appointment. Pattern mirror 020: ENABLE RLS + CREATE POLICY FOR SELECT TO authenticated USING (true). KHÔNG mở anon, KHÔNG mở write.
+- Verify thật: insert sentinel patient qua DB pool (postgres role) → anon REST GET 5 PII tables = [] → backend pool còn thấy → xoá sentinel.
+- API-key middleware `src/clinicai/api/auth.py` + register `main.py`. Exempt /health, /health/db, /docs, /openapi.json, /redoc. Constant-time compare. Missing key → 401, wrong → 403, env unset → log warning + pass-through (dev fallback).
+- 35 test mới (5 auth + 28 RLS parametric + 2 health regression). Tất cả PASS.
+
+### P3 (NOTION-SYNC-01 v1) — commit 30c7028
+- Adapter `scripts/data_import/notion_to_sources.py`: 5 source DBs (admin/clinical/appointment/lab/prescription) → `dict[str, list[dict[str, str]]]` format trasform.py nhận. prop_to_str handle mọi ptype clone dùng (title/rich_text/select/multi_select/status/date/url/email/phone_number/checkbox/formula/rollup/relation/unique_id/place/verification/array/created_time/last_edited_time). Quan trọng: ISO date → `dd/mm/yyyy[ HH:MM (GMT+7)]` để parse_datetime_vn nhận. 5-step exp backoff cho Notion 5xx + "datastore timeouts".
+- Orchestrator `sync_to_supabase.py`: TRUNCATE 5 PII tables → INSERT theo dependency. Master-data resolve theo name lowercased. patient_code qua advisory_xact_lock. In-batch doctor-overlap deduper (NULL doctor_id trên trùng giờ → tránh fire exclusion constraint `appointment_no_doctor_overlap` — clone có 15-min interleaved double-book). `--dry-run` rollback qua sentinel exception. `--limit N` cap smoke test. `_connect_with_retry` lo pgbouncer drop trong Notion pull dài.
+- 41 test mới (21 adapter + 20 sync helpers). Tất cả PASS.
+- E2E verify --limit 200 (1000 input rows): patient=278, appointment=188, visit=123, clinical=123, lab=0, review_queue=7, rejects=483.
+- lab=0 + prescription PARKED là EXPECTED — clone đã đứt cross-DB relation. transform.resolve_patient extract phone từ relation/link field → empty → reject. Fix data-side khi có prod token; không phải bug code.
+
+### TRẠNG THÁI HIỆN TẠI (cuối phiên)
+- Branch: feat/t-transform-01, HEAD = 30c7028, 4 commit phiên này (3ac3e7c notion-client, 0471000 P1 seed, 16ba13b P2 RLS+auth, 30c7028 P3 sync). Chưa push.
+- Wet sync full chạy nền lúc commit P3 (bdjar4tpj). Chưa biết kết quả cuối — Notion API hôm nay flaky với "datastore timeouts".
+
+### CÒN LẠI CHO DEMO (P4 + P5)
+- P4 (DASH-RBAC-01): dashboard role guard + map auth user ↔ staff_id. Cần migration `staff.auth_user_id UUID NULL UNIQUE`; seed 3 acc demo (BS Thành / CSKH / Admin) trong Supabase Auth. GET /appointments lọc theo bác sĩ+ngày (đang thiếu theo SYSTEM_STATE_ACTUAL).
+- P5 (DEMO-VERIFY-01): E2E tay — tạo BN test trên Notion → đợi 30s (cron không có, manual run sync_to_supabase) → BS Thành login dashboard thấy lịch.
+- Cron + incremental sync (P3b) deferred — v1 thừa demo, làm sau khi PM duyệt cadence.
+
+### VIỆC NHỎ TỒN ĐỌNG
+- 5 dòng CSKH default trong staff cần verify role có đúng không.
+- Kiểm wet sync `bdjar4tpj` kết quả — nếu thành công, Supabase đã có data thật.
+- Áp dụng tay 4 RLS migrations vào prod schema (đã apply runtime trong phiên — nhưng migration runner chưa lưu trạng thái).
