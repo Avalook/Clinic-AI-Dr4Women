@@ -78,6 +78,11 @@ src/dashboard/node_modules/
 src/dashboard/.next/
 src/dashboard/.env.local
 src/dashboard/.env.*.local
+# The global ``lib/`` (Python build artifact) above accidentally hides the
+# dashboard's source ``lib/`` folder — un-ignore it so e.g. supabase-server.ts
+# and current-staff.ts can be tracked.
+!src/dashboard/lib/
+!src/dashboard/lib/**
 
 # Seed ETL artifacts (Task A — contains real patient data, never commit)
 scripts/seed/seed_sample.json
