@@ -59,7 +59,7 @@ import os
 import re
 import sys
 import uuid
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any
 
@@ -159,21 +159,34 @@ _EN_DT_RE = re.compile(
     re.IGNORECASE,
 )
 
+# Notion exports timestamps in the workspace owner's TZ. PK is in
+# Vietnam → GMT+7. Attach explicitly so the sync is deterministic
+# regardless of the operator's machine TZ. (A Mac in Hanoi was
+# accidentally producing correct UTC values via asyncpg's local-TZ
+# fallback; a UTC CI box would have been 7 hours off.)
+_PK_TZ = timezone(timedelta(hours=7))
+
 
 def _parse_dt_loose(value: str | None) -> datetime | None:
     """Best-effort parser for Notion export timestamps.
 
-    Tries: ISO 8601, then the canonical English ("Nov 14, 2025 8:11 AM"
-    with optional leading "@" on Deadline cells), then the Vietnamese
-    ``dd/mm/yyyy h:mm`` shape via ``parse_datetime_vn`` (returns ISO,
-    which we then ``fromisoformat``).
+    Tries: ISO 8601, then the Vietnamese ``dd/mm/yyyy h:mm (GMT+7)``
+    via ``parse_datetime_vn`` (already tz-aware), then the canonical
+    English ("Nov 14, 2025 8:11 AM" with optional leading "@" on
+    Deadline cells), which we explicitly tag with GMT+7.
+
+    Always returns a timezone-aware datetime when it returns anything —
+    naive datetimes would be re-interpreted by asyncpg as the machine's
+    local TZ, which is the bug this function exists to prevent.
     """
     v = _nn(value)
     if v is None:
         return None
-    # ISO first (cheapest path).
+    # ISO first. May or may not carry tzinfo — promote naive ISO to
+    # +07:00 since the Notion-export semantic is workspace-local.
     try:
-        return datetime.fromisoformat(v)
+        dt = datetime.fromisoformat(v)
+        return dt if dt.tzinfo else dt.replace(tzinfo=_PK_TZ)
     except ValueError:
         pass
     # Vietnamese dd/mm/yyyy via the canon transform helper.
@@ -182,10 +195,12 @@ def _parse_dt_loose(value: str | None) -> datetime | None:
     iso = parse_datetime_vn(v)
     if iso:
         try:
-            return datetime.fromisoformat(iso)
+            dt = datetime.fromisoformat(iso)
+            return dt if dt.tzinfo else dt.replace(tzinfo=_PK_TZ)
         except ValueError:
             pass
-    # English long form.
+    # English long form — Notion's default for system fields like
+    # "Created time" / "Last edited time" / "Deadline".
     m = _EN_DT_RE.search(v)
     if m:
         month_name, day, year, hour, minute, ampm = m.groups()
@@ -199,7 +214,7 @@ def _parse_dt_loose(value: str | None) -> datetime | None:
                 h += 12
             if ampm and ampm.upper() == "AM" and h == 12:
                 h = 0
-            return datetime(int(year), month, int(day), h, mm)
+            return datetime(int(year), month, int(day), h, mm, tzinfo=_PK_TZ)
         except ValueError:
             return None
     return None
