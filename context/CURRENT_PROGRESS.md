@@ -396,3 +396,72 @@ Date: 2026-05-27 · Branch: feat/t-transform-01 · HEAD: d1ad3ca (PUSHED — ori
 
 ### BẮT ĐẦU PHIÊN SAU LÀM GÌ
 Đọc CLAUDE.md §1 startup ritual, đọc 3 file ngữ cảnh, đọc block này. Báo cáo 3-5 dòng hiểu hiện trạng. Hỏi user việc tiếp theo. KHÔNG tự push, KHÔNG tự deploy.
+
+
+## === PHIÊN 29/5 — ĐÓNG CUỐI (E2 + E2c + F-auth + bug ngày) ===
+
+### TRẠNG THÁI CUỐI PHIÊN
+- Branch: `feat/t-transform-01`, HEAD = c95178d, **~22 commit local**, đã PUSH lên GitHub cuối phiên.
+- Tất cả Phase-1 13/13 bảng có schema. 10/22 bảng có data thật. Tổng ~107k row data thật trên Supabase.
+- Dashboard chạy được, branding rose Dr4Women, role-aware landing, account management UI đầy đủ (create + reset + unlink), forgot password flow, login fixed.
+
+### COMMITS PHIÊN (tiếp nối block trước, theo thứ tự)
+13. `36a428d` feat(dashboard): /home + role landing + admin nav + rose theme + realtime
+14. `244fa4b` docs(worklog): close session 29/5 + plan F1+F2+F3
+15. `1a338b9` feat(auth): F1 fix login redirect + theme · F2 forgot/reset password · F3 admin create user
+16. `c39f315` feat(schema): close 3 Phase-1 debts (booking_channel, patient_contact_channel, patient_next_of_kin) + seed 7 channels + backfill 5803 PHONE
+17. `86f7480` **feat(sync): E2 — switch source từ Notion clone → PK CSV bundle. lab_result: 0 → 4724.** + bake patient_contact_channel backfill vào sync transaction. + operator-authored AccountActions.tsx, management bootstrap seed 008, PATCH method API admin/users.
+18. `c95178d` **feat(sync): E2c — 3 bảng mới (cskh_action 31179, service_log 15075, prescription 14300) + fix bug "toàn 29/5" bằng cách dùng Notion "Created time" làm row.created_at.**
+
+### DATA FINAL TRONG SUPABASE (verify thật cuối phiên)
+| Bảng | Count | Source |
+|---|---|---|
+| cskh_action | 31.179 | CSV CSKH Action, 93% linked patient |
+| service_log | 15.075 | CSV Dịch vụ, 93% linked |
+| prescription | 14.300 | CSV Kê thuốc, 100% linked |
+| appointment | 9.170 | CSV Lịch hẹn |
+| visit | 5.583 | CSV Phiếu khám (= clinical) |
+| clinical_record | 5.583 | CSV Phiếu khám |
+| patient | 5.518 | CSV File khách hàng + MPI dedup |
+| patient_contact_channel | 5.518 | Backfill từ patient.phone_primary |
+| lab_result | 4.724 | CSV Xét nghiệm (clone không lấy được vì relation đứt) |
+| staff | 40 | Seed Notion lib 3 |
+| service_type | 14 | Seed Notion options |
+| booking_channel | 7 | Seed mặc định (ZALO_PK, FB_DR4WOMEN, FB_4WOMEN, FB_ACADEMY, HOTLINE, WALK_IN, REFERRAL) |
+| clinic_location | 2 | Seed cũ KN + HN |
+| **Tổng row data** | **~107.000** | |
+
+`patient_medical_profile`, `pregnancy`, `patient_next_of_kin`, `work_session`, `work_session_staff`, `event_log` = 0 (schema sẵn, populate runtime hoặc Phase 2).
+
+### TIMESTAMP DISTRIBUTION (verify bug "29/5" fix)
+patient.created_at trải:
+- 2025-11: 3519 BN (bùng phát đăng kí)
+- 2025-12: 304, 2026-01: 307, 2026-02: 132
+- 2026-03: 477, 2026-04: 540, 2026-05: 239 (mới)
+→ Dashboard "Tạo lúc" giờ chính xác theo thời gian PK thật, không phải import day.
+
+### KIẾN TRÚC CHỐT THÊM SESSION NÀY (carry-over phiên sau)
+1. **CSV > Notion clone** cho data import. Lý do: clone đứt relation khi duplicate workspace, CSV PK xuất giữ link text "Name SDT (URL)" → extract_phone recover được. Pipeline mặc định `--source csv` (Notion adapter giữ làm fallback test).
+2. **transform.py mở rộng**: thêm `source_created_time` + `source_updated_time` vào Patient dataclass + 4 map_*. Không vi phạm rule "không sửa MPI/clean" — chỉ pass-through metadata cho sync dùng.
+3. **csv_to_sources** load 7 datasets (5 cho transform.py + 2 cho post-transform E2c: cskh_action + service).
+4. **E2c loaders bypass transform.py**: dùng `_build_phone_index` từ result.patients để resolve clinic_patient_id cho CSKH/Dịch vụ rows. transform.py không cần biết về 2 bảng này.
+5. **Dashboard `/api/admin/users`**: 3 method POST/PATCH (reset_password) /PATCH (unlink). Service-role key bypass RLS.
+6. **Bootstrap admin**: seed 008 tạo 1 MANAGEMENT staff row. Operator dùng để link Supabase Auth user đầu tiên qua `link_staff_to_auth.py` → mọi user khác qua /settings UI.
+
+### VIỆC THẬT BẠN CẦN LÀM ĐỂ DEMO
+1. Lấy `SUPABASE_SERVICE_ROLE_KEY` từ Supabase dashboard → Project Settings → API → service_role secret → paste vào `.env` của repo (KHÔNG commit) → restart dashboard.
+2. Supabase Auth → Add user (email + password + Auto-confirm). Copy UUID.
+3. `poetry run python scripts/seed/link_staff_to_auth.py --map "Quản trị hệ thống=<uuid>"` (hoặc tên Admin bạn promote).
+4. Login dashboard → /settings → Thêm tài khoản → tạo BS Thành / CSKH / etc qua UI.
+5. Login bằng BS Thành → auto-redirect /appointments?scope=me → thấy lịch BS Thành hôm nay.
+
+### NỢ KỸ THUẬT (tiếp tục Phase 2)
+- `staff_capability`, `staff_task`, `mpi_merge_queue`, `ultrasound_record`, `visit_amendment`, `event_log` = 0 row → populate runtime khi backend agent chạy.
+- URL → FK resolution cho `cskh_action.*_link_raw` (currently text). Phase 2 build URL→UUID map, đổi 4 cột link_raw → FK appointment_id / visit_id / lab_result_id / patient_id.
+- Service_type alias match: hiện chỉ trim `[TT]/[SA]/[XN]/[KHAM]` prefix. Phase 2 có aliases column trong service_type → match theo nhiều cách viết.
+- `work_session` + `work_session_staff`: chưa có nguồn data. Cần PM/sếp chốt cách nhập ca trực.
+- Cron incremental sync (P3b) defer khi PK đồng ý live workflow.
+- `Phiếu khám` Notion DB có nhiều columns chưa khai thác (Chẩn đoán công khai, Khám-Tư vấn, Loại dịch vụ khám). Phase 2 extend `clinical_record` schema để hứng.
+
+### BẮT ĐẦU PHIÊN SAU LÀM GÌ
+Đọc CLAUDE.md §1 → context/CURRENT_PROGRESS.md (block này) → context/SYSTEM_STATE_ACTUAL.md. Báo 3-5 dòng. Hỏi user việc tiếp.
