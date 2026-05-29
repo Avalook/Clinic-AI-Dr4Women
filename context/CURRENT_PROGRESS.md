@@ -316,12 +316,24 @@ Date: 2026-05-27 · Branch: feat/t-transform-01 · HEAD: d1ad3ca (PUSHED — ori
 - Branch: feat/t-transform-01, HEAD = 30c7028, 4 commit phiên này (3ac3e7c notion-client, 0471000 P1 seed, 16ba13b P2 RLS+auth, 30c7028 P3 sync). Chưa push.
 - Wet sync full chạy nền lúc commit P3 (bdjar4tpj). Chưa biết kết quả cuối — Notion API hôm nay flaky với "datastore timeouts".
 
-### CÒN LẠI CHO DEMO (P4 + P5)
-- P4 (DASH-RBAC-01): dashboard role guard + map auth user ↔ staff_id. Cần migration `staff.auth_user_id UUID NULL UNIQUE`; seed 3 acc demo (BS Thành / CSKH / Admin) trong Supabase Auth. GET /appointments lọc theo bác sĩ+ngày (đang thiếu theo SYSTEM_STATE_ACTUAL).
-- P5 (DEMO-VERIFY-01): E2E tay — tạo BN test trên Notion → đợi 30s (cron không có, manual run sync_to_supabase) → BS Thành login dashboard thấy lịch.
-- Cron + incremental sync (P3b) deferred — v1 thừa demo, làm sau khi PM duyệt cadence.
+### P4 (DASH-RBAC-01) — commit ea819bf + 900172a + 379cf97
+- Migration `025_staff_auth_link.sql`: `staff.auth_user_id UUID NULL` + FK `auth.users(id) ON DELETE SET NULL` + partial UNIQUE index trên non-null. Applied live + verify schema.
+- CLI `scripts/seed/link_staff_to_auth.py`: `--map "Tên=uuid"` (repeatable), `--unlink`, `--dry-run`. Idempotent. Cho operator chạy sau khi tạo Supabase Auth user.
+- Helper `src/dashboard/lib/current-staff.ts`: `getCurrentStaff()` React-cached lookup staff theo auth.uid(). `isDoctorRole()` = DOCTOR | ULTRASOUND_DOCTOR.
+- Appointments page (`appointments/page.tsx` + `AppointmentsList.tsx`): thêm `?scope=me` filter `doctor_id = staff.id`. Toggle "Tất cả" / "Của tôi" chỉ hiện cho doctor; CSKH/Lễ tân không thấy. Title đổi "Lịch hẹn của <short_name>" khi scope=me.
+- Verify: tsc --noEmit clean, eslint clean, 8 migration test PASS.
+- 🐛 Sửa thêm `.gitignore`: rule `lib/` (Python build artifact) catch nhầm `src/dashboard/lib/` → 2 file existing (supabase-server.ts, supabase-browser.ts) chưa từng được track. Thêm exception `!src/dashboard/lib/**` (commit 379cf97).
+
+### CÒN LẠI CHO DEMO
+- **Wet sync full đang chạy** (PID 6965 - bash bqnz916te). Notion API 22 phút trước flaky, kill rồi start lại lúc API hồi (3.6s/page). ETA ~25 phút.
+- Operator-side P4 (chỉ user làm được, tôi không có service_role key):
+  1. Supabase dashboard → Authentication → Users → Add user cho 2 acc demo: BS Thành (email tuỳ chọn, Auto-confirm), Diệu Hoa (CSKH default).
+  2. Copy 2 UUID, chạy: `poetry run python scripts/seed/link_staff_to_auth.py --map "BS Thành=<uid>" --map "Diệu Hoa=<uid>"`.
+  3. Login dashboard bằng acc BS Thành → /appointments → toggle "Của tôi" → verify chỉ thấy lịch BS Thành. Login bằng Diệu Hoa → không có toggle (CSKH).
+- P5 (DEMO-VERIFY-01): E2E tay — tạo BN test trên Notion → chạy `sync_to_supabase.py` (không có cron Phase 1) → BS Thành login dashboard thấy lịch sau ~30s.
+- Cron + incremental sync (P3b) deferred — v1 đủ demo.
 
 ### VIỆC NHỎ TỒN ĐỌNG
-- 5 dòng CSKH default trong staff cần verify role có đúng không.
-- Kiểm wet sync `bdjar4tpj` kết quả — nếu thành công, Supabase đã có data thật.
-- Áp dụng tay 4 RLS migrations vào prod schema (đã apply runtime trong phiên — nhưng migration runner chưa lưu trạng thái).
+- 5 dòng CSKH default trong staff cần Tuyền verify role có đúng không (Diệu Hoa, Huyền Diệu, Kim Tiến, Kiều Thủy, Trang A).
+- Wet sync kết quả cuối — nếu thành công, Supabase có data thật để verify P4 end-to-end.
+- Áp dụng tay 4 RLS migrations vào prod schema (đã apply runtime trong phiên — nhưng migration runner chưa lưu trạng thái vào `schema_migrations`).
