@@ -36,7 +36,10 @@ from typing import Any
 
 from dotenv import load_dotenv
 from notion_client import AsyncClient
-from notion_client.errors import APIResponseError
+from notion_client.errors import (
+    HTTPResponseError,
+    RequestTimeoutError,
+)
 
 logger = logging.getLogger("data_import.notion_to_sources")
 
@@ -227,28 +230,37 @@ async def _query_page_with_backoff(
     """
     delay = 2.0
     last_exc: Exception | None = None
-    for attempt in range(5):
+    for attempt in range(8):
         try:
             return await notion.data_sources.query(**kwargs)
-        except APIResponseError as exc:
+        except (HTTPResponseError, RequestTimeoutError) as exc:
+            # HTTPResponseError covers BOTH APIResponseError (4xx with a
+            # structured Notion body) and UnknownHTTPResponseError (the
+            # 502/503/504 gateway errors that arrive without a body and
+            # are NOT subclasses of APIResponseError). Earlier code only
+            # caught APIResponseError → 502s torpedoed the whole sync.
             last_exc = exc
             msg = str(exc)
+            status = getattr(exc, "status", 0)
             transient = (
-                "temporarily unavailable" in msg
+                status in (408, 429, 500, 502, 503, 504, 522, 524)
+                or isinstance(exc, RequestTimeoutError)
+                or "temporarily unavailable" in msg
                 or "datastore timeouts" in msg
-                or getattr(exc, "status", 0) in (502, 503, 504, 522)
+                or "Bad Gateway" in msg
             )
             if not transient:
                 raise
             logger.warning(
-                "notion_query_transient_retry attempt=%d delay=%.1fs err=%s",
+                "notion_query_transient_retry attempt=%d delay=%.1fs status=%s err=%s",
                 attempt + 1,
                 delay,
+                status,
                 msg[:120],
             )
             await asyncio.sleep(delay)
-            delay = min(delay * 2, 30.0)
-    raise RuntimeError(f"notion_query failed after 5 retries: {last_exc}") from last_exc
+            delay = min(delay * 2, 60.0)
+    raise RuntimeError(f"notion_query failed after 8 retries: {last_exc}") from last_exc
 
 
 async def _query_all(
