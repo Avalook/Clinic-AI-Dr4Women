@@ -46,8 +46,28 @@ export async function proxy(request: NextRequest) {
   }
 
   if (user && pathname === "/login") {
+    // Role-aware landing: pull the linked staff row and pick the
+    // destination per the same rule as current-staff.ts → roleLanding().
+    // Doing it here (not on /home) means BS clicking "Trang chủ" later
+    // still gets to see /home rather than bouncing to /appointments.
+    const { data: staff } = await supabase
+      .from("staff")
+      .select("primary_department")
+      .eq("auth_user_id", user.id)
+      .maybeSingle();
+
+    const dept = staff?.primary_department;
+    let landing = "/home";
+    if (dept === "DOCTOR" || dept === "ULTRASOUND_DOCTOR") {
+      landing = "/appointments?scope=me";
+    } else if (dept === "CSKH") {
+      landing = "/tasks";
+    }
+
     const url = request.nextUrl.clone();
-    url.pathname = "/work-sessions";
+    const [path, search] = landing.split("?");
+    url.pathname = path;
+    url.search = search ? `?${search}` : "";
     return NextResponse.redirect(url);
   }
 

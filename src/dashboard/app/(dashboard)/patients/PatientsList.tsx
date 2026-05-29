@@ -47,8 +47,13 @@ export default async function PatientsList({
 
   const term = q.trim();
   if (term) {
-    // OR over patient_code + full_name. Supabase escapes the value.
-    query = query.or(`patient_code.ilike.%${term}%,full_name.ilike.%${term}%`);
+    // OR over patient_code + full_name + phone_primary. PostgREST takes
+    // a comma-joined ``or=`` filter; Supabase escapes the literal.
+    query = query.or(
+      `patient_code.ilike.%${term}%,` +
+        `full_name.ilike.%${term}%,` +
+        `phone_primary.ilike.%${term}%`,
+    );
   }
 
   const { data, error } = await query;
@@ -60,12 +65,12 @@ export default async function PatientsList({
         <input
           name="q"
           defaultValue={q}
-          placeholder="Tìm theo patient_code hoặc tên..."
-          className="h-9 flex-1 rounded-md border border-[#e4e4e7] px-3 text-sm text-[#171717] outline-none focus:border-[#6366f1] focus:ring-2 focus:ring-[#6366f1]/20"
+          placeholder="Tìm theo mã BN, tên, hoặc số điện thoại..."
+          className="h-9 flex-1 rounded-md border border-[#e4e4e7] px-3 text-sm text-[#171717] outline-none focus:border-[#ec4899] focus:ring-2 focus:ring-[#ec4899]/20"
         />
         <button
           type="submit"
-          className="h-9 rounded-md bg-[#6366f1] px-3.5 text-sm font-medium text-white transition-colors duration-150 hover:bg-[#4f46e5]"
+          className="h-9 rounded-md bg-[#ec4899] px-3.5 text-sm font-medium text-white transition-colors duration-150 hover:bg-[#db2777]"
         >
           Tìm
         </button>
@@ -106,7 +111,7 @@ export default async function PatientsList({
                 <td className="px-4 py-2.5 font-mono text-xs">
                   <Link
                     href={`/patients/${p.clinic_patient_id}`}
-                    className="text-[#6366f1] hover:underline"
+                    className="text-[#ec4899] hover:underline"
                   >
                     {p.patient_code}
                   </Link>
@@ -114,7 +119,7 @@ export default async function PatientsList({
                 <td className="px-4 py-2.5 text-[#171717]">
                   <Link
                     href={`/patients/${p.clinic_patient_id}`}
-                    className="text-[#6366f1] hover:underline"
+                    className="text-[#ec4899] hover:underline"
                   >
                     {p.full_name}
                   </Link>

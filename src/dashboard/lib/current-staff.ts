@@ -24,10 +24,23 @@ export interface CurrentStaff {
 }
 
 const DOCTOR_DEPTS = new Set(["DOCTOR", "ULTRASOUND_DOCTOR"]);
+const ADMIN_DEPTS = new Set(["MANAGEMENT"]);
 
 /** Departments allowed to filter the appointments view by themselves. */
 export function isDoctorRole(staff: CurrentStaff | null): boolean {
   return staff !== null && DOCTOR_DEPTS.has(staff.primary_department);
+}
+
+/** MANAGEMENT only — sees Reports + Settings nav items. */
+export function isAdminRole(staff: CurrentStaff | null): boolean {
+  return staff !== null && ADMIN_DEPTS.has(staff.primary_department);
+}
+
+/** The role-aware default landing path after login. */
+export function roleLanding(staff: CurrentStaff | null): string {
+  if (isDoctorRole(staff)) return "/appointments?scope=me";
+  if (staff?.primary_department === "CSKH") return "/tasks";
+  return "/home";
 }
 
 /** Memoised per server-render. */

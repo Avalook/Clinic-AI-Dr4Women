@@ -102,7 +102,7 @@ export default async function PatientDetail({ id }: { id: string }) {
         </div>
         <Link
           href="/patients"
-          className="text-sm text-[#6366f1] hover:underline"
+          className="text-sm text-[#ec4899] hover:underline"
         >
           ← Về danh sách BN
         </Link>
@@ -112,7 +112,7 @@ export default async function PatientDetail({ id }: { id: string }) {
 
   return (
     <div className="space-y-6">
-      <Link href="/patients" className="text-sm text-[#6366f1] hover:underline">
+      <Link href="/patients" className="text-sm text-[#ec4899] hover:underline">
         ← Về danh sách BN
       </Link>
 

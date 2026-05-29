@@ -5,6 +5,7 @@
 
 import Link from "next/link";
 import AppointmentsList from "./AppointmentsList";
+import AppointmentsRealtime from "./AppointmentsRealtime";
 import StatCard from "../StatCard";
 import { getSupabaseServer } from "../../../lib/supabase-server";
 import { getCurrentStaff, isDoctorRole } from "../../../lib/current-staff";
@@ -83,7 +84,12 @@ export default async function AppointmentsPage({
           <h1 className="text-xl font-semibold text-[#171717]">
             Lịch hẹn{scope === "me" && staff ? ` của ${staff.short_name ?? staff.full_name}` : ""}
           </h1>
-          <p className="text-sm text-[#888888]">Lịch hẹn hôm nay. Read-only.</p>
+          <div className="flex items-center gap-3">
+            <p className="text-sm text-[#888888]">
+              Lịch hẹn hôm nay. Read-only.
+            </p>
+            <AppointmentsRealtime />
+          </div>
         </div>
         {canSwitchScope && (
           <div className="flex gap-1" role="group" aria-label="Phạm vi lịch">
