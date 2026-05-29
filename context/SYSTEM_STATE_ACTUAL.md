@@ -49,20 +49,23 @@
 
 ### 1.4 Row counts THẬT (SELECT count, read-only — không in PII)
 
-| Bảng | Count | Phân loại |
-|---|---|---|
-| `schema_migrations` | 20 | meta (cả 20 migration applied) |
-| `clinic_location` | 2 | **seed** (KN, HN) ✓ |
-| `service_type` | **1** | **seed THIẾU** — canon expект 15 rows; chỉ có 1 ⚠️ |
-| `patient` | **30** | **demo/test** — KHÔNG phải transform (5728) |
-| `staff` | **0** | seed `004_staff.sql` (29 rows) **CHƯA apply** ⚠️ |
-| `appointment`, `visit`, `clinical_record`, `visit_amendment`, `ultrasound_record`, `lab_result`, `staff_task`, `pregnancy`, `patient_medical_profile`, `work_session`, `work_session_staff`, `staff_capability`, `event_log`, `mpi_merge_queue` | **0** | rỗng |
+| Bảng | Count (25/5) | Count (29/5 sau P1+P3 dry-run) | Phân loại |
+|---|---|---|---|
+| `schema_migrations` | 20 | 20 | runner chưa được gọi cho 021-024 (apply runtime, sẽ ghi sau) |
+| `clinic_location` | 2 | 2 | **seed** (KN, HN) ✓ |
+| `service_type` | 1 | **14** | seed `003_service_type.sql` (Notion options) applied 29/5 ✓ |
+| `staff` | 0 | **40** | seed `005_staff_from_notion.sql` (Notion lib 3 − master/job-role rows) applied 29/5 ✓ |
+| `patient` | 30 | **0** | 30 demo BN xoá qua `demo_seed.py --wipe --yes` 29/5 |
+| `appointment`, `visit`, `clinical_record`, `lab_result` | 0 | 0 | wet sync 29/5 đang chạy nền (PID 93155) |
+| `visit_amendment`, `ultrasound_record`, `staff_task`, `pregnancy`, `patient_medical_profile`, `work_session`, `work_session_staff`, `staff_capability`, `event_log`, `mpi_merge_queue` | 0 | 0 | rỗng (Phase 2+ scope) |
 
-### 1.5 TRANSFORM đã LOAD vào DB chưa? → **CHƯA**
+### 1.5 TRANSFORM đã LOAD vào DB chưa? → **CSV bỏ; clone-sync v1 chạy**
 
-- T-TRANSFORM-01 (NHỊP 1) xuất **5728 patient** ra file staged (`scripts/data_migration/output/`, gitignore).
-- DB chỉ có **30 patient** → là data demo/test, **không phải** data transform.
-- **Kết luận: NHỊP 2 LOAD chưa chạy.** DB chưa có data BN thật.
+- 25/5: T-TRANSFORM-01 xuất 5728 patient ra file staged (`scripts/data_migration/output/`, gitignored) — chưa load.
+- 29/5: bỏ CSV, viết `scripts/data_import/notion_to_sources.py` + `sync_to_supabase.py` (commit 30c7028) đọc thẳng Notion clone (LINK_NOTION_PAGE_ID).
+- Dry-run --limit 200 (1000 input rows): patient=278, appointment=188, visit=123, clinical_record=123, lab_result=0, review_queue=7, rejects=483.
+- lab=0 + prescription PARKED EXPECTED — clone đã đứt cross-DB relation; phone không extract được từ link fields.
+- Wet sync full đang chạy nền 29/5 — kết quả sẽ được commit sau.
 
 ---
 
