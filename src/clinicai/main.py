@@ -10,6 +10,7 @@ import structlog
 from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
 
+from clinicai.api.auth import api_key_middleware
 from clinicai.api.v1.health import router as health_router
 from clinicai.api.v1.patients import router as patients_router
 from clinicai.api.v1.routers.brief import router as brief_router
@@ -70,6 +71,9 @@ app = FastAPI(
     version="0.1.0",
     lifespan=lifespan,
 )
+
+# Gate every non-health route on BACKEND_API_KEY (see api.auth).
+app.middleware("http")(api_key_middleware)
 
 app.include_router(health_router)
 app.include_router(patients_router, prefix="/api/v1")
