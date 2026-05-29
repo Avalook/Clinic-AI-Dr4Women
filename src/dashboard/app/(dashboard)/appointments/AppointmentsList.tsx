@@ -1,11 +1,15 @@
 // Server component: queries today's appointments for one tab.
 // appointment JOIN patient + staff (doctor, LEFT) + service_type.
 // SECURITY: national_id_number (CCCD) is NOT selected — D-identity gate.
+// PER-DOCTOR SCOPE: when scope === "me" and the caller is a doctor, the
+// query is narrowed to doctor_id = current staff.id ("Lịch của tôi").
 
 import StatusBadge from "../StatusBadge";
 import { getSupabaseServer } from "../../../lib/supabase-server";
+import { getCurrentStaff, isDoctorRole } from "../../../lib/current-staff";
 
 type Tab = "pending" | "confirmed";
+type Scope = "all" | "me";
 
 // Status sets per tab (see appointment.status CHECK constraint).
 const STATUS_BY_TAB: Record<Tab, string[]> = {
@@ -47,8 +51,15 @@ function fmtTime(ts: string): string {
 const TH = "px-4 py-2.5 font-medium";
 const TD = "px-4 py-2.5";
 
-export default async function AppointmentsList({ tab }: { tab: Tab }) {
+export default async function AppointmentsList({
+  tab,
+  scope = "all",
+}: {
+  tab: Tab;
+  scope?: Scope;
+}) {
   const supabase = await getSupabaseServer();
+  const staff = await getCurrentStaff();
 
   // Default window: today (local day boundaries).
   const now = new Date();
@@ -56,7 +67,11 @@ export default async function AppointmentsList({ tab }: { tab: Tab }) {
   const endOfDay = new Date(startOfDay);
   endOfDay.setDate(endOfDay.getDate() + 1);
 
-  const { data, error } = await supabase
+  // "me" scope only applies when the caller is a doctor with a staff row
+  // linked. Anyone else (CSKH, RECEPTION, unlinked) falls back to "all".
+  const meFilter = scope === "me" && isDoctorRole(staff);
+
+  let query = supabase
     .from("appointment")
     .select(SELECT_COLUMNS)
     .in("status", STATUS_BY_TAB[tab])
@@ -64,6 +79,12 @@ export default async function AppointmentsList({ tab }: { tab: Tab }) {
     .lt("slot_start", endOfDay.toISOString())
     .order("slot_start", { ascending: true })
     .limit(50);
+
+  if (meFilter && staff) {
+    query = query.eq("doctor_id", staff.id);
+  }
+
+  const { data, error } = await query;
 
   const rows = (data as AppointmentRow[] | null) ?? [];
   const isPending = tab === "pending";
