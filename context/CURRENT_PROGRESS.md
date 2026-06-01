@@ -545,4 +545,19 @@ Chuỗi nguyên nhân (gỡ từng lớp):
 
 ### NỢ / CARRY-OVER
 - `schema_migrations` chưa ghi 032 (đã apply tay) → cần `--mark-applied` 032 cho sạch tracker.
-- Tính năng booking mới: commit local theo lệnh, **CHƯA push**. Push lên feat/t-transform-01 → Vercel tự deploy.
+- Tính năng booking mới: đã commit + push lên avalook + origin (Vercel deploy). Đã chạy thật OK.
+
+## === PHIÊN 01/06 (tiếp) — BÁC SĨ XÁC NHẬN / TỪ CHỐI LỊCH HẸN ===
+> Yêu cầu: BS xem "Lịch của tôi" cần nút Xác nhận/Từ chối lịch chờ. Từ chối = không nhận BN (phân BS khác SAU — hoãn). Thông báo cho Lễ tân/CSKH/QL. Lịch sử BS vẫn hiện BN đã từ chối.
+
+### ĐÃ LÀM (code + migration; **034 CHƯA apply lên DB**)
+- **Migration 034** (`20260601_034_appointment_doctor_declined.sql`): thêm `DOCTOR_DECLINED` vào CHECK `appointment_status_check` (DROP+ADD, idempotent). **Phải chạy SQL Editor** thì nút "Từ chối" mới hoạt động; "Xác nhận"→CONFIRMED chạy luôn không cần.
+- **API** `PATCH /api/appointments` `{id, action: confirm|decline}`: chỉ `isDoctorRole` + chỉ lịch `doctor_id = staff.id` + `status=SCHEDULED`. confirm→CONFIRMED, decline→DOCTOR_DECLINED. Ghi `event_log` (appointment.confirmed/declined). UPDATE KHÔNG bị guard 033 chặn (033 chỉ chặn DELETE/TRUNCATE).
+- **UI**: nút Xác nhận(xanh)/Từ chối(đỏ) `AppointmentActions` trên tab "Chờ xác nhận", chỉ hiện cho BS + lịch của chính mình. Tab mới **"Đã từ chối"** (DOCTOR_DECLINED) — BS scope=me thấy lịch mình từ chối, Lễ tân/CSKH scope=all thấy hàng đợi cần phân lại. Badge "Đã từ chối" (cam) trong StatusBadge.
+- **Thông báo**: toast góc trên-phải có nút ✕ (`DeclinedNotice`) trong dashboard layout, cho `canWriteIntake` (Lễ tân/CSKH/QL), liệt kê lịch DOCTOR_DECLINED từ hôm nay trở đi. Dismiss = theo session (reload lại hiện nếu còn).
+- VERIFY: tsc=0, eslint=0, VERCEL=1 build OK. KHÔNG test decline thật lên prod (034 chưa apply + tránh data rác do guard 033).
+
+### NỢ / CARRY-OVER
+- **Apply migration 034** lên prod (SQL Editor) — chưa làm; "Từ chối" chưa chạy tới khi apply.
+- **Cơ chế phân lại BS khác** (DOCTOR_DECLINED → SCHEDULED + đổi doctor_id) — HOÃN theo yêu cầu user.
+- `schema_migrations`: 032 + 034 đều apply tay ngoài runner → cần `--mark-applied` cho sạch tracker.
