@@ -570,3 +570,7 @@ Chuỗi nguyên nhân (gỡ từng lớp):
 - **Thay 8 file** dùng lib: hiển thị (AppointmentsList, PatientDetail, PatientHistory, DeclinedNotice/layout) + tạo lịch (AppointmentBooking) + today-window (AppointmentsList, appointments/page, home/page, patients/page, layout). Bỏ các `fmt*` cục bộ trùng lặp.
 - KIỂM CHỨNG (TZ=UTC giả lập Vercel): đặt 14:00 VN → lưu 07:00Z → hiển thị lại 14:00; today = đúng biên ngày VN; edge 03:00 sáng VN → đúng ngày. tsc=0, eslint=0, VERCEL=1 build OK.
 - LƯU Ý: age-from-DOB (PatientsList/PatientDetail) + patient_code year (api/patients) vẫn dùng giờ máy — KHÔNG sửa (không phải giờ lâm sàng, lệch vô nghĩa).
+
+## === PHIÊN 01/06 (tiếp) — PAGINATION LIST BN + DOC TEST NỘI BỘ ===
+- **Pagination list bệnh nhân** (`PatientsList.tsx` + type ở `patients/page.tsx`): bỏ hard-cap `.limit(50)` (chỉ thấy 50/5.520 BN) → `.range(from, from+49)` + `count:exact`, **50 BN/trang**, thanh điều hướng "X–Y / total" + Trước/Sau + Trang N/M (tự disable ở đầu–cuối). Giữ từ khoá khi chuyển trang; "Tìm" mới / "Xoá" → về trang 1. Đếm theo **kết quả đã lọc**. 5.520 BN → 111 trang. Không cần migration. tsc=0, eslint=0, VERCEL=1 build OK.
+- **Doc test nội bộ** `docs/HUONG_DAN_TEST_DASHBOARD.md`: link + data thật + cảnh báo (không xóa được, đặt tên "TEST –"), luồng đăng nhập/role, kịch bản KB-A→F (tạo BN, đặt lịch BN có sẵn, BS xác nhận/từ chối, thông báo từ chối, phân quyền), giới hạn đã biết, mẫu báo lỗi. Còn placeholder kênh báo lỗi; mật khẩu phòng khám gửi team riêng (KHÔNG để trong file).
