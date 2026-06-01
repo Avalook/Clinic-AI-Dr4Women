@@ -2,11 +2,9 @@
 
 import { useState } from "react";
 import Link from "next/link";
+import AppointmentBooking, { type Option } from "../AppointmentBooking";
 
-export interface Option {
-  id: string;
-  label: string;
-}
+export type { Option };
 
 interface CreatedPatient {
   clinic_patient_id: string;
@@ -28,15 +26,6 @@ const BTN =
   "rounded bg-[#ec4899] px-4 py-2 text-sm font-medium text-white transition-colors duration-150 hover:bg-[#db2777] disabled:opacity-50";
 const CARD =
   "rounded-lg border border-[#e4e4e7] bg-white p-5 shadow-[0_1px_3px_rgba(0,0,0,0.08)]";
-
-const CHANNELS = [
-  { id: "WALK_IN", label: "Khách tới trực tiếp" },
-  { id: "HOTLINE", label: "Hotline" },
-  { id: "ZALO_PK", label: "Zalo" },
-  { id: "FB_DR4WOMEN", label: "Facebook" },
-  { id: "REFERRAL", label: "Giới thiệu" },
-];
-const DURATIONS = [15, 30, 45, 60];
 
 export default function NewPatientForm({
   locations,
@@ -60,16 +49,9 @@ export default function NewPatientForm({
 
   const [created, setCreated] = useState<CreatedPatient | null>(null);
 
-  // ---- Appointment step state ----
-  const [doctorId, setDoctorId] = useState("");
-  const [serviceId, setServiceId] = useState("");
-  const [apptLocation, setApptLocation] = useState(locations[0]?.id ?? "");
-  const [apptDate, setApptDate] = useState("");
-  const [apptTime, setApptTime] = useState("");
-  const [duration, setDuration] = useState(30);
-  const [channel, setChannel] = useState("WALK_IN");
-  const [apptError, setApptError] = useState<string | null>(null);
-  const [apptSubmitting, setApptSubmitting] = useState(false);
+  // ---- Appointment step ----
+  // The booking form itself lives in <AppointmentBooking>; here we only track
+  // whether this intake's booking step is done ("skipped" or an appointment id).
   const [apptDoneId, setApptDoneId] = useState<string | null>(null);
 
   async function createPatient(force: boolean) {
@@ -100,45 +82,15 @@ export default function NewPatientForm({
     }
     setDupes(null);
     setCreated(json.patient as CreatedPatient);
-    setApptLocation(locationId);
   }
 
-  function useExisting(m: DupMatch) {
+  function pickExisting(m: DupMatch) {
     setDupes(null);
     setCreated({
       clinic_patient_id: m.clinic_patient_id,
       full_name: m.full_name,
       patient_code: m.patient_code,
     });
-    setApptLocation(locationId);
-  }
-
-  async function bookAppointment() {
-    if (!created) return;
-    setApptError(null);
-    setApptSubmitting(true);
-    const start = new Date(`${apptDate}T${apptTime}`);
-    const end = new Date(start.getTime() + duration * 60_000);
-    const res = await fetch("/api/appointments", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        clinic_patient_id: created.clinic_patient_id,
-        doctor_id: doctorId,
-        service_type_id: serviceId,
-        location_id: apptLocation,
-        slot_start: start.toISOString(),
-        slot_end: end.toISOString(),
-        booking_channel: channel,
-      }),
-    });
-    const json = await res.json();
-    setApptSubmitting(false);
-    if (!res.ok) {
-      setApptError(json.error ?? "Có lỗi xảy ra.");
-      return;
-    }
-    setApptDoneId(json.appointment_id as string);
   }
 
   function reset() {
@@ -150,11 +102,6 @@ export default function NewPatientForm({
     setError(null);
     setDupes(null);
     setCreated(null);
-    setDoctorId("");
-    setServiceId("");
-    setApptDate("");
-    setApptTime("");
-    setApptError(null);
     setApptDoneId(null);
   }
 
@@ -183,7 +130,6 @@ export default function NewPatientForm({
 
   // ---- STEP 2: patient created → appointment form ----
   if (created) {
-    const canBook = serviceId && apptLocation && apptDate && apptTime;
     return (
       <div className={`${CARD} space-y-4`}>
         <p className="rounded bg-[#dcfce7] px-3 py-2 text-sm text-[#15803d]">
@@ -191,120 +137,22 @@ export default function NewPatientForm({
           sàng. Đặt lịch hẹn (hoặc bỏ qua).
         </p>
 
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-          <div className="space-y-1">
-            <label className={LABEL}>Dịch vụ *</label>
-            <select
-              value={serviceId}
-              onChange={(e) => setServiceId(e.target.value)}
-              className={INPUT}
+        <AppointmentBooking
+          clinicPatientId={created.clinic_patient_id}
+          services={services}
+          doctors={doctors}
+          locations={locations}
+          defaultLocationId={locationId}
+          onBooked={(apptId) => setApptDoneId(apptId)}
+          secondary={
+            <button
+              onClick={() => setApptDoneId("skipped")}
+              className="rounded border border-[#e4e4e7] px-4 py-2 text-sm text-[#71717a] hover:bg-[#f4f4f5]"
             >
-              <option value="">— Chọn dịch vụ —</option>
-              {services.map((s) => (
-                <option key={s.id} value={s.id}>
-                  {s.label}
-                </option>
-              ))}
-            </select>
-          </div>
-          <div className="space-y-1">
-            <label className={LABEL}>Bác sĩ</label>
-            <select
-              value={doctorId}
-              onChange={(e) => setDoctorId(e.target.value)}
-              className={INPUT}
-            >
-              <option value="">— Chưa phân bác sĩ —</option>
-              {doctors.map((d) => (
-                <option key={d.id} value={d.id}>
-                  {d.label}
-                </option>
-              ))}
-            </select>
-          </div>
-          <div className="space-y-1">
-            <label className={LABEL}>Ngày *</label>
-            <input
-              type="date"
-              value={apptDate}
-              onChange={(e) => setApptDate(e.target.value)}
-              className={INPUT}
-            />
-          </div>
-          <div className="space-y-1">
-            <label className={LABEL}>Giờ *</label>
-            <input
-              type="time"
-              value={apptTime}
-              onChange={(e) => setApptTime(e.target.value)}
-              className={INPUT}
-            />
-          </div>
-          <div className="space-y-1">
-            <label className={LABEL}>Thời lượng</label>
-            <select
-              value={duration}
-              onChange={(e) => setDuration(Number(e.target.value))}
-              className={INPUT}
-            >
-              {DURATIONS.map((d) => (
-                <option key={d} value={d}>
-                  {d} phút
-                </option>
-              ))}
-            </select>
-          </div>
-          <div className="space-y-1">
-            <label className={LABEL}>Cơ sở *</label>
-            <select
-              value={apptLocation}
-              onChange={(e) => setApptLocation(e.target.value)}
-              className={INPUT}
-            >
-              {locations.map((l) => (
-                <option key={l.id} value={l.id}>
-                  {l.label}
-                </option>
-              ))}
-            </select>
-          </div>
-          <div className="space-y-1">
-            <label className={LABEL}>Kênh đặt</label>
-            <select
-              value={channel}
-              onChange={(e) => setChannel(e.target.value)}
-              className={INPUT}
-            >
-              {CHANNELS.map((c) => (
-                <option key={c.id} value={c.id}>
-                  {c.label}
-                </option>
-              ))}
-            </select>
-          </div>
-        </div>
-
-        {apptError && (
-          <p className="rounded bg-[#fee2e2] px-3 py-2 text-sm text-[#dc2626]">
-            {apptError}
-          </p>
-        )}
-
-        <div className="flex gap-2">
-          <button
-            onClick={bookAppointment}
-            disabled={!canBook || apptSubmitting}
-            className={BTN}
-          >
-            {apptSubmitting ? "Đang đặt..." : "Đặt lịch hẹn"}
-          </button>
-          <button
-            onClick={() => setApptDoneId("skipped")}
-            className="rounded border border-[#e4e4e7] px-4 py-2 text-sm text-[#71717a] hover:bg-[#f4f4f5]"
-          >
-            Bỏ qua, chỉ tạo BN
-          </button>
-        </div>
+              Bỏ qua, chỉ tạo BN
+            </button>
+          }
+        />
       </div>
     );
   }
@@ -397,7 +245,7 @@ export default function NewPatientForm({
                   ) : null}
                 </span>
                 <button
-                  onClick={() => useExisting(m)}
+                  onClick={() => pickExisting(m)}
                   className="rounded bg-[#ec4899] px-2 py-1 text-xs font-medium text-white hover:bg-[#db2777]"
                 >
                   Dùng BN này
