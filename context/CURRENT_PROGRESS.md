@@ -561,3 +561,12 @@ Chuỗi nguyên nhân (gỡ từng lớp):
 - **Apply migration 034** lên prod (SQL Editor) — chưa làm; "Từ chối" chưa chạy tới khi apply.
 - **Cơ chế phân lại BS khác** (DOCTOR_DECLINED → SCHEDULED + đổi doctor_id) — HOÃN theo yêu cầu user.
 - `schema_migrations`: 032 + 034 đều apply tay ngoài runner → cần `--mark-applied` cho sạch tracker.
+
+## === PHIÊN 01/06 (tiếp) — FIX MÚI GIỜ GMT+7 (Asia/Ho_Chi_Minh) ===
+> Bug: server Vercel chạy UTC → format giờ + tính "hôm nay" KHÔNG ghim timezone → hiển thị lệch 7h (vd 14:00 hiện 07:00) + biên "hôm nay" sai ngày VN.
+
+### ĐÃ LÀM (chỉ code, KHÔNG cần migration — data đã lưu đúng UTC)
+- **Mới `lib/datetime.ts`** (nguồn DUY NHẤT cho giờ VN): `fmtDateTime/fmtTime/fmtDayTime/fmtDate` (đều `timeZone: Asia/Ho_Chi_Minh`), `vnLocalToUtcISO(date,time)` (giờ nhập = giờ VN → UTC, không phụ thuộc múi giờ trình duyệt), `vnTodayRangeUtc()` + `vnMonthStartUtc()` (biên ngày/tháng theo VN, trả UTC ISO).
+- **Thay 8 file** dùng lib: hiển thị (AppointmentsList, PatientDetail, PatientHistory, DeclinedNotice/layout) + tạo lịch (AppointmentBooking) + today-window (AppointmentsList, appointments/page, home/page, patients/page, layout). Bỏ các `fmt*` cục bộ trùng lặp.
+- KIỂM CHỨNG (TZ=UTC giả lập Vercel): đặt 14:00 VN → lưu 07:00Z → hiển thị lại 14:00; today = đúng biên ngày VN; edge 03:00 sáng VN → đúng ngày. tsc=0, eslint=0, VERCEL=1 build OK.
+- LƯU Ý: age-from-DOB (PatientsList/PatientDetail) + patient_code year (api/patients) vẫn dùng giờ máy — KHÔNG sửa (không phải giờ lâm sàng, lệch vô nghĩa).
