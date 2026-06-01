@@ -31,21 +31,26 @@ function ageFromDob(dob: string | null): string {
 const TH =
   "sticky top-0 z-10 border-b border-[#e4e4e7] bg-white px-4 py-2.5 font-medium";
 
+const PAGE_SIZE = 50;
+
 export default async function PatientsList({
   searchParams,
 }: {
-  searchParams: Promise<{ q?: string }>;
+  searchParams: Promise<{ q?: string; page?: string }>;
 }) {
-  const { q = "" } = await searchParams;
+  const { q = "", page = "1" } = await searchParams;
   const supabase = await getSupabaseServer();
+
+  const term = q.trim();
+  const current = Math.max(1, Number.parseInt(page, 10) || 1);
+  const from = (current - 1) * PAGE_SIZE;
 
   let query = supabase
     .from("patient")
-    .select(SAFE_COLUMNS)
+    .select(SAFE_COLUMNS, { count: "exact" })
     .order("created_at", { ascending: false })
-    .limit(50);
+    .range(from, from + PAGE_SIZE - 1);
 
-  const term = q.trim();
   if (term) {
     // OR over patient_code + full_name + phone_primary. PostgREST takes
     // a comma-joined ``or=`` filter; Supabase escapes the literal.
@@ -56,8 +61,19 @@ export default async function PatientsList({
     );
   }
 
-  const { data, error } = await query;
+  const { data, error, count } = await query;
   const rows = (data as PatientRow[] | null) ?? [];
+  const total = count ?? 0;
+  const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
+
+  // Page link that preserves the active search term.
+  const pageHref = (p: number): string => {
+    const params = new URLSearchParams();
+    if (term) params.set("q", term);
+    if (p > 1) params.set("page", String(p));
+    const qs = params.toString();
+    return qs ? `/patients?${qs}` : "/patients";
+  };
 
   return (
     <div className="space-y-3">
@@ -155,6 +171,45 @@ export default async function PatientsList({
           </tbody>
         </table>
       </div>
+
+      {total > 0 && (
+        <div className="flex items-center justify-between gap-3 text-sm text-[#71717a]">
+          <span>
+            {rows.length > 0
+              ? `${from + 1}–${from + rows.length} / ${total} bệnh nhân`
+              : `${total} bệnh nhân`}
+          </span>
+          <div className="flex items-center gap-1">
+            {current > 1 ? (
+              <Link
+                href={pageHref(current - 1)}
+                className="rounded-md border border-[#e4e4e7] px-3 py-1.5 text-[#4d4d4d] transition-colors duration-150 hover:bg-[#f4f4f5]"
+              >
+                ← Trước
+              </Link>
+            ) : (
+              <span className="rounded-md border border-[#f4f4f5] px-3 py-1.5 text-[#d4d4d8]">
+                ← Trước
+              </span>
+            )}
+            <span className="px-2 text-[#4d4d4d]">
+              Trang {current} / {totalPages}
+            </span>
+            {current < totalPages ? (
+              <Link
+                href={pageHref(current + 1)}
+                className="rounded-md border border-[#e4e4e7] px-3 py-1.5 text-[#4d4d4d] transition-colors duration-150 hover:bg-[#f4f4f5]"
+              >
+                Sau →
+              </Link>
+            ) : (
+              <span className="rounded-md border border-[#f4f4f5] px-3 py-1.5 text-[#d4d4d8]">
+                Sau →
+              </span>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
 }

@@ -11,7 +11,7 @@ export const dynamic = "force-dynamic";
 export default async function PatientsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ q?: string }>;
+  searchParams: Promise<{ q?: string; page?: string }>;
 }) {
   const supabase = await getSupabaseServer();
 
