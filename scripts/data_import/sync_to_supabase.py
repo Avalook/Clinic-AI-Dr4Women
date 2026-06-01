@@ -414,11 +414,18 @@ async def _insert_appointments(
     Supabase without crashing the load, we let the *first* claim of a
     ``(doctor, slot)`` pair keep its doctor_id and NULL the others'
     doctor_id — the appointment still shows on dashboards via patient +
-    location filters, just not on per-doctor views. Conflicts counted as
-    ``skipped`` so the report surfaces the volume.
+    location filters, just not on per-doctor views.
+
+    Returns ``(inserted, skipped)`` where ``skipped`` counts ONLY rows that
+    were NOT inserted — patient not loaded (MPI review-conflict) or no
+    parseable ``slot_start`` (NOT NULL). Overlap conflicts are NOT skipped:
+    the row IS inserted with ``doctor_id=NULL``, tracked separately and
+    surfaced via the ``appointment_load_summary`` log line.
     """
     rows: list[tuple[Any, ...]] = []
-    skipped = 0
+    skipped_no_patient = 0  # patient in MPI review-conflict → not loaded
+    skipped_no_slot = 0  # empty/unparseable "Ngày giờ hẹn" (slot_start NOT NULL)
+    doctor_nulled = 0  # within-batch overlap → row KEPT, doctor_id NULL-ed
     # Track every accepted (start, end) per doctor; for each new
     # appointment, NULL its doctor_id when ANY accepted interval overlaps.
     # The exclusion constraint uses ``tstzrange [)``, so two appointments
@@ -426,11 +433,11 @@ async def _insert_appointments(
     doctor_intervals: dict[uuid.UUID, list[tuple[datetime, datetime]]] = {}
     for r in appts:
         if r["clinic_patient_id"] in rc_ids:
-            skipped += 1
+            skipped_no_patient += 1
             continue
         slot_start = _parse_dt(r.get("slot_start"))
         if slot_start is None:
-            skipped += 1
+            skipped_no_slot += 1
             continue
         slot_end = slot_start + timedelta(minutes=DEFAULT_SLOT_MINUTES)
         status = _STATUS_MAP.get(r.get("status_raw", "").strip(), "SCHEDULED")
@@ -440,7 +447,7 @@ async def _insert_appointments(
             overlaps = any(slot_start < end and slot_end > start for start, end in kept)
             if overlaps:
                 doctor_id = None
-                skipped += 1
+                doctor_nulled += 1  # row STILL inserted below; doctor dropped
             else:
                 kept.append((slot_start, slot_end))
         created = _parse_dt_loose(r.get("source_created_time")) or slot_start
@@ -466,6 +473,15 @@ async def _insert_appointments(
                 cancellation_reason, created_at, updated_at)
            VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)""",
         rows,
+    )
+    skipped = skipped_no_patient + skipped_no_slot
+    logger.info(
+        "appointment_load_summary inserted=%d skipped_no_patient=%d "
+        "skipped_no_slot=%d doctor_nulled_on_overlap=%d",
+        len(rows),
+        skipped_no_patient,
+        skipped_no_slot,
+        doctor_nulled,
     )
     return len(rows), skipped
 
@@ -882,7 +898,9 @@ async def run(
             await _truncate_targets(conn)
             n_pat, rc_ids = await _insert_patients(conn, result, master["location_id"])
             inserted["patient"] = n_pat
-            n_appt, skipped_appt = await _insert_appointments(
+            # skipped count is surfaced via the appointment_load_summary log
+            # line inside _insert_appointments; not needed here.
+            n_appt, _ = await _insert_appointments(
                 conn, result.appointments, rc_ids, master
             )
             inserted["appointment"] = n_appt

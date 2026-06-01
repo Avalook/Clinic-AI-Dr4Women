@@ -493,3 +493,23 @@ User hỏi: "thao tác nhập liệu dashboard đã lưu Supabase chưa? chuẩn
 - **Audit hiện best-effort**, chưa nguyên tử. Muốn đảm bảo 100% mọi INSERT có event → cần trigger AFTER INSERT ở DB hoặc RPC ghi 2 bảng 1 transaction (nhưng DB không biết clinic_staff_id đang thao tác). Treo chờ user quyết.
 - **Tracking drift sẵn có**: 021→032 vẫn "pending" trong `schema_migrations` (đã apply out-of-band). Chưa dọn (re-apply RLS không idempotent sẽ lỗi). Muốn sạch → `--mark-applied` từng file đã xác nhận tồn tại.
 - Khi dashboard có thêm thao tác UPDATE (đổi status lịch, sửa BN) → nên ghi thêm event tương ứng (`appointment.status_changed`, `patient.updated`) qua cùng `logEvent()`.
+
+## === PHIÊN 1/6 (tiếp) — VERIFY THỜI GIAN ĐỐI CHIẾU CSV + reporting fix ===
+
+### CÂU HỎI: "appointment slot_start đã chuẩn theo CSV phòng khám chưa?" → CHUẨN ✅
+Đối chiếu `appointment.slot_start` (Supabase, giờ VN) ↔ CSV "Lịch hẹn"/"Ngày giờ hẹn":
+- **Không lệch ngày.** Bug Notion-clone đã khắc phục (chuyển nguồn sang CSV + tag `+07:00` trong `parse_datetime_vn`).
+- Bằng chứng: histogram giờ-trong-ngày khớp (18:00→458/431, 18:30→355/334…); date-only→00:00 đúng; phân bố THÁNG khớp ~91% ĐỀU khắp mọi tháng kể cả tương lai → không có shift (shift sẽ làm 1 tháng rỗng + tháng kề phình).
+- 471 lịch tương lai (≥01/06/2026) = tái khám date-only THẬT trong CSV (CSV có 521), KHÔNG phải bug.
+
+### FUNNEL appointment (CSV 10032 → Supabase 9170)
+- `parse_datetime_vn` OK: 9871 | rỗng "Ngày giờ hẹn" → skip: 161 (booking dở dang: 0 tag giờ, 0 check-in, 157/161 chưa có trạng thái khách đến). **KHÔNG bịa ngày từ Created time** (= làm giả timestamp lâm sàng).
+- chênh 701 = BN không resolve được SĐT (MPI review-conflict, `rc_ids`). Overlap trùng giờ bác sĩ **KHÔNG bỏ** → vẫn insert, NULL `doctor_id`.
+- Dòng 1989 (`28/04/1989`) + 2027 (`10/04/2027`): **có y nguyên trong CSV** → typo tại nguồn, import trung thực.
+- Format range `"29/03/2026 → …"`: `_DATETIME_RE.search` bắt cụm đầu → `2026-03-29`. Parser xử ĐÚNG — KHÔNG cần fix (báo "7 dòng lỗi" trước là báo động giả của regex phân tích chặt hơn).
+
+### REPORTING FIX — `_insert_appointments` (sync_to_supabase.py)
+- BUG phát hiện: biến `skipped` (a) đếm cả overlap-nulled rows (vốn ĐÃ được insert) → sai ngữ nghĩa; (b) là **biến chết** — caller nhận rồi vứt, `_render_report` không dùng, dù comment khoe "report surfaces the volume".
+- FIX: tách 3 counter `skipped_no_patient` / `skipped_no_slot` / `doctor_nulled` + thêm log `appointment_load_summary inserted=.. skipped_no_patient=.. skipped_no_slot=.. doctor_nulled_on_overlap=..` (%-style vì `logger` là stdlib). Caller dùng `_`. **KHÔNG đổi hành vi load / data** — chỉ làm báo cáo skip chính xác & thực sự hiện ra. compile+ruff sạch, transform test 20/20 pass.
+
+### CARRY-OVER: đang verify tiếp timestamps `visit` / `lab_result` / `cskh_action` đối chiếu CSV riêng (đi cùng `parse_datetime_vn`/`_parse_dt_loose` đã chứng minh đúng cho appointment).
