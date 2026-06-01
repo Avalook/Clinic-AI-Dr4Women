@@ -512,4 +512,10 @@ User hỏi: "thao tác nhập liệu dashboard đã lưu Supabase chưa? chuẩn
 - BUG phát hiện: biến `skipped` (a) đếm cả overlap-nulled rows (vốn ĐÃ được insert) → sai ngữ nghĩa; (b) là **biến chết** — caller nhận rồi vứt, `_render_report` không dùng, dù comment khoe "report surfaces the volume".
 - FIX: tách 3 counter `skipped_no_patient` / `skipped_no_slot` / `doctor_nulled` + thêm log `appointment_load_summary inserted=.. skipped_no_patient=.. skipped_no_slot=.. doctor_nulled_on_overlap=..` (%-style vì `logger` là stdlib). Caller dùng `_`. **KHÔNG đổi hành vi load / data** — chỉ làm báo cáo skip chính xác & thực sự hiện ra. compile+ruff sạch, transform test 20/20 pass.
 
-### CARRY-OVER: đang verify tiếp timestamps `visit` / `lab_result` / `cskh_action` đối chiếu CSV riêng (đi cùng `parse_datetime_vn`/`_parse_dt_loose` đã chứng minh đúng cho appointment).
+### VERIFY TIMESTAMPS visit / lab / cskh đối chiếu CSV — XONG ✅ (tất cả chuẩn, 0 shift)
+- `_parse_dt_loose` xử lý đúng cả format English Notion (`"November 14, 2025 7:52 AM"` → `+07:00`).
+- **visit.created_at** ← clinical "Created time": phân bố khớp CSV ~85-92% ĐỀU mọi tháng, 0 tháng-ma → không shift.
+- **lab_result.created_at** ← lab "Created time": khớp ~92-97% đều, 0 tháng-ma.
+- **cskh_action.source_created_at** ← cskh "Giờ khởi tạo": load 31179/31179, phân bố khớp **100% mọi tháng**.
+- **KIỂM CHỨNG VÀNG (join theo `//ID`=`source_ref`=ACT-n): 31179/31179 timestamp khớp CHÍNH XÁC tới phút** (vd CSV `08:19+07` = Sup `01:19+00`, đúng cùng thời điểm + timezone). → `+07:00` tagging đúng tuyệt đối.
+- KẾT LUẬN TOÀN CỤC: mọi cột thời gian (appointment/visit/lab/cskh + patient.created_at) **trung thực với CSV, bug Notion-clone đã khắc phục hoàn toàn**. Sẵn sàng cho phòng khám test thật trên Vercel.
