@@ -6,22 +6,25 @@
 
 import Link from "next/link";
 import StatusBadge from "../StatusBadge";
+import AppointmentActions from "./AppointmentActions";
 import { getSupabaseServer } from "../../../lib/supabase-server";
 import { getClinicRole, getActiveStaff } from "../../../lib/clinic-session";
 import { isDoctorRole } from "../../../lib/roles";
 
-type Tab = "pending" | "confirmed";
+type Tab = "pending" | "confirmed" | "declined";
 type Scope = "all" | "me";
 
 // Status sets per tab (see appointment.status CHECK constraint).
 const STATUS_BY_TAB: Record<Tab, string[]> = {
   pending: ["SCHEDULED"],
   confirmed: ["CONFIRMED", "CHECKED_IN"],
+  declined: ["DOCTOR_DECLINED"],
 };
 
 interface AppointmentRow {
   id: string;
   clinic_patient_id: string;
+  doctor_id: string | null;
   queue_number: string | null;
   booking_channel: string | null;
   slot_start: string;
@@ -39,7 +42,7 @@ interface AppointmentRow {
 
 // Embedded resources aliased; doctor is a LEFT JOIN (doctor_id is nullable).
 const SELECT_COLUMNS = `
-  id, clinic_patient_id, queue_number, booking_channel, slot_start, slot_end, assigned_station, status,
+  id, clinic_patient_id, doctor_id, queue_number, booking_channel, slot_start, slot_end, assigned_station, status,
   patient:patient!clinic_patient_id ( full_name, phone_primary, patient_code ),
   doctor:staff!doctor_id ( full_name ),
   service:service_type!service_type_id ( name )
@@ -92,7 +95,10 @@ export default async function AppointmentsList({
 
   const rows = (data as AppointmentRow[] | null) ?? [];
   const isPending = tab === "pending";
-  const colCount = 7;
+  // Confirm/Reject controls show only for a doctor, on the "pending" tab, for
+  // their own SCHEDULED rows. (In "me" scope every row is already theirs.)
+  const canAct = isPending && isDoctorRole(role) && !!staff;
+  const colCount = canAct ? 8 : 7;
 
   return (
     <div className="space-y-3">
@@ -124,6 +130,7 @@ export default async function AppointmentsList({
                 </>
               )}
               <th className={TH}>Trạng thái</th>
+              {canAct && <th className={TH}>Hành động</th>}
             </tr>
           </thead>
           <tbody className="divide-y divide-[#f4f4f5]">
@@ -182,6 +189,15 @@ export default async function AppointmentsList({
                 <td className={TD}>
                   <StatusBadge status={a.status} />
                 </td>
+                {canAct && (
+                  <td className={TD}>
+                    {staff &&
+                    a.doctor_id === staff.id &&
+                    a.status === "SCHEDULED" ? (
+                      <AppointmentActions appointmentId={a.id} />
+                    ) : null}
+                  </td>
+                )}
               </tr>
             ))}
             {rows.length === 0 && (

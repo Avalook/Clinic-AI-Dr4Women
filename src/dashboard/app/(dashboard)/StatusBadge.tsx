@@ -7,6 +7,13 @@ const STATUS_STYLE: Record<string, string> = {
   COMPLETED: "bg-[#f4f4f5] text-[#71717a]",
   CANCELLED: "bg-[#fee2e2] text-[#dc2626]",
   NO_SHOW: "bg-[#fce7f3] text-[#9d174d]",
+  DOCTOR_DECLINED: "bg-[#ffedd5] text-[#c2410c]",
+};
+
+// Friendlier label for statuses that read poorly as raw codes; others fall
+// through to the raw status string (existing behaviour).
+const STATUS_LABEL: Record<string, string> = {
+  DOCTOR_DECLINED: "Đã từ chối",
 };
 
 export default function StatusBadge({ status }: { status: string }) {
@@ -15,7 +22,7 @@ export default function StatusBadge({ status }: { status: string }) {
     <span
       className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${style}`}
     >
-      {status}
+      {STATUS_LABEL[status] ?? status}
     </span>
   );
 }

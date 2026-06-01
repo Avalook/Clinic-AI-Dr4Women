@@ -16,6 +16,7 @@ export const dynamic = "force-dynamic";
 const TABS = [
   { key: "pending", label: "Chờ xác nhận" },
   { key: "confirmed", label: "Đã xác nhận" },
+  { key: "declined", label: "Đã từ chối" },
 ] as const;
 
 const ACTIVE_STATUSES = ["SCHEDULED", "CONFIRMED", "CHECKED_IN"];
@@ -27,7 +28,12 @@ export default async function AppointmentsPage({
   searchParams: Promise<{ tab?: string; scope?: string }>;
 }) {
   const { tab: rawTab, scope: rawScope } = await searchParams;
-  const tab = rawTab === "confirmed" ? "confirmed" : "pending";
+  const tab =
+    rawTab === "confirmed"
+      ? "confirmed"
+      : rawTab === "declined"
+        ? "declined"
+        : "pending";
 
   const role = await getClinicRole();
   const staff = await getActiveStaff();

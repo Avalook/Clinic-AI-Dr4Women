@@ -1,10 +1,18 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import Nav from "./Nav";
+import DeclinedNotice, { type DeclinedItem } from "./DeclinedNotice";
 import { leaveClinic } from "../(auth)/enter/actions";
 import { getSupabaseServer } from "../../lib/supabase-server";
 import { getClinicRole, getClinicStaffId } from "../../lib/clinic-session";
-import { ROLE_LABEL, isDoctorRole } from "../../lib/roles";
+import { ROLE_LABEL, isDoctorRole, canWriteIntake } from "../../lib/roles";
+
+interface DeclinedRow {
+  id: string;
+  slot_start: string;
+  patient: { full_name: string } | null;
+  doctor: { full_name: string } | null;
+}
 
 export default async function DashboardLayout({
   children,
@@ -27,6 +35,35 @@ export default async function DashboardLayout({
         .maybeSingle();
       if (data) identity = `${ROLE_LABEL[role]} · ${data.short_name ?? data.full_name}`;
     }
+  }
+
+  // Reception / CSKH / management get a top-right notice of appointments a
+  // doctor declined (from today onward), so they can re-assign them.
+  let declined: DeclinedItem[] = [];
+  if (canWriteIntake(role)) {
+    const supabase = await getSupabaseServer();
+    const startOfToday = new Date();
+    startOfToday.setHours(0, 0, 0, 0);
+    const { data } = await supabase
+      .from("appointment")
+      .select(
+        "id, slot_start, patient:patient!clinic_patient_id ( full_name ), doctor:staff!doctor_id ( full_name )",
+      )
+      .eq("status", "DOCTOR_DECLINED")
+      .gte("slot_start", startOfToday.toISOString())
+      .order("slot_start", { ascending: true })
+      .limit(20);
+    declined = ((data as DeclinedRow[] | null) ?? []).map((r) => ({
+      id: r.id,
+      patientName: r.patient?.full_name ?? "—",
+      time: new Date(r.slot_start).toLocaleString("vi-VN", {
+        day: "2-digit",
+        month: "2-digit",
+        hour: "2-digit",
+        minute: "2-digit",
+      }),
+      doctorName: r.doctor?.full_name ?? "—",
+    }));
   }
 
   return (
@@ -60,6 +97,7 @@ export default async function DashboardLayout({
         </div>
       </aside>
       <main className="flex-1 p-8">{children}</main>
+      <DeclinedNotice items={declined} />
     </div>
   );
 }
