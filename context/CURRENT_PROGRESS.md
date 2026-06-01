@@ -1,5 +1,5 @@
 # ClinicAI — Handoff Worklog
-> Cập nhật: 2026-05-27 (cuối session) · Dev: Tuyền (solo) · Executor: Claude Code
+> Cập nhật: 2026-06-01 (deploy Vercel + fix RLS dropdown + đặt lịch BN có sẵn) · Dev: Tuyền (solo) · Executor: Claude Code
 > File NGUỒN DUY NHẤT cho tiến độ (đã hợp nhất worklog/ + .ai/worklog/ ngày 25/5). CLAUDE.md §1 trỏ vào đây.
 
 ---
@@ -519,3 +519,30 @@ User hỏi: "thao tác nhập liệu dashboard đã lưu Supabase chưa? chuẩn
 - **cskh_action.source_created_at** ← cskh "Giờ khởi tạo": load 31179/31179, phân bố khớp **100% mọi tháng**.
 - **KIỂM CHỨNG VÀNG (join theo `//ID`=`source_ref`=ACT-n): 31179/31179 timestamp khớp CHÍNH XÁC tới phút** (vd CSV `08:19+07` = Sup `01:19+00`, đúng cùng thời điểm + timezone). → `+07:00` tagging đúng tuyệt đối.
 - KẾT LUẬN TOÀN CỤC: mọi cột thời gian (appointment/visit/lab/cskh + patient.created_at) **trung thực với CSV, bug Notion-clone đã khắc phục hoàn toàn**. Sẵn sàng cho phòng khám test thật trên Vercel.
+
+## === PHIÊN 01/06 — DEPLOY VERCEL THẬT + FIX RLS DROPDOWN + ĐẶT LỊCH BN CÓ SẴN ===
+> Bối cảnh: phòng khám bắt đầu test thật trên Vercel. Gỡ 3 lỗi liên tiếp.
+
+### 1. Dashboard không chạy trên Vercel → ĐÃ CHẠY
+Chuỗi nguyên nhân (gỡ từng lớp):
+- `output:"standalone"` phá routing Vercel (404 mọi route). Đã gate `!process.env.VERCEL` (commit a745cf5, có sẵn trên branch).
+- Repo Vercel nối = **Avalook/Clinic-AI-Dr4Women** (private), default branch = **feat/t-transform-01** — repo này **KHÔNG có branch `main`**. Production branch = feat/t-transform-01.
+- Tạo lại project qua Import: Root Directory=`src/dashboard`, Framework Preset=**Next.js**. LỖI CHÍNH: ban đầu Preset để trống → Vercel deploy như static rỗng → 404 cả file tĩnh (`/_next/*`, favicon). **KHÔNG phải "proxy Next-16 không chạy được trên Vercel"** như commit e69235c phỏng đoán → e69235c chẩn nhầm rồi rẽ sang Render. 4 env vars (NEXT_PUBLIC_SUPABASE_URL/ANON_KEY + SUPABASE_SERVICE_ROLE_KEY + CLINIC_SHARED_EMAIL) set Production+Preview.
+- QUYẾT ĐỊNH: **ở lại Vercel** (bỏ hướng Render của e69235c). Proxy Next-16 chạy bình thường trên Vercel sau khi Preset đúng + đủ env.
+
+### 2. ⚠️ SỬA CHỖ GHI SAI: migration 032 THỰC RA CHƯA APPLY (trái với dòng 480/494)
+- Triệu chứng: dropdown "Cơ sở" rỗng khi thêm BN → submit báo "Phải chọn cơ sở".
+- Verify DB thật (`pg_policies`): **0 policy** trên clinic_location/service_type/staff/pregnancy → RLS bật nhưng KHÔNG có policy → mọi read `authenticated` = 0 dòng (đúng bug mà 032 mô tả).
+- → Dòng 480/494 ("021→032 đã apply out-of-band") **SAI đối với 032**. 032 thực tế MỚI chạy 01/06 qua Supabase SQL Editor (4 policy `*_select_authenticated USING(true) TO authenticated`). `schema_migrations` vẫn chưa `--mark-applied` 032.
+- BÀI HỌC: đúng cảnh báo CLAUDE.md §3 — không tin doc/worklog, verify DB thật. Sau fix: dropdown cơ sở/dịch vụ/bác sĩ đều lên, tạo BN OK.
+
+### 3. TÍNH NĂNG MỚI: đặt lịch cho BN CÓ SẴN (trước chỉ đặt được trong luồng tạo BN mới)
+- Backend đã đủ (`POST /api/appointments`), chỉ thiếu UI/đường vào.
+- Tách form đặt lịch (bước 2 NewPatientForm) → component dùng chung `app/(dashboard)/patients/AppointmentBooking.tsx` (chỉ render form + callback `onBooked`). NewPatientForm refactor dùng lại → **bỏ ~100 dòng trùng**.
+- `app/(dashboard)/patients/[id]/PatientBooking.tsx` (mới): nút "+ Đặt lịch hẹn" trên hồ sơ BN; đặt xong `router.refresh()` để bảng "Lịch sử lịch hẹn" cập nhật. `page.tsx` load dropdown + render **chỉ khi `canWriteIntake`** (CSKH/Lễ tân/Quản lý) — bác sĩ chỉ xem. QUYẾT ĐỊNH vị trí: nút trên hồ sơ BN (không thêm trang/nav mới).
+- Tiện thể đổi `useExisting`→`pickExisting` (fix lỗi eslint `rules-of-hooks` CÓ SẴN từ HEAD — Next 16 bỏ `next lint` nên build không bắt).
+- VERIFY: `tsc --noEmit`=0, `eslint`=0, `VERCEL=1 next build` OK. **KHÔNG** test booking thật lên prod (migration 033 append-only chặn DELETE → tránh để data rác không gỡ được).
+
+### NỢ / CARRY-OVER
+- `schema_migrations` chưa ghi 032 (đã apply tay) → cần `--mark-applied` 032 cho sạch tracker.
+- Tính năng booking mới: commit local theo lệnh, **CHƯA push**. Push lên feat/t-transform-01 → Vercel tự deploy.
