@@ -1,25 +1,33 @@
-import LogoutButton from "./LogoutButton";
-import Nav from "./Nav";
-import { getSupabaseServer } from "../../lib/supabase-server";
-import { getCurrentStaff, isAdminRole } from "../../lib/current-staff";
+import Link from "next/link";
 import { redirect } from "next/navigation";
+import Nav from "./Nav";
+import { leaveClinic } from "../(auth)/enter/actions";
+import { getSupabaseServer } from "../../lib/supabase-server";
+import { getClinicRole, getClinicStaffId } from "../../lib/clinic-session";
+import { ROLE_LABEL, isDoctorRole } from "../../lib/roles";
 
 export default async function DashboardLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
-  const supabase = await getSupabaseServer();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) redirect("/login");
+  const role = await getClinicRole();
+  if (!role) redirect("/role-picker");
 
-  // Role flag drives the admin-only Nav entries (Báo cáo / Cài đặt).
-  // Cached via React.cache so the home/appointments/etc pages do not
-  // re-issue the same staff query.
-  const staff = await getCurrentStaff();
-  const isAdmin = isAdminRole(staff);
+  // For a doctor, show the picked name; the cookie identity drives all scoping.
+  let identity = ROLE_LABEL[role];
+  if (isDoctorRole(role)) {
+    const staffId = await getClinicStaffId();
+    if (staffId) {
+      const supabase = await getSupabaseServer();
+      const { data } = await supabase
+        .from("staff")
+        .select("full_name, short_name")
+        .eq("id", staffId)
+        .maybeSingle();
+      if (data) identity = `${ROLE_LABEL[role]} · ${data.short_name ?? data.full_name}`;
+    }
+  }
 
   return (
     <div className="flex min-h-screen bg-[#fafafa] font-sans">
@@ -30,15 +38,25 @@ export default async function DashboardLayout({
             Dr4Women
           </h1>
         </div>
-        <Nav isAdmin={isAdmin} />
-        <div className="mt-auto border-t border-[#1f1f1f] px-3 pt-4">
-          <p
-            className="mb-2 truncate text-xs text-[#71717a]"
-            title={user.email ?? ""}
-          >
-            {user.email}
+        <Nav role={role} />
+        <div className="mt-auto space-y-2 border-t border-[#1f1f1f] px-3 pt-4">
+          <p className="truncate text-xs text-[#71717a]" title={identity}>
+            {identity}
           </p>
-          <LogoutButton />
+          <Link
+            href="/role-picker"
+            className="block w-full rounded-md border border-[#262626] px-3 py-1.5 text-center text-sm text-[#a1a1aa] transition-colors duration-150 hover:bg-[#1a1a1a] hover:text-[#d4d4d8]"
+          >
+            Đổi vai trò
+          </Link>
+          <form action={leaveClinic}>
+            <button
+              type="submit"
+              className="w-full rounded-md border border-[#262626] px-3 py-1.5 text-sm text-[#a1a1aa] transition-colors duration-150 hover:bg-[#1a1a1a] hover:text-[#d4d4d8]"
+            >
+              Thoát
+            </button>
+          </form>
         </div>
       </aside>
       <main className="flex-1 p-8">{children}</main>

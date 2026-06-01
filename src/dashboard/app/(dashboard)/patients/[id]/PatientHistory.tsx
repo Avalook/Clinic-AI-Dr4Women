@@ -1,0 +1,271 @@
+// Doctor-facing clinical history for one patient: visits (+ SOAP clinical
+// record), lab results, and pregnancy. Read-only, RLS via the shared session.
+// Data is real (visit ~5.6k, lab_result ~4.7k); pregnancy is usually empty.
+
+import StatusBadge from "../../StatusBadge";
+import { getSupabaseServer } from "../../../../lib/supabase-server";
+
+interface ClinicalRecord {
+  chief_complaint_at_visit: string | null;
+  soap_subjective: unknown;
+  soap_objective: unknown;
+  soap_assessment: unknown;
+  soap_plan: unknown;
+}
+
+interface VisitRow {
+  visit_id: string;
+  status: string;
+  created_at: string;
+  doctor: { full_name: string } | null;
+  service: { name: string } | null;
+  clinical_record: ClinicalRecord | ClinicalRecord[] | null;
+}
+
+interface LabRow {
+  lab_result_id: string;
+  test_name: string;
+  result_value: string | null;
+  result_numeric: number | null;
+  result_unit: string | null;
+  flag: string | null;
+  triage_group: string;
+  result_received_at: string;
+}
+
+interface PregnancyRow {
+  id: string;
+  lmp_date: string | null;
+  edd_date: string | null;
+  gestational_age_at_registration: number | null;
+  outcome: string;
+  is_high_risk: boolean;
+  high_risk_reason: string | null;
+}
+
+const VISIT_COLUMNS = `
+  visit_id, status, created_at,
+  doctor:staff!attending_doctor_id ( full_name ),
+  service:service_type!service_type_id ( name ),
+  clinical_record (
+    chief_complaint_at_visit,
+    soap_subjective, soap_objective, soap_assessment, soap_plan
+  )
+`;
+
+function fmtDate(ts: string | null): string {
+  if (!ts) return "—";
+  const d = new Date(ts);
+  if (Number.isNaN(d.getTime())) return "—";
+  return d.toLocaleDateString("vi-VN", {
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+  });
+}
+
+// SOAP fields are JSONB — may be a string, or an object of strings. Flatten
+// to readable text without assuming a fixed shape.
+function asText(v: unknown): string {
+  if (v == null) return "";
+  if (typeof v === "string") return v.trim();
+  if (typeof v === "object") {
+    const parts = Object.values(v as Record<string, unknown>)
+      .filter((x): x is string => typeof x === "string" && x.trim() !== "")
+      .map((x) => x.trim());
+    if (parts.length) return parts.join(" · ");
+    try {
+      return JSON.stringify(v);
+    } catch {
+      return "";
+    }
+  }
+  return String(v);
+}
+
+function firstRecord(
+  cr: ClinicalRecord | ClinicalRecord[] | null,
+): ClinicalRecord | null {
+  if (!cr) return null;
+  return Array.isArray(cr) ? (cr[0] ?? null) : cr;
+}
+
+const SECTION = "text-base font-semibold text-[#171717]";
+const TH = "px-4 py-2.5 font-medium";
+const TD = "px-4 py-2.5";
+const CARD =
+  "rounded-lg border border-[#e4e4e7] bg-white shadow-[0_1px_3px_rgba(0,0,0,0.08)]";
+
+export default async function PatientHistory({ id }: { id: string }) {
+  const supabase = await getSupabaseServer();
+  const [visitRes, labRes, pregRes] = await Promise.all([
+    supabase
+      .from("visit")
+      .select(VISIT_COLUMNS)
+      .eq("clinic_patient_id", id)
+      .order("created_at", { ascending: false })
+      .limit(50),
+    supabase
+      .from("lab_result")
+      .select(
+        "lab_result_id, test_name, result_value, result_numeric, result_unit, flag, triage_group, result_received_at",
+      )
+      .eq("clinic_patient_id", id)
+      .order("result_received_at", { ascending: false })
+      .limit(50),
+    supabase
+      .from("pregnancy")
+      .select(
+        "id, lmp_date, edd_date, gestational_age_at_registration, outcome, is_high_risk, high_risk_reason",
+      )
+      .eq("clinic_patient_id", id)
+      .order("created_at", { ascending: false }),
+  ]);
+
+  const visits = (visitRes.data as VisitRow[] | null) ?? [];
+  const labs = (labRes.data as LabRow[] | null) ?? [];
+  const pregnancies = (pregRes.data as PregnancyRow[] | null) ?? [];
+
+  return (
+    <div className="space-y-6">
+      {/* ---- Pregnancy (women's clinic — show if any) ---- */}
+      {pregnancies.length > 0 && (
+        <section className="space-y-3">
+          <h3 className={SECTION}>Thai kỳ</h3>
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+            {pregnancies.map((p) => (
+              <div key={p.id} className={`${CARD} p-4`}>
+                <div className="flex items-center justify-between">
+                  <span className="text-sm font-medium text-[#171717]">
+                    {p.outcome}
+                  </span>
+                  {p.is_high_risk && (
+                    <span className="rounded-full bg-[#fee2e2] px-2 py-0.5 text-xs font-medium text-[#dc2626]">
+                      Nguy cơ cao
+                    </span>
+                  )}
+                </div>
+                <dl className="mt-2 grid grid-cols-3 gap-2 text-xs text-[#4d4d4d]">
+                  <div>
+                    <dt className="text-[#888888]">LMP</dt>
+                    <dd>{fmtDate(p.lmp_date)}</dd>
+                  </div>
+                  <div>
+                    <dt className="text-[#888888]">Dự sinh</dt>
+                    <dd>{fmtDate(p.edd_date)}</dd>
+                  </div>
+                  <div>
+                    <dt className="text-[#888888]">Tuổi thai (đăng ký)</dt>
+                    <dd>{p.gestational_age_at_registration ?? "—"}</dd>
+                  </div>
+                </dl>
+                {p.high_risk_reason && (
+                  <p className="mt-2 text-xs text-[#dc2626]">
+                    {p.high_risk_reason}
+                  </p>
+                )}
+              </div>
+            ))}
+          </div>
+        </section>
+      )}
+
+      {/* ---- Visit / clinical history ---- */}
+      <section className="space-y-3">
+        <h3 className={SECTION}>Lịch sử khám ({visits.length})</h3>
+        {visitRes.error && (
+          <div className="rounded-md bg-[#fee2e2] px-3 py-2 text-sm text-[#dc2626]">
+            {visitRes.error.message}
+          </div>
+        )}
+        {visits.length === 0 ? (
+          <div className={`${CARD} px-4 py-6 text-center text-sm text-[#888888]`}>
+            Chưa có lần khám nào.
+          </div>
+        ) : (
+          <div className="space-y-3">
+            {visits.map((v) => {
+              const cr = firstRecord(v.clinical_record);
+              const soap = [
+                { label: "Lý do khám", value: cr?.chief_complaint_at_visit ?? "" },
+                { label: "Chủ quan (S)", value: asText(cr?.soap_subjective) },
+                { label: "Khách quan (O)", value: asText(cr?.soap_objective) },
+                { label: "Chẩn đoán (A)", value: asText(cr?.soap_assessment) },
+                { label: "Kế hoạch (P)", value: asText(cr?.soap_plan) },
+              ].filter((s) => s.value);
+              return (
+                <div key={v.visit_id} className={`${CARD} p-4`}>
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <span className="text-sm font-medium text-[#171717]">
+                      {fmtDate(v.created_at)}
+                      <span className="ml-2 text-xs font-normal text-[#888888]">
+                        {v.service?.name ?? "—"} ·{" "}
+                        {v.doctor?.full_name ?? "—"}
+                      </span>
+                    </span>
+                    <StatusBadge status={v.status} />
+                  </div>
+                  {soap.length > 0 ? (
+                    <dl className="mt-3 space-y-1.5">
+                      {soap.map((s) => (
+                        <div key={s.label} className="grid grid-cols-[120px_1fr] gap-2">
+                          <dt className="text-xs text-[#888888]">{s.label}</dt>
+                          <dd className="text-sm text-[#171717]">{s.value}</dd>
+                        </div>
+                      ))}
+                    </dl>
+                  ) : (
+                    <p className="mt-2 text-xs italic text-[#888888]">
+                      Không có ghi chú khám.
+                    </p>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </section>
+
+      {/* ---- Lab results ---- */}
+      <section className="space-y-3">
+        <h3 className={SECTION}>Xét nghiệm ({labs.length})</h3>
+        {labs.length === 0 ? (
+          <div className={`${CARD} px-4 py-6 text-center text-sm text-[#888888]`}>
+            Chưa có kết quả xét nghiệm.
+          </div>
+        ) : (
+          <div className={`overflow-x-auto ${CARD}`}>
+            <table className="min-w-full divide-y divide-[#e4e4e7] text-sm">
+              <thead className="bg-[#fafafa] text-left text-[11px] uppercase tracking-wide text-[#71717a]">
+                <tr>
+                  <th className={TH}>Ngày</th>
+                  <th className={TH}>Xét nghiệm</th>
+                  <th className={TH}>Kết quả</th>
+                  <th className={TH}>Cờ</th>
+                  <th className={TH}>Phân nhóm</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-[#f4f4f5]">
+                {labs.map((l) => (
+                  <tr key={l.lab_result_id} className="hover:bg-[#f9fafb]">
+                    <td className={`${TD} font-mono text-xs text-[#4d4d4d]`}>
+                      {fmtDate(l.result_received_at)}
+                    </td>
+                    <td className={`${TD} text-[#171717]`}>{l.test_name}</td>
+                    <td className={`${TD} text-[#4d4d4d]`}>
+                      {l.result_value ??
+                        (l.result_numeric != null ? String(l.result_numeric) : "—")}
+                      {l.result_unit ? ` ${l.result_unit}` : ""}
+                    </td>
+                    <td className={`${TD} text-[#4d4d4d]`}>{l.flag ?? "—"}</td>
+                    <td className={`${TD} text-[#4d4d4d]`}>{l.triage_group}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </section>
+    </div>
+  );
+}

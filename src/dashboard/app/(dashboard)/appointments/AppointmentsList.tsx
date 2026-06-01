@@ -4,9 +4,11 @@
 // PER-DOCTOR SCOPE: when scope === "me" and the caller is a doctor, the
 // query is narrowed to doctor_id = current staff.id ("Lịch của tôi").
 
+import Link from "next/link";
 import StatusBadge from "../StatusBadge";
 import { getSupabaseServer } from "../../../lib/supabase-server";
-import { getCurrentStaff, isDoctorRole } from "../../../lib/current-staff";
+import { getClinicRole, getActiveStaff } from "../../../lib/clinic-session";
+import { isDoctorRole } from "../../../lib/roles";
 
 type Tab = "pending" | "confirmed";
 type Scope = "all" | "me";
@@ -19,6 +21,7 @@ const STATUS_BY_TAB: Record<Tab, string[]> = {
 
 interface AppointmentRow {
   id: string;
+  clinic_patient_id: string;
   queue_number: string | null;
   booking_channel: string | null;
   slot_start: string;
@@ -36,7 +39,7 @@ interface AppointmentRow {
 
 // Embedded resources aliased; doctor is a LEFT JOIN (doctor_id is nullable).
 const SELECT_COLUMNS = `
-  id, queue_number, booking_channel, slot_start, slot_end, assigned_station, status,
+  id, clinic_patient_id, queue_number, booking_channel, slot_start, slot_end, assigned_station, status,
   patient:patient!clinic_patient_id ( full_name, phone_primary, patient_code ),
   doctor:staff!doctor_id ( full_name ),
   service:service_type!service_type_id ( name )
@@ -59,7 +62,8 @@ export default async function AppointmentsList({
   scope?: Scope;
 }) {
   const supabase = await getSupabaseServer();
-  const staff = await getCurrentStaff();
+  const role = await getClinicRole();
+  const staff = await getActiveStaff();
 
   // Default window: today (local day boundaries).
   const now = new Date();
@@ -69,7 +73,7 @@ export default async function AppointmentsList({
 
   // "me" scope only applies when the caller is a doctor with a staff row
   // linked. Anyone else (CSKH, RECEPTION, unlinked) falls back to "all".
-  const meFilter = scope === "me" && isDoctorRole(staff);
+  const meFilter = scope === "me" && isDoctorRole(role);
 
   let query = supabase
     .from("appointment")
@@ -132,7 +136,12 @@ export default async function AppointmentsList({
                   {a.queue_number ?? "—"}
                 </td>
                 <td className={`${TD} text-[#171717]`}>
-                  {a.patient?.full_name ?? "—"}
+                  <Link
+                    href={`/patients/${a.clinic_patient_id}`}
+                    className="font-medium text-[#171717] hover:text-[#ec4899] hover:underline"
+                  >
+                    {a.patient?.full_name ?? "—"}
+                  </Link>
                   {a.patient?.patient_code && (
                     <span className="ml-2 font-mono text-xs text-[#888888]">
                       {a.patient.patient_code}

@@ -53,6 +53,9 @@ out/
 .DS_Store
 Thumbs.db
 
+# Claude Code local artifacts (worktrees = nested git clones, never commit)
+.claude/
+
 # Logs
 *.log
 logs/

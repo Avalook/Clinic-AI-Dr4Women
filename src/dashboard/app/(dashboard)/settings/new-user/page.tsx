@@ -5,10 +5,8 @@
 
 import { redirect } from "next/navigation";
 import { getSupabaseServer } from "../../../../lib/supabase-server";
-import {
-  getCurrentStaff,
-  isAdminRole,
-} from "../../../../lib/current-staff";
+import { getClinicRole } from "../../../../lib/clinic-session";
+import { isAdminRole } from "../../../../lib/roles";
 import NewUserForm from "./NewUserForm";
 
 export const dynamic = "force-dynamic";
@@ -30,8 +28,8 @@ const DEPT_LABEL: Record<string, string> = {
 };
 
 export default async function NewUserPage() {
-  const staff = await getCurrentStaff();
-  if (!isAdminRole(staff)) redirect("/home");
+  const role = await getClinicRole();
+  if (!isAdminRole(role)) redirect("/home");
 
   const supabase = await getSupabaseServer();
   const { data, error } = await supabase

@@ -203,7 +203,11 @@ async def _wipe_seeds(
         "DELETE FROM patient WHERE phone_primary = ANY($1::text[]) RETURNING 1"
     )
     async with pool.acquire() as conn:
-        deleted_rows = await conn.fetch(delete_query, phones)
+        # Append-only guard (migration 033) blocks ad-hoc DELETE on patient.
+        # This is a scoped, confirmed seed wipe → opt out for this txn only.
+        async with conn.transaction():
+            await conn.execute("SET LOCAL app.allow_hard_delete = 'on'")
+            deleted_rows = await conn.fetch(delete_query, phones)
     deleted = len(deleted_rows)
     print(f"--wipe: deleted {deleted} row(s).")
     return deleted

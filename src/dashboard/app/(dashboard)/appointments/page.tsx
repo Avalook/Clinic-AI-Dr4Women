@@ -8,7 +8,8 @@ import AppointmentsList from "./AppointmentsList";
 import AppointmentsRealtime from "./AppointmentsRealtime";
 import StatCard from "../StatCard";
 import { getSupabaseServer } from "../../../lib/supabase-server";
-import { getCurrentStaff, isDoctorRole } from "../../../lib/current-staff";
+import { getClinicRole, getActiveStaff } from "../../../lib/clinic-session";
+import { isDoctorRole } from "../../../lib/roles";
 
 export const dynamic = "force-dynamic";
 
@@ -28,8 +29,9 @@ export default async function AppointmentsPage({
   const { tab: rawTab, scope: rawScope } = await searchParams;
   const tab = rawTab === "confirmed" ? "confirmed" : "pending";
 
-  const staff = await getCurrentStaff();
-  const canSwitchScope = isDoctorRole(staff);
+  const role = await getClinicRole();
+  const staff = await getActiveStaff();
+  const canSwitchScope = isDoctorRole(role);
   const scope = canSwitchScope && rawScope === "me" ? "me" : "all";
 
   const supabase = await getSupabaseServer();

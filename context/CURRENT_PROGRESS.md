@@ -465,3 +465,31 @@ patient.created_at trải:
 
 ### BẮT ĐẦU PHIÊN SAU LÀM GÌ
 Đọc CLAUDE.md §1 → context/CURRENT_PROGRESS.md (block này) → context/SYSTEM_STATE_ACTUAL.md. Báo 3-5 dòng. Hỏi user việc tiếp.
+
+## === PHIÊN 1/6 — APPEND-ONLY GUARD + EVENT_LOG AUDIT cho luồng nhập liệu dashboard ===
+
+### BỐI CẢNH / CÂU HỎI USER
+User hỏi: "thao tác nhập liệu dashboard đã lưu Supabase chưa? chuẩn append-only chưa?" → khảo sát thấy:
+- 2 endpoint nhập liệu THẬT: `POST /api/patients` (INSERT patient) + `POST /api/appointments` (INSERT appointment), đều qua service-role client (RLS chỉ có SELECT policy).
+- ĐÃ lưu Supabase ✓. NHƯNG chưa "chuẩn append-only": chỉ `event_log` có trigger `enforce_append_only` (013/014); dashboard KHÔNG ghi event_log; `patient`/`appointment` là bảng mutable thường, không chặn DELETE/TRUNCATE.
+- User chốt: làm CẢ 2 — (A) ghi event_log từ 2 endpoint, (B) guard append-only cho patient/appointment.
+
+### ĐÃ LÀM (đã apply lên Supabase + verify live, data 5518/9170 nguyên vẹn)
+1. **Migration `20260601_033_append_only_guard.sql`** (+ down): hàm `prevent_hard_delete()` + 4 trigger chặn DELETE/TRUNCATE trên `patient` & `appointment`.
+   - **QUYẾT ĐỊNH: chỉ chặn DELETE/TRUNCATE, KHÔNG chặn UPDATE.** LÝ DO: 2 bảng cần UPDATE cho vòng đời (appointment.status SCHEDULED→…→CANCELLED, patient.is_active). Huỷ = đổi status, không xoá dòng. Chặn UPDATE sẽ làm hỏng app.
+   - Đã apply trực tiếp qua asyncpg (KHÔNG dùng `apply_migrations.py` full — 021→032 đang "pending" trong tracker nhưng đã apply out-of-band; chạy full sẽ re-apply RLS `CREATE POLICY` không idempotent → lỗi). Mark riêng 033 bằng `--mark-applied`.
+2. **GUC opt-out cho ETL** (`SET LOCAL app.allow_hard_delete='on'`): trigger cho phép DELETE/TRUNCATE khi cờ này = 'on'. LÝ DO: guard sẽ làm hỏng `demo_seed.py --wipe` (DELETE patient) + `sync_to_supabase.py` (TRUNCATE patient/appointment — đúng pipeline LOAD). Đã sửa 2 script set cờ trong cùng transaction. App/dashboard không bao giờ set cờ → vẫn bị chặn.
+3. **`src/dashboard/lib/event-log.ts`** (mới): helper `logEvent()` ghi event_log qua service-role client. **Best-effort** (chạy sau business write đã commit; lỗi log không làm hỏng create). LÝ DO: PostgREST không có transaction 2 bảng.
+4. **Wire event_log vào 2 route**: `patient.created` + `appointment.created` (payload = snapshot; metadata = clinic_role + clinic_staff_id + actor_auth_user_id + origin). Refactor `doctor_id`/`booking_channel` ra biến để tái dùng.
+
+### VERIFY (đã chạy, trong transaction rollback nên data an toàn)
+- DELETE patient/appointment (app, không cờ) → 🔒 BLOCKED (insufficient_privilege, message custom).
+- DELETE có cờ opt-out → trigger cho qua (appointment DELETE 1 thành công; patient qua trigger, chỉ vướng FK `visit` — đúng kỳ vọng).
+- patient=5518 / appointment=9170 == trước test ✓ (rollback sạch).
+- Dashboard: `tsc --noEmit` exit 0, `eslint` exit 0. Scripts: `py_compile` OK.
+- KHÔNG bắn event test vào event_log (bảng bất biến, không xoá được dòng rác) → sẽ có event thật khi CSKH dùng dashboard.
+
+### NỢ / LƯU Ý (carry-over)
+- **Audit hiện best-effort**, chưa nguyên tử. Muốn đảm bảo 100% mọi INSERT có event → cần trigger AFTER INSERT ở DB hoặc RPC ghi 2 bảng 1 transaction (nhưng DB không biết clinic_staff_id đang thao tác). Treo chờ user quyết.
+- **Tracking drift sẵn có**: 021→032 vẫn "pending" trong `schema_migrations` (đã apply out-of-band). Chưa dọn (re-apply RLS không idempotent sẽ lỗi). Muốn sạch → `--mark-applied` từng file đã xác nhận tồn tại.
+- Khi dashboard có thêm thao tác UPDATE (đổi status lịch, sửa BN) → nên ghi thêm event tương ứng (`appointment.status_changed`, `patient.updated`) qua cùng `logEvent()`.

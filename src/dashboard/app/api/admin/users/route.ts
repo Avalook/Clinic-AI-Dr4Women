@@ -19,6 +19,7 @@
 import { NextResponse } from "next/server";
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { getSupabaseServer } from "../../../../lib/supabase-server";
+import { getClinicRole } from "../../../../lib/clinic-session";
 
 const MIN_PASSWORD = 8;
 
@@ -45,6 +46,8 @@ async function authorizeAdmin(): Promise<AuthResult> {
     };
   }
 
+  // Must hold the shared clinic session (RLS) AND have picked the MANAGEMENT
+  // role at /role-picker. Role is app-state in a cookie, not staff linkage.
   const callerClient = await getSupabaseServer();
   const {
     data: { user },
@@ -55,12 +58,7 @@ async function authorizeAdmin(): Promise<AuthResult> {
       res: NextResponse.json({ error: "Unauthorised" }, { status: 401 }),
     };
   }
-  const { data: callerStaff } = await callerClient
-    .from("staff")
-    .select("primary_department")
-    .eq("auth_user_id", user.id)
-    .maybeSingle();
-  if (callerStaff?.primary_department !== "MANAGEMENT") {
+  if ((await getClinicRole()) !== "MANAGEMENT") {
     return {
       ok: false,
       res: NextResponse.json({ error: "Forbidden" }, { status: 403 }),

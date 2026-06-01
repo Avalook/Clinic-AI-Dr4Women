@@ -9,10 +9,8 @@
 
 import StatCard from "../StatCard";
 import { getSupabaseServer } from "../../../lib/supabase-server";
-import {
-  getCurrentStaff,
-  isDoctorRole,
-} from "../../../lib/current-staff";
+import { getClinicRole, getActiveStaff } from "../../../lib/clinic-session";
+import { isDoctorRole, ROLE_LABEL } from "../../../lib/roles";
 
 export const dynamic = "force-dynamic";
 
@@ -28,7 +26,8 @@ interface StatTriple {
 
 async function buildStats(): Promise<StatTriple> {
   const supabase = await getSupabaseServer();
-  const staff = await getCurrentStaff();
+  const role = await getClinicRole();
+  const staff = await getActiveStaff();
 
   const now = new Date();
   const startOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate());
@@ -38,7 +37,7 @@ async function buildStats(): Promise<StatTriple> {
   const dayEnd = endOfDay.toISOString();
 
   // ----- DOCTOR view: "lịch của tôi + BN khám hôm nay + task pending" -----
-  if (isDoctorRole(staff) && staff) {
+  if (isDoctorRole(role) && staff) {
     const [appt, visit, task] = await Promise.all([
       supabase
         .from("appointment")
@@ -71,7 +70,7 @@ async function buildStats(): Promise<StatTriple> {
   }
 
   // ----- CSKH view: "task queue + BN mới hôm nay + lịch chờ confirm" -----
-  if (staff?.primary_department === "CSKH") {
+  if (role === "CSKH") {
     const [task, newPatient, pendingAppt] = await Promise.all([
       supabase
         .from("staff_task")
@@ -90,7 +89,7 @@ async function buildStats(): Promise<StatTriple> {
         .lt("slot_start", dayEnd),
     ]);
     return {
-      title: `Chào ${staff.short_name ?? staff.full_name}`,
+      title: "Chào CSKH",
       subtitle: "Hôm nay",
       cards: [
         { label: "Việc đang chờ làm", value: task.count ?? 0 },
@@ -119,9 +118,7 @@ async function buildStats(): Promise<StatTriple> {
       .eq("status", "PENDING"),
   ]);
   return {
-    title: staff
-      ? `Chào ${staff.short_name ?? staff.full_name}`
-      : "Trang chủ",
+    title: role ? `Chào ${ROLE_LABEL[role]}` : "Trang chủ",
     subtitle: "Tổng quan hôm nay",
     cards: [
       { label: "Lịch hẹn hôm nay", value: appt.count ?? 0 },

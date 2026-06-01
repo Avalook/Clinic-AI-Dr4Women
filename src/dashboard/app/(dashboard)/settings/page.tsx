@@ -6,7 +6,8 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { getSupabaseServer } from "../../../lib/supabase-server";
-import { getCurrentStaff, isAdminRole } from "../../../lib/current-staff";
+import { getClinicRole } from "../../../lib/clinic-session";
+import { isAdminRole } from "../../../lib/roles";
 import AccountActions from "./AccountActions";
 
 export const dynamic = "force-dynamic";
@@ -35,8 +36,8 @@ const TH = "px-4 py-2.5 font-medium";
 const TD = "px-4 py-2.5";
 
 export default async function SettingsPage() {
-  const staff = await getCurrentStaff();
-  if (!isAdminRole(staff)) redirect("/home");
+  const role = await getClinicRole();
+  if (!isAdminRole(role)) redirect("/home");
 
   const supabase = await getSupabaseServer();
   const { data, error } = await supabase

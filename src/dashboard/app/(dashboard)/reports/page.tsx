@@ -4,15 +4,16 @@
 // a home.
 
 import { redirect } from "next/navigation";
-import { getCurrentStaff, isAdminRole } from "../../../lib/current-staff";
+import { getClinicRole } from "../../../lib/clinic-session";
+import { isAdminRole } from "../../../lib/roles";
 
 export const dynamic = "force-dynamic";
 
 export default async function ReportsPage() {
   // Defense-in-depth: server-side gate even though Nav only renders the
   // link for admins.
-  const staff = await getCurrentStaff();
-  if (!isAdminRole(staff)) redirect("/home");
+  const role = await getClinicRole();
+  if (!isAdminRole(role)) redirect("/home");
 
   return (
     <div className="space-y-4">

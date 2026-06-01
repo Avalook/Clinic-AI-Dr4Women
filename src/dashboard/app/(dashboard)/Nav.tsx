@@ -1,48 +1,62 @@
 "use client";
 
-// Sidebar nav links. Client component so it can highlight the active route
-// via usePathname (the layout itself stays a Server Component).
-// ``adminOnly`` items render only when the layout passes ``isAdmin``.
+// Sidebar nav links. Visibility is per-role (see canSeeNav in lib/roles).
+// Client component so it can highlight the active route via usePathname.
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
   Home,
-  Calendar,
-  Users,
   ClipboardList,
+  Users,
+  UserPlus,
   CheckSquare,
+  Calendar,
   BarChart3,
   Settings,
   type LucideIcon,
 } from "lucide-react";
+import { canSeeNav, type ClinicRole } from "../../lib/roles";
 
 interface NavItem {
   href: string;
   label: string;
   icon: LucideIcon;
-  adminOnly?: boolean;
 }
 
 const NAV: NavItem[] = [
   { href: "/home", label: "Trang chủ", icon: Home },
-  { href: "/work-sessions", label: "Ca trực", icon: Calendar },
-  { href: "/patients", label: "Bệnh nhân", icon: Users },
   { href: "/appointments", label: "Lịch hẹn", icon: ClipboardList },
+  { href: "/patients", label: "Bệnh nhân", icon: Users },
+  { href: "/patients/new", label: "Nhập BN mới", icon: UserPlus },
   { href: "/tasks", label: "Công việc", icon: CheckSquare },
-  { href: "/reports", label: "Báo cáo", icon: BarChart3, adminOnly: true },
-  { href: "/settings", label: "Cài đặt", icon: Settings, adminOnly: true },
+  { href: "/work-sessions", label: "Ca trực", icon: Calendar },
+  { href: "/reports", label: "Báo cáo", icon: BarChart3 },
+  { href: "/settings", label: "Cài đặt", icon: Settings },
 ];
 
-export default function Nav({ isAdmin = false }: { isAdmin?: boolean }) {
-  const pathname = usePathname();
+// Active = exact match, or a nested path with no more-specific nav item also
+// matching (so /patients/new highlights itself, not /patients).
+function isActive(href: string, pathname: string, hrefs: string[]): boolean {
+  if (pathname === href) return true;
+  if (!pathname.startsWith(href + "/")) return false;
+  return !hrefs.some(
+    (h) =>
+      h !== href &&
+      h.startsWith(href + "/") &&
+      (pathname === h || pathname.startsWith(h + "/")),
+  );
+}
 
-  const visible = NAV.filter((item) => !item.adminOnly || isAdmin);
+export default function Nav({ role }: { role: ClinicRole | null }) {
+  const pathname = usePathname();
+  const visible = NAV.filter((item) => canSeeNav(role, item.href));
+  const hrefs = visible.map((v) => v.href);
 
   return (
     <nav className="space-y-0.5">
       {visible.map(({ href, label, icon: Icon }) => {
-        const active = pathname === href || pathname.startsWith(href + "/");
+        const active = isActive(href, pathname, hrefs);
         return (
           <Link
             key={href}

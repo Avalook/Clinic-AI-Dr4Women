@@ -298,6 +298,10 @@ async def _truncate_targets(conn: asyncpg.Connection) -> None:
     (FK with ON DELETE CASCADE, migration 027). The sync re-populates
     that table in ``_backfill_patient_contact_channels`` below.
     """
+    # Append-only guard (migration 033) blocks TRUNCATE on patient/appointment.
+    # This is a controlled, single-transaction re-sync → opt out for THIS txn
+    # only. SET LOCAL is scoped to the caller's open transaction (line ~876).
+    await conn.execute("SET LOCAL app.allow_hard_delete = 'on'")
     # E2c — also wipe the 3 new child tables (cskh_action, service_log,
     # prescription). Order picked so CASCADE handles the dependents; the
     # explicit list also documents the demo-scope.
