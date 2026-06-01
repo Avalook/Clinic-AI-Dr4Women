@@ -4,6 +4,7 @@
 import PatientsList from "./PatientsList";
 import StatCard from "../StatCard";
 import { getSupabaseServer } from "../../../lib/supabase-server";
+import { vnTodayRangeUtc, vnMonthStartUtc } from "../../../lib/datetime";
 
 export const dynamic = "force-dynamic";
 
@@ -14,9 +15,9 @@ export default async function PatientsPage({
 }) {
   const supabase = await getSupabaseServer();
 
-  const now = new Date();
-  const startOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-  const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+  // Day / month boundaries in Vietnam time (the server runs in UTC).
+  const { startUtc: startOfDay } = vnTodayRangeUtc();
+  const startOfMonth = vnMonthStartUtc();
 
   // Count-only queries (head: true) — no rows fetched.
   const [totalRes, todayRes, monthRes] = await Promise.all([
@@ -24,11 +25,11 @@ export default async function PatientsPage({
     supabase
       .from("patient")
       .select("*", { count: "exact", head: true })
-      .gte("created_at", startOfDay.toISOString()),
+      .gte("created_at", startOfDay),
     supabase
       .from("patient")
       .select("*", { count: "exact", head: true })
-      .gte("created_at", startOfMonth.toISOString()),
+      .gte("created_at", startOfMonth),
   ]);
 
   return (

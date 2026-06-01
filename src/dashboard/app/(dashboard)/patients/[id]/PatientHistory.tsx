@@ -4,6 +4,7 @@
 
 import StatusBadge from "../../StatusBadge";
 import { getSupabaseServer } from "../../../../lib/supabase-server";
+import { fmtDate } from "../../../../lib/datetime";
 
 interface ClinicalRecord {
   chief_complaint_at_visit: string | null;
@@ -52,17 +53,6 @@ const VISIT_COLUMNS = `
     soap_subjective, soap_objective, soap_assessment, soap_plan
   )
 `;
-
-function fmtDate(ts: string | null): string {
-  if (!ts) return "—";
-  const d = new Date(ts);
-  if (Number.isNaN(d.getTime())) return "—";
-  return d.toLocaleDateString("vi-VN", {
-    day: "2-digit",
-    month: "2-digit",
-    year: "numeric",
-  });
-}
 
 // SOAP fields are JSONB — may be a string, or an object of strings. Flatten
 // to readable text without assuming a fixed shape.

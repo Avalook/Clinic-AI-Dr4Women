@@ -6,6 +6,7 @@ import { leaveClinic } from "../(auth)/enter/actions";
 import { getSupabaseServer } from "../../lib/supabase-server";
 import { getClinicRole, getClinicStaffId } from "../../lib/clinic-session";
 import { ROLE_LABEL, isDoctorRole, canWriteIntake } from "../../lib/roles";
+import { fmtDayTime, vnTodayRangeUtc } from "../../lib/datetime";
 
 interface DeclinedRow {
   id: string;
@@ -42,26 +43,20 @@ export default async function DashboardLayout({
   let declined: DeclinedItem[] = [];
   if (canWriteIntake(role)) {
     const supabase = await getSupabaseServer();
-    const startOfToday = new Date();
-    startOfToday.setHours(0, 0, 0, 0);
+    const { startUtc } = vnTodayRangeUtc();
     const { data } = await supabase
       .from("appointment")
       .select(
         "id, slot_start, patient:patient!clinic_patient_id ( full_name ), doctor:staff!doctor_id ( full_name )",
       )
       .eq("status", "DOCTOR_DECLINED")
-      .gte("slot_start", startOfToday.toISOString())
+      .gte("slot_start", startUtc)
       .order("slot_start", { ascending: true })
       .limit(20);
     declined = ((data as DeclinedRow[] | null) ?? []).map((r) => ({
       id: r.id,
       patientName: r.patient?.full_name ?? "—",
-      time: new Date(r.slot_start).toLocaleString("vi-VN", {
-        day: "2-digit",
-        month: "2-digit",
-        hour: "2-digit",
-        minute: "2-digit",
-      }),
+      time: fmtDayTime(r.slot_start),
       doctorName: r.doctor?.full_name ?? "—",
     }));
   }

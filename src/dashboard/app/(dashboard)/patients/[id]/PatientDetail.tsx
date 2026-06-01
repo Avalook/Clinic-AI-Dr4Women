@@ -4,6 +4,7 @@
 import Link from "next/link";
 import StatusBadge from "../../StatusBadge";
 import { getSupabaseServer } from "../../../../lib/supabase-server";
+import { fmtDateTime } from "../../../../lib/datetime";
 
 interface PatientRow {
   clinic_patient_id: string;
@@ -42,18 +43,6 @@ function ageFromDob(dob: string | null): string {
   const m = now.getMonth() - birth.getMonth();
   if (m < 0 || (m === 0 && now.getDate() < birth.getDate())) age -= 1;
   return String(age);
-}
-
-function fmtDateTime(ts: string): string {
-  const d = new Date(ts);
-  if (Number.isNaN(d.getTime())) return "—";
-  return d.toLocaleString("vi-VN", {
-    day: "2-digit",
-    month: "2-digit",
-    year: "numeric",
-    hour: "2-digit",
-    minute: "2-digit",
-  });
 }
 
 function Field({ label, value }: { label: string; value: React.ReactNode }) {

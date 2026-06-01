@@ -10,6 +10,7 @@ import StatCard from "../StatCard";
 import { getSupabaseServer } from "../../../lib/supabase-server";
 import { getClinicRole, getActiveStaff } from "../../../lib/clinic-session";
 import { isDoctorRole } from "../../../lib/roles";
+import { vnTodayRangeUtc } from "../../../lib/datetime";
 
 export const dynamic = "force-dynamic";
 
@@ -41,12 +42,8 @@ export default async function AppointmentsPage({
   const scope = canSwitchScope && rawScope === "me" ? "me" : "all";
 
   const supabase = await getSupabaseServer();
-  const now = new Date();
-  const startOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-  const endOfDay = new Date(startOfDay);
-  endOfDay.setDate(endOfDay.getDate() + 1);
-  const dayStart = startOfDay.toISOString();
-  const dayEnd = endOfDay.toISOString();
+  // Today's window in Vietnam time (the server runs in UTC).
+  const { startUtc: dayStart, endUtc: dayEnd } = vnTodayRangeUtc();
 
   // Count-only queries (head: true), all scoped to today's slot_start.
   // When scope === "me" we apply ``doctor_id = staff.id`` to each.

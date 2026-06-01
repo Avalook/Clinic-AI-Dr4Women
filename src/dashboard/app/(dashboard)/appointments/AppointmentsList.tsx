@@ -10,6 +10,7 @@ import AppointmentActions from "./AppointmentActions";
 import { getSupabaseServer } from "../../../lib/supabase-server";
 import { getClinicRole, getActiveStaff } from "../../../lib/clinic-session";
 import { isDoctorRole } from "../../../lib/roles";
+import { fmtTime, vnTodayRangeUtc } from "../../../lib/datetime";
 
 type Tab = "pending" | "confirmed" | "declined";
 type Scope = "all" | "me";
@@ -48,12 +49,6 @@ const SELECT_COLUMNS = `
   service:service_type!service_type_id ( name )
 `;
 
-function fmtTime(ts: string): string {
-  const d = new Date(ts);
-  if (Number.isNaN(d.getTime())) return "—";
-  return d.toLocaleTimeString("vi-VN", { hour: "2-digit", minute: "2-digit" });
-}
-
 const TH = "px-4 py-2.5 font-medium";
 const TD = "px-4 py-2.5";
 
@@ -68,11 +63,8 @@ export default async function AppointmentsList({
   const role = await getClinicRole();
   const staff = await getActiveStaff();
 
-  // Default window: today (local day boundaries).
-  const now = new Date();
-  const startOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-  const endOfDay = new Date(startOfDay);
-  endOfDay.setDate(endOfDay.getDate() + 1);
+  // Default window: today, in Vietnam time (the server runs in UTC).
+  const { startUtc, endUtc } = vnTodayRangeUtc();
 
   // "me" scope only applies when the caller is a doctor with a staff row
   // linked. Anyone else (CSKH, RECEPTION, unlinked) falls back to "all".
@@ -82,8 +74,8 @@ export default async function AppointmentsList({
     .from("appointment")
     .select(SELECT_COLUMNS)
     .in("status", STATUS_BY_TAB[tab])
-    .gte("slot_start", startOfDay.toISOString())
-    .lt("slot_start", endOfDay.toISOString())
+    .gte("slot_start", startUtc)
+    .lt("slot_start", endUtc)
     .order("slot_start", { ascending: true })
     .limit(50);
 

@@ -11,6 +11,7 @@ import StatCard from "../StatCard";
 import { getSupabaseServer } from "../../../lib/supabase-server";
 import { getClinicRole, getActiveStaff } from "../../../lib/clinic-session";
 import { isDoctorRole, ROLE_LABEL } from "../../../lib/roles";
+import { vnTodayRangeUtc } from "../../../lib/datetime";
 
 export const dynamic = "force-dynamic";
 
@@ -29,12 +30,8 @@ async function buildStats(): Promise<StatTriple> {
   const role = await getClinicRole();
   const staff = await getActiveStaff();
 
-  const now = new Date();
-  const startOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-  const endOfDay = new Date(startOfDay);
-  endOfDay.setDate(endOfDay.getDate() + 1);
-  const dayStart = startOfDay.toISOString();
-  const dayEnd = endOfDay.toISOString();
+  // Today's window in Vietnam time (the server runs in UTC).
+  const { startUtc: dayStart, endUtc: dayEnd } = vnTodayRangeUtc();
 
   // ----- DOCTOR view: "lịch của tôi + BN khám hôm nay + task pending" -----
   if (isDoctorRole(role) && staff) {

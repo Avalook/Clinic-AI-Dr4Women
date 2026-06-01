@@ -7,6 +7,7 @@
 // Write path = POST /api/appointments (service-role + intake-role guard).
 
 import { useState, type ReactNode } from "react";
+import { vnLocalToUtcISO } from "../../../lib/datetime";
 
 export interface Option {
   id: string;
@@ -65,7 +66,8 @@ export default function AppointmentBooking({
   async function book() {
     setError(null);
     setSubmitting(true);
-    const start = new Date(`${apptDate}T${apptTime}`);
+    // Interpret the picked date+time as Vietnam time (GMT+7), not the browser's.
+    const start = new Date(vnLocalToUtcISO(apptDate, apptTime));
     const end = new Date(start.getTime() + duration * 60_000);
     const res = await fetch("/api/appointments", {
       method: "POST",
