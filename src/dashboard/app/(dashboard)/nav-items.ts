@@ -42,7 +42,7 @@ export const NAV: NavItem[] = [
     shortLabel: "Việc",
     icon: CheckSquare,
   },
-  { href: "/work-sessions", label: "Ca trực", icon: Calendar },
+  { href: "/schedule", label: "Lịch làm việc", shortLabel: "Ca trực", icon: Calendar },
   { href: "/reports", label: "Báo cáo", icon: BarChart3 },
   { href: "/settings", label: "Cài đặt", icon: Settings },
 ];

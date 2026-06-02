@@ -62,6 +62,7 @@ const NAV_ROLES: Record<string, "all" | ClinicRole[]> = {
   "/patients": "all",
   "/patients/new": ["CSKH", "RECEPTION", "MANAGEMENT"],
   "/tasks": ["CSKH", "MANAGEMENT"],
+  "/schedule": "all",
   "/work-sessions": ["MANAGEMENT"],
   "/reports": ["MANAGEMENT"],
   "/settings": ["MANAGEMENT"],
