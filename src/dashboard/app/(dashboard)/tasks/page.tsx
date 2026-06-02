@@ -75,14 +75,45 @@ export default async function TasksPage() {
         <>
           <ConfirmBoard rows={rows} locations={locations} />
 
+          {/* Ý nghĩa từng trạng thái — để phòng khám đọc hiểu (PM yêu cầu) */}
+          <dl className="grid gap-2.5 rounded-lg border border-[#e4e4e7] bg-[#fafafa] px-4 py-3 text-xs text-[#52525b] sm:grid-cols-3">
+            {[
+              {
+                dot: "#2563eb",
+                term: "Chờ xác nhận",
+                desc: "Lịch mới đặt, CSKH chưa gọi xác nhận với khách.",
+              },
+              {
+                dot: "#16a34a",
+                term: "Đã xác nhận",
+                desc: "CSKH đã gọi, khách đồng ý sẽ đến (gồm khách đã check-in tại quầy).",
+              },
+              {
+                dot: "#71717a",
+                term: "Đã khám xong",
+                desc: "Khách đã khám xong lượt này.",
+              },
+            ].map((s) => (
+              <div key={s.term} className="flex gap-2">
+                <span
+                  className="mt-1 h-2 w-2 shrink-0 rounded-full"
+                  style={{ backgroundColor: s.dot }}
+                />
+                <div>
+                  <dt className="font-semibold text-[#171717]">{s.term}</dt>
+                  <dd>{s.desc}</dd>
+                </div>
+              </div>
+            ))}
+          </dl>
+
           <section className="space-y-2">
             <div>
               <h2 className="text-base font-semibold text-[#171717]">
                 Theo dõi tình trạng lịch hẹn
               </h2>
               <p className="text-sm text-[#888888]">
-                Kết cục lịch hẹn trong tuần · đã đến / không đến / hủy hẹn / bác sĩ
-                từ chối.
+                Các lịch NGOÀI luồng khám · hủy hẹn / không đến / bác sĩ từ chối.
               </p>
             </div>
             <TrackBoard rows={rows} locations={locations} />

@@ -36,17 +36,19 @@ export interface ApptRow {
   service: { name: string } | null;
 }
 
-// Board này chỉ giữ khúc TRƯỚC khám. CHECKED_IN/COMPLETED/NO_SHOW/CANCELLED/
-// DOCTOR_DECLINED đã chuyển sang TrackBoard ("Theo dõi tình trạng lịch hẹn") để
-// 1 lịch hẹn không nằm ở 2 board cùng lúc (partition theo appointment.status).
+// Board "Tình trạng lịch hẹn" = TIẾN TRÌNH khám: Chờ xác nhận → Đã xác nhận →
+// Đã khám xong (giống board bác sĩ /appointments). Các kết cục NGOÀI luồng (Hủy /
+// Không đến / Bác sĩ từ chối) ở TrackBoard ("Theo dõi tình trạng lịch hẹn") —
+// partition theo appointment.status, 1 lịch hẹn chỉ ở 1 board.
 const COLUMNS = [
   { key: "pending", label: "Chờ xác nhận", statuses: ["SCHEDULED"], dot: "#2563eb" },
   {
     key: "confirmed",
     label: "Đã xác nhận",
-    statuses: ["CONFIRMED"],
+    statuses: ["CONFIRMED", "CHECKED_IN"],
     dot: "#16a34a",
   },
+  { key: "done", label: "Đã khám xong", statuses: ["COMPLETED"], dot: "#71717a" },
 ];
 
 interface Form {
@@ -139,7 +141,7 @@ export default function ConfirmBoard({
     <div className="flex flex-col gap-4 lg:flex-row lg:items-start">
       {/* MỘT bảng — các cột trạng thái chung trong 1 khung */}
       <div className="min-w-0 flex-1 overflow-hidden rounded-xl border border-[#e4e4e7] bg-white shadow-[0_1px_3px_rgba(0,0,0,0.06)]">
-        <div className="grid grid-cols-2 divide-x divide-[#e4e4e7]">
+        <div className="grid grid-cols-3 divide-x divide-[#e4e4e7]">
           {COLUMNS.map((col) => {
             const items = rows.filter((r) => col.statuses.includes(r.status));
             return (
@@ -226,7 +228,13 @@ export default function ConfirmBoard({
                 <Row label="Bác sĩ" value={sel.doctor?.full_name} />
                 <Row
                   label="Trạng thái"
-                  value={sel.status === "SCHEDULED" ? "Chờ xác nhận" : "Đã xác nhận"}
+                  value={
+                    sel.status === "SCHEDULED"
+                      ? "Chờ xác nhận"
+                      : sel.status === "COMPLETED"
+                        ? "Đã khám xong"
+                        : "Đã xác nhận"
+                  }
                 />
               </dl>
 

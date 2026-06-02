@@ -1,12 +1,12 @@
 "use client";
 
 // CSKH "Theo dõi tình trạng lịch hẹn": board nối tiếp "Tình trạng lịch hẹn" (Bảng
-// 1). Bảng 1 lo khúc TRƯỚC khám (Chờ xác nhận → Đã xác nhận); bảng này lo KẾT CỤC:
-// Đã đến / Không đến / Hủy hẹn / Bác sĩ từ chối. Mỗi lịch hẹn rơi đúng 1 cột
-// (partition theo appointment.status — KHÔNG đè Bảng 1). Cấu trúc giống Bảng 1:
-// thẻ bấm được + panel hồ sơ khách bên phải. KHÁC Bảng 1: KHÔNG có nút "Xác nhận"
-// (đã qua khúc đó) — CSKH ở đây chỉ XEM kết cục + sửa info nhập sai + đặt lại lịch.
-// CSKH KHÔNG set được trạng thái "đã đến"/"bác sĩ từ chối" (việc của Lễ tân/Bác sĩ).
+// 1). Bảng 1 lo TIẾN TRÌNH khám (Chờ xác nhận → Đã xác nhận → Đã khám xong); bảng
+// này lo các lịch NGOÀI luồng: Hủy hẹn / Không đến / Bác sĩ từ chối. Mỗi lịch hẹn
+// rơi đúng 1 cột (partition theo appointment.status — KHÔNG đè Bảng 1). Cấu trúc
+// giống Bảng 1: thẻ bấm được + panel hồ sơ khách bên phải. KHÁC Bảng 1: KHÔNG có
+// nút "Xác nhận" — CSKH ở đây chỉ XEM kết cục + sửa info nhập sai + đặt lại lịch.
+// CSKH KHÔNG set được "không đến"/"bác sĩ từ chối" (việc của Lễ tân/Bác sĩ).
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
@@ -17,9 +17,8 @@ import { INPUT, LABEL } from "../form-ui";
 import type { ApptRow, Opt } from "./ConfirmBoard";
 
 const COLUMNS = [
-  { key: "arrived", label: "Đã đến", statuses: ["CHECKED_IN", "COMPLETED"], dot: "#0ea5e9" },
-  { key: "no_show", label: "Không đến", statuses: ["NO_SHOW"], dot: "#9d174d" },
   { key: "cancelled", label: "Hủy hẹn", statuses: ["CANCELLED"], dot: "#dc2626" },
+  { key: "no_show", label: "Không đến", statuses: ["NO_SHOW"], dot: "#9d174d" },
   {
     key: "declined",
     label: "Bác sĩ từ chối",
@@ -29,8 +28,6 @@ const COLUMNS = [
 ];
 
 const STATUS_LABEL: Record<string, string> = {
-  CHECKED_IN: "Đã đến (check-in)",
-  COMPLETED: "Đã khám xong",
   NO_SHOW: "Không đến",
   CANCELLED: "Đã hủy",
   DOCTOR_DECLINED: "Bác sĩ từ chối",
