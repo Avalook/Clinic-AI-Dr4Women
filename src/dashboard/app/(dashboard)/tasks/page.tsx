@@ -6,13 +6,14 @@
 import { getSupabaseServer } from "../../../lib/supabase-server";
 import { vnTodayRangeUtc } from "../../../lib/datetime";
 import ConfirmBoard, { type ApptRow, type Opt } from "./ConfirmBoard";
+import TrackBoard from "./TrackBoard";
 
 export const dynamic = "force-dynamic";
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 
 const SELECT = `
-  id, slot_start, status, booking_channel,
+  id, slot_start, status, booking_channel, cancellation_reason, cancelled_at,
   patient:patient!clinic_patient_id (
     clinic_patient_id, full_name, patient_code, phone_primary,
     phone_secondary, date_of_birth, location_id
@@ -31,7 +32,17 @@ export default async function TasksPage() {
     supabase
       .from("appointment")
       .select(SELECT)
-      .in("status", ["SCHEDULED", "CONFIRMED", "CHECKED_IN"])
+      // Đủ 7 trạng thái: board trên dùng SCHEDULED/CONFIRMED, board "theo dõi"
+      // dùng phần còn lại (đã đến / không đến / hủy / bác sĩ từ chối).
+      .in("status", [
+        "SCHEDULED",
+        "CONFIRMED",
+        "CHECKED_IN",
+        "COMPLETED",
+        "NO_SHOW",
+        "CANCELLED",
+        "DOCTOR_DECLINED",
+      ])
       .gte("slot_start", startUtc)
       .lt("slot_start", endUtc)
       .order("slot_start", { ascending: true })
@@ -61,7 +72,22 @@ export default async function TasksPage() {
           {apptRes.error.message}
         </div>
       ) : (
-        <ConfirmBoard rows={rows} locations={locations} />
+        <>
+          <ConfirmBoard rows={rows} locations={locations} />
+
+          <section className="space-y-2">
+            <div>
+              <h2 className="text-base font-semibold text-[#171717]">
+                Theo dõi tình trạng lịch hẹn
+              </h2>
+              <p className="text-sm text-[#888888]">
+                Kết cục lịch hẹn trong tuần · đã đến / không đến / hủy hẹn / bác sĩ
+                từ chối.
+              </p>
+            </div>
+            <TrackBoard rows={rows} locations={locations} />
+          </section>
+        </>
       )}
     </div>
   );

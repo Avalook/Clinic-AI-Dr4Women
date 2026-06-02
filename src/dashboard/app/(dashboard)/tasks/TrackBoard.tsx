@@ -1,53 +1,40 @@
 "use client";
 
-// CSKH "Tình trạng lịch hẹn": MỘT bảng (các cột trạng thái chung trong 1 khung)
-// bên trái; click tên KH → panel "Thông tin khách hàng" hiện BÊN CẠNH (ngang).
-// Panel có 2 nút: Xác nhận (cskh_confirm) / Không xác nhận → sửa tại chỗ.
-// CCCD KHÔNG hiển thị/sửa (D-identity).
+// CSKH "Theo dõi tình trạng lịch hẹn": board nối tiếp "Tình trạng lịch hẹn" (Bảng
+// 1). Bảng 1 lo khúc TRƯỚC khám (Chờ xác nhận → Đã xác nhận); bảng này lo KẾT CỤC:
+// Đã đến / Không đến / Hủy hẹn / Bác sĩ từ chối. Mỗi lịch hẹn rơi đúng 1 cột
+// (partition theo appointment.status — KHÔNG đè Bảng 1). Cấu trúc giống Bảng 1:
+// thẻ bấm được + panel hồ sơ khách bên phải. KHÁC Bảng 1: KHÔNG có nút "Xác nhận"
+// (đã qua khúc đó) — CSKH ở đây chỉ XEM kết cục + sửa info nhập sai + đặt lại lịch.
+// CSKH KHÔNG set được trạng thái "đã đến"/"bác sĩ từ chối" (việc của Lễ tân/Bác sĩ).
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { Check, Pencil, X } from "lucide-react";
-import { fmtTimeOrNone } from "../../../lib/datetime";
+import Link from "next/link";
+import { CalendarPlus, Pencil, X } from "lucide-react";
+import { fmtDateTimeOrDate, fmtDayTime } from "../../../lib/datetime";
 import { INPUT, LABEL } from "../form-ui";
+import type { ApptRow, Opt } from "./ConfirmBoard";
 
-export interface Opt {
-  id: string;
-  label: string;
-}
-
-export interface ApptRow {
-  id: string;
-  slot_start: string;
-  status: string;
-  booking_channel: string | null;
-  cancellation_reason?: string | null;
-  cancelled_at?: string | null;
-  patient: {
-    clinic_patient_id: string;
-    full_name: string;
-    patient_code: string;
-    phone_primary: string | null;
-    phone_secondary: string | null;
-    date_of_birth: string | null;
-    location_id: string | null;
-  } | null;
-  doctor: { full_name: string } | null;
-  service: { name: string } | null;
-}
-
-// Board này chỉ giữ khúc TRƯỚC khám. CHECKED_IN/COMPLETED/NO_SHOW/CANCELLED/
-// DOCTOR_DECLINED đã chuyển sang TrackBoard ("Theo dõi tình trạng lịch hẹn") để
-// 1 lịch hẹn không nằm ở 2 board cùng lúc (partition theo appointment.status).
 const COLUMNS = [
-  { key: "pending", label: "Chờ xác nhận", statuses: ["SCHEDULED"], dot: "#2563eb" },
+  { key: "arrived", label: "Đã đến", statuses: ["CHECKED_IN", "COMPLETED"], dot: "#0ea5e9" },
+  { key: "no_show", label: "Không đến", statuses: ["NO_SHOW"], dot: "#9d174d" },
+  { key: "cancelled", label: "Hủy hẹn", statuses: ["CANCELLED"], dot: "#dc2626" },
   {
-    key: "confirmed",
-    label: "Đã xác nhận",
-    statuses: ["CONFIRMED"],
-    dot: "#16a34a",
+    key: "declined",
+    label: "Bác sĩ từ chối",
+    statuses: ["DOCTOR_DECLINED"],
+    dot: "#c2410c",
   },
 ];
+
+const STATUS_LABEL: Record<string, string> = {
+  CHECKED_IN: "Đã đến (check-in)",
+  COMPLETED: "Đã khám xong",
+  NO_SHOW: "Không đến",
+  CANCELLED: "Đã hủy",
+  DOCTOR_DECLINED: "Bác sĩ từ chối",
+};
 
 interface Form {
   full_name: string;
@@ -57,7 +44,7 @@ interface Form {
   location_id: string;
 }
 
-export default function ConfirmBoard({
+export default function TrackBoard({
   rows,
   locations,
 }: {
@@ -100,20 +87,6 @@ export default function ConfirmBoard({
     setError(null);
   }
 
-  async function confirm() {
-    if (!sel) return;
-    setBusy(true);
-    setError(null);
-    const res = await fetch("/api/appointments", {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ id: sel.id, action: "cskh_confirm" }),
-    });
-    setBusy(false);
-    if (!res.ok) return setError((await res.json()).error ?? "Lỗi xác nhận.");
-    router.refresh();
-  }
-
   async function save() {
     if (!sel || !form) return;
     setBusy(true);
@@ -135,15 +108,17 @@ export default function ConfirmBoard({
   const set = (k: keyof Form, v: string) =>
     setForm((f) => (f ? { ...f, [k]: v } : f));
 
+  const canRebook = sel?.status === "NO_SHOW" || sel?.status === "CANCELLED";
+
   return (
     <div className="flex flex-col gap-4 lg:flex-row lg:items-start">
-      {/* MỘT bảng — các cột trạng thái chung trong 1 khung */}
-      <div className="min-w-0 flex-1 overflow-hidden rounded-xl border border-[#e4e4e7] bg-white shadow-[0_1px_3px_rgba(0,0,0,0.06)]">
-        <div className="grid grid-cols-2 divide-x divide-[#e4e4e7]">
+      {/* Board — 4 cột kết cục, cuộn ngang khi hẹp */}
+      <div className="min-w-0 flex-1 overflow-x-auto rounded-xl border border-[#e4e4e7] bg-white shadow-[0_1px_3px_rgba(0,0,0,0.06)]">
+        <div className="flex divide-x divide-[#e4e4e7]">
           {COLUMNS.map((col) => {
             const items = rows.filter((r) => col.statuses.includes(r.status));
             return (
-              <div key={col.key} className="min-w-0">
+              <div key={col.key} className="min-w-[180px] flex-1">
                 <div className="flex items-center gap-2 border-b border-[#e4e4e7] bg-[#fafafa] px-3 py-2">
                   <span
                     className="h-2 w-2 rounded-full"
@@ -183,7 +158,7 @@ export default function ConfirmBoard({
                           : ""}
                       </span>
                       <span className="mt-1 block text-xs text-[#52525b]">
-                        {fmtTimeOrNone(a.slot_start)}
+                        {fmtDateTimeOrDate(a.slot_start)}
                         {a.service?.name ? ` · ${a.service.name}` : ""}
                       </span>
                     </button>
@@ -195,7 +170,7 @@ export default function ConfirmBoard({
         </div>
       </div>
 
-      {/* Panel chi tiết — BÊN CẠNH bảng (ngang); mobile thì xuống dưới */}
+      {/* Panel hồ sơ khách — bên cạnh (như Bảng 1) */}
       {sel && (
         <aside className="w-full shrink-0 rounded-xl border border-[#f9a8d4] bg-[#fdf2f8] p-4 shadow-[0_1px_3px_rgba(0,0,0,0.06)] lg:sticky lg:top-4 lg:w-[360px]">
           <div className="mb-3 flex items-center justify-between">
@@ -221,35 +196,40 @@ export default function ConfirmBoard({
                 <Row label="Cơ sở" value={locName(sel.patient?.location_id ?? null)} />
                 <Row
                   label="Lịch hẹn"
-                  value={`${fmtTimeOrNone(sel.slot_start)} · ${sel.service?.name ?? "—"}`}
+                  value={`${fmtDateTimeOrDate(sel.slot_start)} · ${sel.service?.name ?? "—"}`}
                 />
                 <Row label="Bác sĩ" value={sel.doctor?.full_name} />
-                <Row
-                  label="Trạng thái"
-                  value={sel.status === "SCHEDULED" ? "Chờ xác nhận" : "Đã xác nhận"}
-                />
+                <Row label="Nguồn" value={sel.booking_channel} />
+                <Row label="Trạng thái" value={STATUS_LABEL[sel.status] ?? sel.status} />
+                {sel.status === "CANCELLED" && (
+                  <>
+                    <Row label="Lý do hủy" value={sel.cancellation_reason} />
+                    <Row
+                      label="Thời điểm hủy"
+                      value={sel.cancelled_at ? fmtDayTime(sel.cancelled_at) : null}
+                    />
+                  </>
+                )}
               </dl>
 
               {error && <p className="mt-2 text-xs text-[#dc2626]">{error}</p>}
 
               <div className="mt-4 flex flex-wrap gap-2">
-                {sel.status === "SCHEDULED" && (
-                  <button
-                    onClick={confirm}
-                    disabled={busy}
-                    className="inline-flex min-h-10 items-center gap-1 rounded-lg bg-[#16a34a] px-4 text-sm font-semibold text-white hover:bg-[#15803d] disabled:opacity-50"
-                  >
-                    <Check size={15} /> Xác nhận
-                  </button>
-                )}
                 <button
                   onClick={startEdit}
                   disabled={busy}
                   className="inline-flex min-h-10 items-center gap-1 rounded-lg border border-[#e4e4e7] bg-white px-4 text-sm font-medium text-[#52525b] hover:bg-[#f4f4f5] disabled:opacity-50"
                 >
-                  <Pencil size={14} />
-                  {sel.status === "SCHEDULED" ? "Không xác nhận / Sửa" : "Sửa"}
+                  <Pencil size={14} /> Sửa thông tin
                 </button>
+                {canRebook && sel.patient && (
+                  <Link
+                    href={`/patients/${sel.patient.clinic_patient_id}`}
+                    className="inline-flex min-h-10 items-center gap-1 rounded-lg bg-[#ec4899] px-4 text-sm font-semibold text-white hover:bg-[#db2777]"
+                  >
+                    <CalendarPlus size={15} /> Đặt lại lịch
+                  </Link>
+                )}
               </div>
             </>
           ) : (
