@@ -33,15 +33,16 @@ const RANGE_LABEL: Record<Range, string> = {
 export default async function AppointmentsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ scope?: string; range?: string }>;
+  searchParams: Promise<{ range?: string }>;
 }) {
-  const { scope: rawScope, range: rawRange } = await searchParams;
+  const { range: rawRange } = await searchParams;
 
   const role = await getClinicRole();
   const staff = await getActiveStaff();
-  const canSwitchScope = isDoctorRole(role);
-  const scope = canSwitchScope && rawScope === "me" ? "me" : "all";
-  const meId = scope === "me" && staff ? staff.id : null;
+  // Bác sĩ CHỈ xem lịch của mình (không có lựa chọn "Tất cả"). CSKH/Quản lý
+  // điều phối nên xem toàn bộ.
+  const isDoctor = isDoctorRole(role);
+  const meId = isDoctor && staff ? staff.id : null;
 
   const range: Range =
     rawRange === "day" || rawRange === "month" ? rawRange : "week";
@@ -78,59 +79,25 @@ export default async function AppointmentsPage({
   const upcoming = (upcomingRes.data as KanbanRow[] | null) ?? [];
   const error = todayRes.error ?? upcomingRes.error;
 
-  const scopeHref = (s: "all" | "me"): string => {
-    const params = new URLSearchParams();
-    if (s === "me") params.set("scope", "me");
-    if (range !== "week") params.set("range", range);
-    const qs = params.toString();
-    return qs ? `/appointments?${qs}` : "/appointments";
-  };
-  const rangeHref = (r: Range): string => {
-    const params = new URLSearchParams();
-    if (scope === "me") params.set("scope", "me");
-    if (r !== "week") params.set("range", r);
-    const qs = params.toString();
-    return qs ? `/appointments?${qs}` : "/appointments";
-  };
+  const rangeHref = (r: Range): string =>
+    r === "week" ? "/appointments" : `/appointments?range=${r}`;
 
   return (
     <div className="space-y-6">
       <header className="flex flex-wrap items-start justify-between gap-3">
         <div className="min-w-0">
           <h1 className="text-xl font-semibold text-[#171717]">
-            Lịch hẹn{scope === "me" && staff ? ` của ${staff.short_name ?? staff.full_name}` : ""}
+            Lịch hẹn{isDoctor && staff ? ` của ${staff.short_name ?? staff.full_name}` : ""}
           </h1>
           <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
             <p className="text-sm text-[#888888]">
-              Bảng theo dõi xác nhận lịch. Read-only.
+              {isDoctor
+                ? "Chỉ hiển thị lịch hẹn của bạn."
+                : "Bảng theo dõi xác nhận lịch. Read-only."}
             </p>
             <AppointmentsRealtime />
           </div>
         </div>
-        {canSwitchScope && (
-          <div className="flex gap-1" role="group" aria-label="Phạm vi lịch">
-            <Link
-              href={scopeHref("all")}
-              className={
-                scope === "all"
-                  ? "rounded-md bg-[#171717] px-3.5 py-1.5 text-xs font-medium text-white"
-                  : "rounded-md border border-[#e4e4e7] px-3.5 py-1.5 text-xs text-[#71717a] hover:bg-[#f4f4f5] hover:text-[#171717]"
-              }
-            >
-              Tất cả
-            </Link>
-            <Link
-              href={scopeHref("me")}
-              className={
-                scope === "me"
-                  ? "rounded-md bg-[#171717] px-3.5 py-1.5 text-xs font-medium text-white"
-                  : "rounded-md border border-[#e4e4e7] px-3.5 py-1.5 text-xs text-[#71717a] hover:bg-[#f4f4f5] hover:text-[#171717]"
-              }
-            >
-              Của tôi
-            </Link>
-          </div>
-        )}
       </header>
 
       {error && (
@@ -142,7 +109,7 @@ export default async function AppointmentsPage({
       <AppointmentsKanban
         title="Hôm nay"
         rows={today}
-        canAct={canSwitchScope}
+        canAct={isDoctor}
         staffId={staff?.id ?? null}
       />
 
@@ -180,7 +147,7 @@ export default async function AppointmentsPage({
           title=""
           rows={upcoming}
           withDate
-          canAct={canSwitchScope}
+          canAct={isDoctor}
           staffId={staff?.id ?? null}
         />
       </div>
