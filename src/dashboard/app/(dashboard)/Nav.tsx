@@ -22,7 +22,7 @@ export default function Nav({
 
   return (
     <nav className="space-y-0.5">
-      {visible.map(({ href, label, icon: Icon }) => {
+      {visible.map(({ href, label, badge, icon: Icon }) => {
         const active = isActiveNav(href, pathname, hrefs);
         return (
           <Link
@@ -36,7 +36,12 @@ export default function Nav({
             }
           >
             <Icon size={16} strokeWidth={2} className="shrink-0" />
-            <span>{label}</span>
+            <span className="min-w-0 flex-1">{label}</span>
+            {badge && (
+              <span className="shrink-0 rounded-full bg-[#3f3f46] px-1.5 py-0.5 text-[10px] font-medium text-[#d4d4d8]">
+                {badge}
+              </span>
+            )}
           </Link>
         );
       })}

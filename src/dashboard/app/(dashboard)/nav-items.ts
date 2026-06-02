@@ -6,6 +6,7 @@ import {
   ClipboardList,
   Users,
   UserPlus,
+  UserCheck,
   CheckSquare,
   Calendar,
   BarChart3,
@@ -19,6 +20,8 @@ export interface NavItem {
   icon: LucideIcon;
   /** Shorter label for the cramped bottom bar (falls back to label). */
   shortLabel?: string;
+  /** Small tag shown next to the label (e.g. "Đang XD"). */
+  badge?: string;
 }
 
 export const NAV: NavItem[] = [
@@ -32,9 +35,16 @@ export const NAV: NavItem[] = [
   { href: "/patients", label: "Bệnh nhân", shortLabel: "Bệnh nhân", icon: Users },
   {
     href: "/patients/new",
-    label: "Nhập thông tin Khách hàng",
+    label: "Nhập thông tin khách hàng mới",
     shortLabel: "Nhập KH",
     icon: UserPlus,
+  },
+  {
+    href: "/checkin",
+    label: "Check-in bệnh nhân",
+    shortLabel: "Check-in",
+    icon: UserCheck,
+    badge: "Đang XD",
   },
   {
     href: "/tasks",

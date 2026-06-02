@@ -56,13 +56,24 @@ export const ROLE_LABEL: Record<ClinicRole, string> = {
 };
 
 // Which roles may see each sidebar destination. Anything not listed = everyone.
+// RECEPTION (Lễ tân) is a front-desk role with a deliberately small menu:
+// only Trang chủ + Nhập khách hàng + Check-in. So the broader destinations
+// are scoped to everyone-except-reception.
+const NOT_RECEPTION: ClinicRole[] = [
+  "DOCTOR",
+  "ULTRASOUND_DOCTOR",
+  "CSKH",
+  "MANAGEMENT",
+];
+
 const NAV_ROLES: Record<string, "all" | ClinicRole[]> = {
   "/home": "all",
-  "/appointments": "all",
-  "/patients": "all",
+  "/appointments": NOT_RECEPTION,
+  "/patients": NOT_RECEPTION,
   "/patients/new": ["CSKH", "RECEPTION", "MANAGEMENT"],
+  "/checkin": ["RECEPTION", "MANAGEMENT"],
   "/tasks": ["CSKH", "MANAGEMENT"],
-  "/schedule": "all",
+  "/schedule": NOT_RECEPTION,
   "/work-sessions": ["MANAGEMENT"],
   "/reports": ["MANAGEMENT"],
   "/settings": ["MANAGEMENT"],
