@@ -40,7 +40,7 @@ export default async function NewPatientPage() {
   }));
 
   return (
-    <div className="space-y-4">
+    <div className="mx-auto max-w-3xl space-y-4">
       <header>
         <h1 className="text-xl font-semibold text-[#171717]">
           Nhập thông tin khách hàng

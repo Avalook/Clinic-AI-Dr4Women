@@ -164,7 +164,7 @@ export default function NewPatientForm({
   }
 
   return (
-    <div className="max-w-3xl space-y-4">
+    <div className="space-y-4">
       <section className={CARD}>
         <SectionHeader
           icon={<UserRound size={16} />}
