@@ -1,57 +1,25 @@
 "use client";
 
-import { useState } from "react";
+import { useActionState } from "react";
 import Link from "next/link";
-import { useRouter, useSearchParams } from "next/navigation";
-import { getSupabaseBrowser } from "../../../lib/supabase-browser";
+import { loginStaff } from "./actions";
 
 export default function LoginForm() {
-  const router = useRouter();
-  const params = useSearchParams();
-  // After login, route to ``/login`` so proxy.ts picks up the role-aware
-  // landing (BS → /appointments?scope=me, CSKH → /tasks, else → /home).
-  // The ``?redirect=`` query param wins when present — it carries the
-  // path the unauthenticated user originally wanted.
-  const redirectParam = params.get("redirect");
-
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
-  const [error, setError] = useState<string | null>(null);
-  const [loading, setLoading] = useState(false);
-
-  async function handleSubmit(e: React.FormEvent) {
-    e.preventDefault();
-    setError(null);
-    setLoading(true);
-    const supabase = getSupabaseBrowser();
-    const { error: authError } = await supabase.auth.signInWithPassword({
-      email,
-      password,
-    });
-    setLoading(false);
-    if (authError) {
-      setError(authError.message);
-      return;
-    }
-    // ``router.replace(target)`` triggers a fresh navigation; proxy.ts
-    // then resolves the role-aware redirect (when target = /login).
-    router.replace(redirectParam || "/login");
-    router.refresh();
-  }
+  const [state, formAction, pending] = useActionState(loginStaff, null);
 
   return (
     <div className="flex min-h-screen items-center justify-center bg-[#fafafa] px-4">
       <form
-        onSubmit={handleSubmit}
+        action={formAction}
         className="w-full max-w-sm space-y-4 rounded-lg bg-white p-6 shadow-[0_1px_3px_rgba(0,0,0,0.08)]"
       >
         <div className="space-y-1">
           <h1 className="flex items-center gap-2 text-xl font-semibold text-[#171717]">
             <span className="h-2 w-2 rounded-full bg-[#ec4899]" />
-            Dr4Women Dashboard
+            Đăng nhập
           </h1>
           <p className="text-sm text-[#888888]">
-            Đăng nhập bằng tài khoản staff.
+            Đăng nhập bằng tài khoản của bạn để vào thẳng phần việc của mình.
           </p>
         </div>
 
@@ -61,12 +29,12 @@ export default function LoginForm() {
           </label>
           <input
             id="email"
+            name="email"
             type="email"
             required
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            className="w-full rounded-md border border-[#e4e4e7] px-3 py-2.5 text-base text-[#171717] outline-none focus:border-[#ec4899] focus:ring-2 focus:ring-[#ec4899]/20 sm:py-2 sm:text-sm"
+            autoFocus
             autoComplete="email"
+            className="w-full rounded-md border border-[#e4e4e7] px-3 py-2.5 text-base text-[#171717] outline-none focus:border-[#ec4899] focus:ring-2 focus:ring-[#ec4899]/20 sm:py-2 sm:text-sm"
           />
         </div>
 
@@ -87,31 +55,30 @@ export default function LoginForm() {
           </div>
           <input
             id="password"
+            name="password"
             type="password"
             required
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            className="w-full rounded-md border border-[#e4e4e7] px-3 py-2.5 text-base text-[#171717] outline-none focus:border-[#ec4899] focus:ring-2 focus:ring-[#ec4899]/20 sm:py-2 sm:text-sm"
             autoComplete="current-password"
+            className="w-full rounded-md border border-[#e4e4e7] px-3 py-2.5 text-base text-[#171717] outline-none focus:border-[#ec4899] focus:ring-2 focus:ring-[#ec4899]/20 sm:py-2 sm:text-sm"
           />
         </div>
 
-        {error && (
+        {state?.error && (
           <p className="rounded bg-[#fee2e2] px-3 py-2 text-sm text-[#dc2626]">
-            {error}
+            {state.error}
           </p>
         )}
 
         <button
           type="submit"
-          disabled={loading}
+          disabled={pending}
           className="min-h-11 w-full rounded-md bg-[#ec4899] px-3 py-2.5 text-sm font-medium text-white transition-colors duration-150 hover:bg-[#db2777] active:bg-[#db2777] disabled:opacity-50"
         >
-          {loading ? "Đang đăng nhập..." : "Đăng nhập"}
+          {pending ? "Đang đăng nhập..." : "Đăng nhập"}
         </button>
 
         <p className="text-xs text-[#888888]">
-          Chưa có tài khoản? Liên hệ quản trị viên phòng khám.
+          Chưa có tài khoản? Liên hệ quản lý phòng khám.
         </p>
       </form>
     </div>

@@ -43,29 +43,33 @@ export async function proxy(request: NextRequest) {
 
   const isPublic = PUBLIC_PATHS.some((p) => pathname.startsWith(p));
   const hasRole = !!request.cookies.get("clinic_role")?.value;
-
-  // 1. No shared session → clinic gate.
-  if (!user && !isPublic) {
+  const redirectTo = (path: string) => {
     const url = request.nextUrl.clone();
-    url.pathname = "/enter";
+    url.pathname = path;
     url.search = "";
     return NextResponse.redirect(url);
+  };
+
+  // Luồng: /enter (mật khẩu phòng khám) → /login (đăng nhập cá nhân) → phần việc.
+
+  // 1. Chưa qua cổng (không có session). /login KHÔNG public → cũng đẩy về /enter.
+  if (!user) {
+    return isPublic ? response : redirectTo("/enter");
   }
 
-  // 2. Already in → don't sit on the gate.
-  if (user && pathname.startsWith("/enter")) {
-    const url = request.nextUrl.clone();
-    url.pathname = hasRole ? "/home" : "/role-picker";
-    url.search = "";
-    return NextResponse.redirect(url);
+  // 2. Đã qua cổng, đang ở trang /enter → đi tiếp.
+  if (pathname.startsWith("/enter")) {
+    return redirectTo(hasRole ? "/home" : "/login");
   }
 
-  // 3. In, but no role picked yet → role picker.
-  if (user && !isPublic && !hasRole && pathname !== "/role-picker") {
-    const url = request.nextUrl.clone();
-    url.pathname = "/role-picker";
-    url.search = "";
-    return NextResponse.redirect(url);
+  // 3. Đã qua cổng nhưng CHƯA đăng nhập cá nhân (chưa có role) → /login.
+  if (!hasRole && pathname !== "/login" && !isPublic) {
+    return redirectTo("/login");
+  }
+
+  // 4. Đã đăng nhập cá nhân mà còn ở /login → vào việc.
+  if (hasRole && pathname === "/login") {
+    return redirectTo("/home");
   }
 
   return response;

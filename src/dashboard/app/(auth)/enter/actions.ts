@@ -28,8 +28,8 @@ export async function enterClinic(
   const { error } = await supabase.auth.signInWithPassword({ email, password });
   if (error) return { error: "Mật khẩu không đúng." };
 
-  // signInWithPassword wrote the session cookies; move on to role selection.
-  redirect("/role-picker");
+  // Cổng phòng khám đã mở (session chung). Giờ mỗi người đăng nhập cá nhân.
+  redirect("/login");
 }
 
 // Sign out + forget the picked role so the next person starts clean.

@@ -7,7 +7,6 @@
 //    the full nav list, role switch, and logout.
 
 import { useEffect, useState } from "react";
-import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { X } from "lucide-react";
 import Nav from "./Nav";
@@ -62,13 +61,6 @@ export default function Shell({
         <p className="truncate text-xs text-[#71717a]" title={identity}>
           {identity}
         </p>
-        <Link
-          href="/role-picker"
-          onClick={() => setOpen(false)}
-          className="block w-full rounded-md border border-[#262626] px-3 py-2 text-center text-sm text-[#a1a1aa] transition-colors duration-150 hover:bg-[#1a1a1a] hover:text-[#d4d4d8] active:bg-[#1a1a1a]"
-        >
-          Đổi vai trò
-        </Link>
         <form action={leaveAction}>
           <button
             type="submit"
