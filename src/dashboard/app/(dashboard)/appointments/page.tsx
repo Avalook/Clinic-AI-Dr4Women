@@ -1,7 +1,8 @@
 // Appointments page — two Kanban boards ("Hôm nay" / "Sắp tới"), each with
-// three status columns: Chờ xác nhận → Đã xác nhận → Đã từ chối.
+// three status columns: Chờ xác nhận → Đã xác nhận → Đã khám xong.
 // Read-only data; CCCD is never shown (D-identity gate).
 // PER-DOCTOR SCOPE: ?scope=me narrows to the logged-in doctor's appointments.
+// UPCOMING RANGE: ?range=day|week|month limits the "Sắp tới" board window.
 
 import Link from "next/link";
 import AppointmentsKanban, {
@@ -16,16 +17,25 @@ import { vnTodayRangeUtc } from "../../../lib/datetime";
 
 export const dynamic = "force-dynamic";
 
-// Statuses that belong on the workflow board (history states like COMPLETED /
-// NO_SHOW / CANCELLED live in the patient's history, not here).
-const BOARD_STATUSES = ["SCHEDULED", "CONFIRMED", "CHECKED_IN", "DOCTOR_DECLINED"];
+// Happy-path workflow statuses (DOCTOR_DECLINED is surfaced separately via the
+// reassign notice; CANCELLED / NO_SHOW live in patient history).
+const BOARD_STATUSES = ["SCHEDULED", "CONFIRMED", "CHECKED_IN", "COMPLETED"];
+
+const DAY_MS = 24 * 60 * 60 * 1000;
+type Range = "day" | "week" | "month";
+const RANGE_DAYS: Record<Range, number> = { day: 1, week: 7, month: 30 };
+const RANGE_LABEL: Record<Range, string> = {
+  day: "Ngày",
+  week: "Tuần",
+  month: "Tháng",
+};
 
 export default async function AppointmentsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ scope?: string }>;
+  searchParams: Promise<{ scope?: string; range?: string }>;
 }) {
-  const { scope: rawScope } = await searchParams;
+  const { scope: rawScope, range: rawRange } = await searchParams;
 
   const role = await getClinicRole();
   const staff = await getActiveStaff();
@@ -33,11 +43,18 @@ export default async function AppointmentsPage({
   const scope = canSwitchScope && rawScope === "me" ? "me" : "all";
   const meId = scope === "me" && staff ? staff.id : null;
 
+  const range: Range =
+    rawRange === "day" || rawRange === "month" ? rawRange : "week";
+
   const supabase = await getSupabaseServer();
   const { startUtc: dayStart, endUtc: dayEnd } = vnTodayRangeUtc();
+  // Upcoming window: from end-of-today out to N days, per the range filter.
+  const upcomingEnd = new Date(
+    new Date(dayEnd).getTime() + RANGE_DAYS[range] * DAY_MS,
+  ).toISOString();
 
-  // Today + upcoming fetched in parallel (cheap now that the function runs in
-  // the same region as Supabase).
+  // Today + upcoming fetched in parallel (cheap now the function runs in the
+  // same region as Supabase).
   const buildQuery = (which: "today" | "upcoming") => {
     let q = supabase
       .from("appointment")
@@ -46,8 +63,8 @@ export default async function AppointmentsPage({
     q =
       which === "today"
         ? q.gte("slot_start", dayStart).lt("slot_start", dayEnd)
-        : q.gte("slot_start", dayEnd);
-    q = q.order("slot_start", { ascending: true }).limit(200);
+        : q.gte("slot_start", dayEnd).lt("slot_start", upcomingEnd);
+    q = q.order("slot_start", { ascending: true }).limit(300);
     if (meId) q = q.eq("doctor_id", meId);
     return q;
   };
@@ -61,8 +78,20 @@ export default async function AppointmentsPage({
   const upcoming = (upcomingRes.data as KanbanRow[] | null) ?? [];
   const error = todayRes.error ?? upcomingRes.error;
 
-  const scopeHref = (s: "all" | "me"): string =>
-    s === "me" ? "/appointments?scope=me" : "/appointments";
+  const scopeHref = (s: "all" | "me"): string => {
+    const params = new URLSearchParams();
+    if (s === "me") params.set("scope", "me");
+    if (range !== "week") params.set("range", range);
+    const qs = params.toString();
+    return qs ? `/appointments?${qs}` : "/appointments";
+  };
+  const rangeHref = (r: Range): string => {
+    const params = new URLSearchParams();
+    if (scope === "me") params.set("scope", "me");
+    if (r !== "week") params.set("range", r);
+    const qs = params.toString();
+    return qs ? `/appointments?${qs}` : "/appointments";
+  };
 
   return (
     <div className="space-y-6">
@@ -117,13 +146,44 @@ export default async function AppointmentsPage({
         staffId={staff?.id ?? null}
       />
 
-      <AppointmentsKanban
-        title="Sắp tới"
-        rows={upcoming}
-        withDate
-        canAct={canSwitchScope}
-        staffId={staff?.id ?? null}
-      />
+      <div className="space-y-3">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <h2 className="text-base font-semibold text-[#171717]">
+            Sắp tới
+            <span className="ml-2 text-sm font-normal text-[#888888]">
+              ({upcoming.length} · {RANGE_DAYS[range]} ngày tới)
+            </span>
+          </h2>
+          {/* Range filter: Ngày / Tuần / Tháng. */}
+          <div
+            className="flex gap-1 rounded-lg bg-[#f4f4f5] p-1"
+            role="group"
+            aria-label="Khoảng thời gian"
+          >
+            {(["day", "week", "month"] as Range[]).map((r) => (
+              <Link
+                key={r}
+                href={rangeHref(r)}
+                className={
+                  r === range
+                    ? "rounded-md bg-white px-3 py-1 text-xs font-medium text-[#171717] shadow-[0_1px_2px_rgba(0,0,0,0.08)]"
+                    : "rounded-md px-3 py-1 text-xs text-[#71717a] hover:text-[#171717]"
+                }
+              >
+                {RANGE_LABEL[r]}
+              </Link>
+            ))}
+          </div>
+        </div>
+
+        <AppointmentsKanban
+          title=""
+          rows={upcoming}
+          withDate
+          canAct={canSwitchScope}
+          staffId={staff?.id ?? null}
+        />
+      </div>
     </div>
   );
 }

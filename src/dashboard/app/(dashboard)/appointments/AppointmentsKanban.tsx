@@ -56,11 +56,11 @@ const COLUMNS: Column[] = [
     tint: "#f0fdf4",
   },
   {
-    key: "declined",
-    label: "Đã từ chối",
-    statuses: ["DOCTOR_DECLINED"],
-    accent: "#c2410c",
-    tint: "#fff7ed",
+    key: "done",
+    label: "Đã khám xong",
+    statuses: ["COMPLETED"],
+    accent: "#71717a",
+    tint: "#f4f4f5",
   },
 ];
 
@@ -139,12 +139,14 @@ export default function AppointmentsKanban({
 }) {
   return (
     <section className="space-y-3">
-      <h2 className="text-base font-semibold text-[#171717]">
-        {title}
-        <span className="ml-2 text-sm font-normal text-[#888888]">
-          ({rows.length})
-        </span>
-      </h2>
+      {title && (
+        <h2 className="text-base font-semibold text-[#171717]">
+          {title}
+          <span className="ml-2 text-sm font-normal text-[#888888]">
+            ({rows.length})
+          </span>
+        </h2>
+      )}
 
       <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
         {COLUMNS.map((col) => {

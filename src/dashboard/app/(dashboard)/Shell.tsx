@@ -56,7 +56,7 @@ export default function Shell({
         </button>
       </div>
       <Nav role={role} onNavigate={() => setOpen(false)} />
-      <div className="mt-auto space-y-2 border-t border-[#1f1f1f] px-3 pt-4">
+      <div className="mt-4 space-y-2 border-t border-[#1f1f1f] px-3 pt-4">
         <p className="truncate text-xs text-[#71717a]" title={identity}>
           {identity}
         </p>
