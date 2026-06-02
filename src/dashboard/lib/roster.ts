@@ -8,28 +8,46 @@ export const ROSTER_STAFF_COOKIE = "roster_staff_id";
 export interface Station {
   key: string;
   label: string;
+  short: string;
   group: string;
 }
 
 // Thứ tự cột = thứ tự hiển thị trên bảng (giống Sheet: Lịch khám → các trạm).
 export const STATIONS: Station[] = [
-  { key: "LICH_KHAM", label: "Lịch khám (Bác sĩ)", group: "Bác sĩ" },
-  { key: "SB_CHIEU", label: "SB - Chiều", group: "Ngoài giờ" },
-  { key: "THU_THUAT_NGOAI_GIO", label: "Thủ thuật ngoài giờ", group: "Ngoài giờ" },
-  { key: "HSS_THU_THUAT", label: "HSS + Thủ thuật trong giờ", group: "Ngoài giờ" },
-  { key: "LE_TAN", label: "Lễ tân (Tiếp đón + thu ngân)", group: "Tầng 1" },
-  { key: "LAY_MAU", label: "Lấy máu", group: "Tầng 1" },
-  { key: "PHU_BS_KHAM", label: "Phụ BS (khám + thuốc) / Chạy ngoài", group: "Tầng 1" },
-  { key: "TLYK", label: "TLYK (Đánh máy + Phụ khám)", group: "Tầng 1" },
-  { key: "PHU_BS_SA", label: "Phụ BS (khám + thuốc) + đánh SA", group: "Tầng 2" },
-  { key: "PHONG_NGOAI_MOR", label: "Phòng ngoài + Phòng mor", group: "Tầng 2" },
-  { key: "MAY_TRONG", label: "Máy trong E10 + VLTL/thủ thuật", group: "Tầng 4" },
-  { key: "MAY_NGOAI", label: "Máy ngoài", group: "Tầng 4" },
+  { key: "LICH_KHAM", label: "Lịch khám (Bác sĩ)", short: "Bác sĩ khám", group: "Bác sĩ" },
+  { key: "SB_CHIEU", label: "SB - Chiều", short: "SB chiều", group: "Ngoài giờ" },
+  { key: "THU_THUAT_NGOAI_GIO", label: "Thủ thuật ngoài giờ", short: "Thủ thuật NG", group: "Ngoài giờ" },
+  { key: "HSS_THU_THUAT", label: "HSS + Thủ thuật trong giờ", short: "HSS/Thủ thuật", group: "Ngoài giờ" },
+  { key: "LE_TAN", label: "Lễ tân (Tiếp đón + thu ngân)", short: "Lễ tân", group: "Tầng 1" },
+  { key: "LAY_MAU", label: "Lấy máu", short: "Lấy máu", group: "Tầng 1" },
+  { key: "PHU_BS_KHAM", label: "Phụ BS (khám + thuốc) / Chạy ngoài", short: "Phụ BS (T1)", group: "Tầng 1" },
+  { key: "TLYK", label: "TLYK (Đánh máy + Phụ khám)", short: "TLYK", group: "Tầng 1" },
+  { key: "PHU_BS_SA", label: "Phụ BS (khám + thuốc) + đánh SA", short: "Phụ BS/SA (T2)", group: "Tầng 2" },
+  { key: "PHONG_NGOAI_MOR", label: "Phòng ngoài + Phòng mor", short: "Phòng mổ/ngoài", group: "Tầng 2" },
+  { key: "MAY_TRONG", label: "Máy trong E10 + VLTL/thủ thuật", short: "Máy trong", group: "Tầng 4" },
+  { key: "MAY_NGOAI", label: "Máy ngoài", short: "Máy ngoài", group: "Tầng 4" },
 ];
 
 export const STATION_LABEL: Record<string, string> = Object.fromEntries(
   STATIONS.map((s) => [s.key, s.label]),
 );
+
+export const STATION_SHORT: Record<string, string> = Object.fromEntries(
+  STATIONS.map((s) => [s.key, s.short]),
+);
+
+export const STATION_GROUP: Record<string, string> = Object.fromEntries(
+  STATIONS.map((s) => [s.key, s.group]),
+);
+
+// Màu theo nhóm trạm (chấm/viền thẻ kanban).
+export const GROUP_COLOR: Record<string, string> = {
+  "Bác sĩ": "#ec4899",
+  "Tầng 1": "#2563eb",
+  "Tầng 2": "#16a34a",
+  "Tầng 4": "#d97706",
+  "Ngoài giờ": "#7c3aed",
+};
 
 export type Shift = "FULL" | "SANG" | "CHIEU";
 export const SHIFTS: Shift[] = ["FULL", "SANG", "CHIEU"];
@@ -93,4 +111,9 @@ export function shiftWeek(weekStart: string, weeks: number): string {
 export function currentWeekStartVn(): string {
   const nowVn = new Date(Date.now() + 7 * 60 * 60 * 1000);
   return weekStartOf(nowVn.toISOString().slice(0, 10));
+}
+
+/** Hôm nay (yyyy-mm-dd) theo giờ VN. */
+export function todayVn(): string {
+  return new Date(Date.now() + 7 * 60 * 60 * 1000).toISOString().slice(0, 10);
 }
