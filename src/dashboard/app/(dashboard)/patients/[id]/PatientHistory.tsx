@@ -86,6 +86,62 @@ const TD = "px-4 py-2.5";
 const CARD =
   "rounded-lg border border-[#e4e4e7] bg-white shadow-[0_1px_3px_rgba(0,0,0,0.08)]";
 
+// Note lâm sàng ("Lý do khám") nguồn viết liền — tách thành mục dễ đọc:
+// chèn xuống dòng trước ➤<nhãn>:, mục đánh số (1. Hành chính…), và mốc ngày
+// lịch sử khám; in đậm nhãn. Giữ xuống dòng sẵn có (whitespace-pre-line).
+function ClinicalNote({ text }: { text: string }) {
+  const normalized = text
+    .replace(/\s*➤/g, "\n➤")
+    .replace(/\s+(\d+\.\s*(?:Hành chính|Ghi chú|Lịch sử|Tư vấn|Khám))/g, "\n$1")
+    .replace(/\s+(\d{1,2}\/\d{1,2}\/\d{4}\b)/g, "\n$1")
+    .replace(/\s*(📌{1,})/g, "\n$1");
+  const lines = normalized
+    .split(/\n+/)
+    .map((l) => l.trim())
+    .filter(Boolean);
+
+  return (
+    <div className="space-y-1 text-sm leading-relaxed text-[#171717]">
+      {lines.map((line, i) => {
+        const arrow = line.match(/^➤\s*([^:]+):\s*([\s\S]*)$/);
+        if (arrow) {
+          return (
+            <p key={i} className="whitespace-pre-line">
+              <span className="font-semibold text-[#db2777]">
+                {arrow[1].trim()}:{" "}
+              </span>
+              {arrow[2].trim()}
+            </p>
+          );
+        }
+        const num = line.match(/^(\d+)\.\s*([\s\S]*)$/);
+        if (num) {
+          return (
+            <p key={i} className="whitespace-pre-line pt-1">
+              <span className="font-semibold text-[#52525b]">{num[1]}. </span>
+              {num[2].trim()}
+            </p>
+          );
+        }
+        const date = line.match(/^(\d{1,2}\/\d{1,2}\/\d{4})\b([\s\S]*)$/);
+        if (date) {
+          return (
+            <p key={i} className="whitespace-pre-line pt-1">
+              <span className="font-medium text-[#171717]">{date[1]}</span>
+              <span className="text-[#52525b]">{date[2]}</span>
+            </p>
+          );
+        }
+        return (
+          <p key={i} className="whitespace-pre-line">
+            {line}
+          </p>
+        );
+      })}
+    </div>
+  );
+}
+
 export default async function PatientHistory({ id }: { id: string }) {
   const supabase = await getSupabaseServer();
   const [visitRes, labRes, pregRes] = await Promise.all([
@@ -203,7 +259,15 @@ export default async function PatientHistory({ id }: { id: string }) {
                           className="grid grid-cols-1 gap-0.5 sm:grid-cols-[120px_1fr] sm:gap-2"
                         >
                           <dt className="text-xs text-[#888888]">{s.label}</dt>
-                          <dd className="text-sm text-[#171717]">{s.value}</dd>
+                          <dd className="text-sm text-[#171717]">
+                            {s.label === "Lý do khám" ? (
+                              <ClinicalNote text={s.value} />
+                            ) : (
+                              <span className="whitespace-pre-line">
+                                {s.value}
+                              </span>
+                            )}
+                          </dd>
                         </div>
                       ))}
                     </dl>
