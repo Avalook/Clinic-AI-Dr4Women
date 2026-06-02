@@ -44,7 +44,6 @@ export const NAV: NavItem[] = [
     label: "Check-in bệnh nhân",
     shortLabel: "Check-in",
     icon: UserCheck,
-    badge: "Đang XD",
   },
   {
     href: "/tasks",

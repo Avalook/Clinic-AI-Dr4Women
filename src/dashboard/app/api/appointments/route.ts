@@ -135,10 +135,15 @@ export async function POST(request: Request) {
   return NextResponse.json({ ok: true, appointment_id: data.id });
 }
 
+type PatchAction = "confirm" | "decline" | "checkin" | "undo_checkin";
+
 interface PatchBody {
   id?: string;
-  action?: "confirm" | "decline";
+  action?: PatchAction;
 }
+
+const DOCTOR_ACTIONS = new Set<PatchAction>(["confirm", "decline"]);
+const CHECKIN_ACTIONS = new Set<PatchAction>(["checkin", "undo_checkin"]);
 
 export async function PATCH(request: Request) {
   const caller = await getSupabaseServer();
@@ -147,18 +152,41 @@ export async function PATCH(request: Request) {
   } = await caller.auth.getUser();
   if (!user) return NextResponse.json({ error: "Unauthorised" }, { status: 401 });
 
-  // Confirm / decline is a DOCTOR action on their OWN appointments only.
-  const role = await getClinicRole();
-  if (!isDoctorRole(role)) {
+  let body: PatchBody;
+  try {
+    body = (await request.json()) as PatchBody;
+  } catch {
+    return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
+  }
+  const id = (body.id ?? "").trim();
+  const action = body.action;
+  if (!id || !action || (!DOCTOR_ACTIONS.has(action) && !CHECKIN_ACTIONS.has(action))) {
     return NextResponse.json(
-      { error: "Chỉ bác sĩ mới xác nhận/từ chối lịch hẹn." },
-      { status: 403 },
+      { error: "Thiếu id lịch hẹn hoặc action không hợp lệ." },
+      { status: 400 },
     );
   }
+
+  const role = await getClinicRole();
   const staffId = await getClinicStaffId();
-  if (!staffId) {
+
+  // Confirm / decline: DOCTOR, own appt. Check-in: front-desk (Lễ tân/CSKH/QL).
+  if (DOCTOR_ACTIONS.has(action)) {
+    if (!isDoctorRole(role)) {
+      return NextResponse.json(
+        { error: "Chỉ bác sĩ mới xác nhận/từ chối lịch hẹn." },
+        { status: 403 },
+      );
+    }
+    if (!staffId) {
+      return NextResponse.json(
+        { error: "Chưa chọn danh tính bác sĩ." },
+        { status: 403 },
+      );
+    }
+  } else if (!canWriteIntake(role)) {
     return NextResponse.json(
-      { error: "Chưa chọn danh tính bác sĩ." },
+      { error: "Chỉ Lễ tân / CSKH / Quản lý mới check-in bệnh nhân." },
       { status: 403 },
     );
   }
@@ -171,23 +199,6 @@ export async function PATCH(request: Request) {
     );
   }
 
-  let body: PatchBody;
-  try {
-    body = (await request.json()) as PatchBody;
-  } catch {
-    return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
-  }
-
-  const id = (body.id ?? "").trim();
-  const action = body.action;
-  if (!id || (action !== "confirm" && action !== "decline")) {
-    return NextResponse.json(
-      { error: "Thiếu id lịch hẹn hoặc action không hợp lệ." },
-      { status: 400 },
-    );
-  }
-
-  // The appointment must belong to this doctor and still be awaiting action.
   const { data: appt, error: loadErr } = await db
     .from("appointment")
     .select("id, doctor_id, status, clinic_patient_id, slot_start")
@@ -197,45 +208,60 @@ export async function PATCH(request: Request) {
     return NextResponse.json({ error: loadErr.message }, { status: 500 });
   }
   if (!appt) {
-    return NextResponse.json(
-      { error: "Không tìm thấy lịch hẹn." },
-      { status: 404 },
-    );
+    return NextResponse.json({ error: "Không tìm thấy lịch hẹn." }, { status: 404 });
   }
-  if (appt.doctor_id !== staffId) {
-    return NextResponse.json(
-      { error: "Lịch hẹn này không thuộc bác sĩ." },
-      { status: 403 },
-    );
+
+  // Resolve the transition + the status it must currently be in (race guard).
+  let newStatus: string;
+  let fromStatuses: string[];
+  if (action === "confirm" || action === "decline") {
+    if (appt.doctor_id !== staffId) {
+      return NextResponse.json(
+        { error: "Lịch hẹn này không thuộc bác sĩ." },
+        { status: 403 },
+      );
+    }
+    newStatus = action === "confirm" ? "CONFIRMED" : "DOCTOR_DECLINED";
+    fromStatuses = ["SCHEDULED"];
+  } else if (action === "checkin") {
+    newStatus = "CHECKED_IN";
+    fromStatuses = ["SCHEDULED", "CONFIRMED"];
+  } else {
+    newStatus = "CONFIRMED";
+    fromStatuses = ["CHECKED_IN"];
   }
-  if (appt.status !== "SCHEDULED") {
+
+  if (!fromStatuses.includes(appt.status)) {
     return NextResponse.json(
-      { error: "Lịch hẹn không ở trạng thái chờ xác nhận." },
+      { error: `Lịch hẹn đang ở trạng thái ${appt.status}, không thể thực hiện.` },
       { status: 409 },
     );
   }
 
-  const newStatus = action === "confirm" ? "CONFIRMED" : "DOCTOR_DECLINED";
-
-  // Guard the transition on status = SCHEDULED to avoid a confirm/decline race.
   const { error: updErr } = await db
     .from("appointment")
     .update({ status: newStatus })
     .eq("id", id)
-    .eq("status", "SCHEDULED");
+    .in("status", fromStatuses);
   if (updErr) {
     return NextResponse.json({ error: updErr.message }, { status: 500 });
   }
 
+  const eventType: Record<PatchAction, string> = {
+    confirm: "appointment.confirmed",
+    decline: "appointment.declined",
+    checkin: "appointment.checked_in",
+    undo_checkin: "appointment.checkin_undone",
+  };
+
   await logEvent(db, {
-    event_type:
-      action === "confirm" ? "appointment.confirmed" : "appointment.declined",
+    event_type: eventType[action],
     aggregate_type: "appointment",
     aggregate_id: id,
     payload: {
       appointment_id: id,
       status: newStatus,
-      doctor_id: staffId,
+      doctor_id: appt.doctor_id,
       clinic_patient_id: appt.clinic_patient_id,
       slot_start: appt.slot_start,
     },
@@ -243,10 +269,7 @@ export async function PATCH(request: Request) {
       clinic_role: role,
       clinic_staff_id: staffId,
       actor_auth_user_id: user.id,
-      origin:
-        action === "confirm"
-          ? "dashboard:appointment-confirm"
-          : "dashboard:appointment-decline",
+      origin: `dashboard:appointment-${action}`,
     },
   });
 
