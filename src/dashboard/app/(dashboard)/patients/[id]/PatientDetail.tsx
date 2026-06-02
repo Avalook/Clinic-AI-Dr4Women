@@ -105,11 +105,11 @@ export default async function PatientDetail({ id }: { id: string }) {
         ← Về danh sách BN
       </Link>
 
-      <section className="rounded-lg border border-[#e4e4e7] bg-white p-6 shadow-[0_1px_3px_rgba(0,0,0,0.08)]">
+      <section className="rounded-lg border border-[#e4e4e7] bg-white p-4 shadow-[0_1px_3px_rgba(0,0,0,0.08)] sm:p-6">
         <h2 className="mb-4 text-lg font-semibold text-[#171717]">
           {patient.full_name}
         </h2>
-        <dl className="grid grid-cols-2 gap-x-6 gap-y-4 md:grid-cols-4">
+        <dl className="grid grid-cols-2 gap-x-4 gap-y-4 sm:gap-x-6 md:grid-cols-4">
           <Field label="Mã BN" value={patient.patient_code} />
           <Field label="Ngày sinh" value={patient.date_of_birth ?? "—"} />
           <Field label="Tuổi" value={ageFromDob(patient.date_of_birth)} />
@@ -121,7 +121,38 @@ export default async function PatientDetail({ id }: { id: string }) {
         <h3 className="text-base font-semibold text-[#171717]">
           Lịch sử lịch hẹn
         </h3>
-        <div className="overflow-x-auto rounded-lg border border-[#e4e4e7] bg-white shadow-[0_1px_3px_rgba(0,0,0,0.08)]">
+
+        {/* Mobile: card list (<md). */}
+        <div className="space-y-2 md:hidden">
+          {appointments.map((a) => (
+            <div
+              key={a.id}
+              className="rounded-lg border border-[#e4e4e7] bg-white p-3 shadow-[0_1px_3px_rgba(0,0,0,0.06)]"
+            >
+              <div className="flex items-start justify-between gap-2">
+                <span className="font-mono text-xs text-[#4d4d4d]">
+                  {fmtDateTime(a.slot_start)}
+                </span>
+                <StatusBadge status={a.status} />
+              </div>
+              <p className="mt-1 text-sm text-[#171717]">
+                {a.service?.name ?? "—"}
+              </p>
+              <p className="text-xs text-[#4d4d4d]">
+                BS {a.doctor?.full_name ?? "—"} ·{" "}
+                {a.booking_channel ?? "—"}
+              </p>
+            </div>
+          ))}
+          {appointments.length === 0 && (
+            <div className="rounded-lg border border-[#e4e4e7] bg-white px-4 py-6 text-center text-sm text-[#888888]">
+              Chưa có lịch hẹn.
+            </div>
+          )}
+        </div>
+
+        {/* Desktop: table (≥md). */}
+        <div className="hidden overflow-x-auto rounded-lg border border-[#e4e4e7] bg-white shadow-[0_1px_3px_rgba(0,0,0,0.08)] md:block">
           <table className="min-w-full divide-y divide-[#e4e4e7] text-sm">
             <thead className="bg-[#fafafa] text-left text-[11px] uppercase tracking-wide text-[#71717a]">
               <tr>

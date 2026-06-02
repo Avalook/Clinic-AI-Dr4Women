@@ -84,12 +84,12 @@ export default async function AppointmentsPage({
 
   return (
     <div className="space-y-4">
-      <header className="flex items-start justify-between gap-3">
-        <div>
+      <header className="flex flex-wrap items-start justify-between gap-3">
+        <div className="min-w-0">
           <h1 className="text-xl font-semibold text-[#171717]">
             Lịch hẹn{scope === "me" && staff ? ` của ${staff.short_name ?? staff.full_name}` : ""}
           </h1>
-          <div className="flex items-center gap-3">
+          <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
             <p className="text-sm text-[#888888]">
               Lịch hẹn hôm nay. Read-only.
             </p>
@@ -128,7 +128,7 @@ export default async function AppointmentsPage({
         <StatCard label="Đã xác nhận" value={confirmedRes.count ?? 0} />
       </div>
 
-      <nav className="flex gap-1">
+      <nav className="-mx-1 flex gap-1 overflow-x-auto px-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
         {TABS.map((t) => {
           const active = t.key === tab;
           return (
@@ -137,8 +137,8 @@ export default async function AppointmentsPage({
               href={tabHref(t.key)}
               className={
                 active
-                  ? "rounded-md bg-[#171717] px-3.5 py-1.5 text-sm font-medium text-white"
-                  : "rounded-md border border-[#e4e4e7] px-3.5 py-1.5 text-sm text-[#71717a] transition-colors duration-150 hover:bg-[#f4f4f5] hover:text-[#171717]"
+                  ? "shrink-0 whitespace-nowrap rounded-md bg-[#171717] px-3.5 py-1.5 text-sm font-medium text-white"
+                  : "shrink-0 whitespace-nowrap rounded-md border border-[#e4e4e7] px-3.5 py-1.5 text-sm text-[#71717a] transition-colors duration-150 hover:bg-[#f4f4f5] hover:text-[#171717]"
               }
             >
               {t.label}

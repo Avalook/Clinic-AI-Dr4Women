@@ -100,7 +100,110 @@ export default async function AppointmentsList({
         </div>
       )}
 
-      <div className="overflow-x-auto rounded-lg border border-[#e4e4e7] bg-white shadow-[0_1px_3px_rgba(0,0,0,0.08)]">
+      {/* Mobile: card list (<md). */}
+      <div className="space-y-2 md:hidden">
+        {rows.map((a) => (
+          <div
+            key={a.id}
+            className="rounded-lg border border-[#e4e4e7] bg-white p-3 shadow-[0_1px_3px_rgba(0,0,0,0.06)]"
+          >
+            <div className="flex items-start justify-between gap-2">
+              <div className="min-w-0">
+                <Link
+                  href={`/patients/${a.clinic_patient_id}`}
+                  className="font-medium text-[#171717] hover:text-[#ec4899] hover:underline"
+                >
+                  {a.patient?.full_name ?? "—"}
+                </Link>
+                {a.patient?.patient_code && (
+                  <span className="ml-2 font-mono text-xs text-[#888888]">
+                    {a.patient.patient_code}
+                  </span>
+                )}
+              </div>
+              <StatusBadge status={a.status} />
+            </div>
+            <dl className="mt-2 grid grid-cols-2 gap-x-3 gap-y-1.5 text-xs text-[#4d4d4d]">
+              {isPending ? (
+                <>
+                  <div>
+                    <dt className="text-[10px] uppercase tracking-wide text-[#888888]">
+                      Giờ
+                    </dt>
+                    <dd className="font-mono">{fmtTime(a.slot_start)}</dd>
+                  </div>
+                  <div>
+                    <dt className="text-[10px] uppercase tracking-wide text-[#888888]">
+                      STT
+                    </dt>
+                    <dd className="font-mono">{a.queue_number ?? "—"}</dd>
+                  </div>
+                  <div>
+                    <dt className="text-[10px] uppercase tracking-wide text-[#888888]">
+                      SĐT
+                    </dt>
+                    <dd className="font-mono">
+                      {a.patient?.phone_primary ?? "—"}
+                    </dd>
+                  </div>
+                  <div>
+                    <dt className="text-[10px] uppercase tracking-wide text-[#888888]">
+                      Kênh
+                    </dt>
+                    <dd>{a.booking_channel ?? "—"}</dd>
+                  </div>
+                  <div className="col-span-2">
+                    <dt className="text-[10px] uppercase tracking-wide text-[#888888]">
+                      Dịch vụ
+                    </dt>
+                    <dd>{a.service?.name ?? "—"}</dd>
+                  </div>
+                </>
+              ) : (
+                <>
+                  <div>
+                    <dt className="text-[10px] uppercase tracking-wide text-[#888888]">
+                      Bắt đầu
+                    </dt>
+                    <dd className="font-mono">{fmtTime(a.slot_start)}</dd>
+                  </div>
+                  <div>
+                    <dt className="text-[10px] uppercase tracking-wide text-[#888888]">
+                      Kết thúc
+                    </dt>
+                    <dd className="font-mono">{fmtTime(a.slot_end)}</dd>
+                  </div>
+                  <div>
+                    <dt className="text-[10px] uppercase tracking-wide text-[#888888]">
+                      Bác sĩ
+                    </dt>
+                    <dd>{a.doctor?.full_name ?? "—"}</dd>
+                  </div>
+                  <div>
+                    <dt className="text-[10px] uppercase tracking-wide text-[#888888]">
+                      Phòng
+                    </dt>
+                    <dd>{a.assigned_station ?? "—"}</dd>
+                  </div>
+                </>
+              )}
+            </dl>
+            {canAct && staff && a.doctor_id === staff.id && a.status === "SCHEDULED" && (
+              <div className="mt-2 border-t border-[#f4f4f5] pt-2">
+                <AppointmentActions appointmentId={a.id} />
+              </div>
+            )}
+          </div>
+        ))}
+        {rows.length === 0 && (
+          <div className="rounded-lg border border-[#e4e4e7] bg-white px-4 py-6 text-center text-sm text-[#888888]">
+            Không có lịch hẹn hôm nay.
+          </div>
+        )}
+      </div>
+
+      {/* Desktop: table (≥md). */}
+      <div className="hidden overflow-x-auto rounded-lg border border-[#e4e4e7] bg-white shadow-[0_1px_3px_rgba(0,0,0,0.08)] md:block">
         <table className="min-w-full divide-y divide-[#e4e4e7] text-sm">
           <thead className="bg-[#fafafa] text-left text-[11px] uppercase tracking-wide text-[#71717a]">
             <tr>

@@ -46,7 +46,38 @@ export default async function WorkSessionsPage() {
         </div>
       )}
 
-      <div className="overflow-x-auto rounded-lg border border-[#e4e4e7] bg-white shadow-[0_1px_3px_rgba(0,0,0,0.08)]">
+      {/* Mobile: card list (<md). */}
+      <ul className="space-y-2 md:hidden">
+        {(data as WorkSessionRow[] | null)?.map((s) => (
+          <li
+            key={s.id}
+            className="rounded-lg border border-[#e4e4e7] bg-white p-3 shadow-[0_1px_3px_rgba(0,0,0,0.06)]"
+          >
+            <div className="flex items-start justify-between gap-2">
+              <span className="font-mono text-xs text-[#4d4d4d]">
+                {s.session_date}
+              </span>
+              <span className="text-xs text-[#171717]">{s.session_type}</span>
+            </div>
+            <p className="mt-1 font-mono text-xs text-[#4d4d4d]">
+              {s.start_time} – {s.end_time}
+            </p>
+            <p className="text-xs text-[#4d4d4d]">
+              {s.clinic_location?.name ?? "—"}
+              {" · "}Staff: {s.work_session_staff?.[0]?.count ?? 0}
+              {" · "}Max BN: {s.max_patients ?? "—"}
+            </p>
+          </li>
+        ))}
+        {(!data || data.length === 0) && (
+          <li className="rounded-lg border border-[#e4e4e7] bg-white px-4 py-6 text-center text-sm text-[#888888]">
+            Chưa có ca làm nào.
+          </li>
+        )}
+      </ul>
+
+      {/* Desktop: table (≥md). */}
+      <div className="hidden overflow-x-auto rounded-lg border border-[#e4e4e7] bg-white shadow-[0_1px_3px_rgba(0,0,0,0.08)] md:block">
         <table className="min-w-full divide-y divide-[#e4e4e7] text-sm">
           <thead className="bg-[#fafafa] text-left text-[11px] uppercase tracking-wide text-[#71717a]">
             <tr>

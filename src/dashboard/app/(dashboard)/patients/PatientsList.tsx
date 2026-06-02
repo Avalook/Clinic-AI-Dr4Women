@@ -77,12 +77,16 @@ export default async function PatientsList({
 
   return (
     <div className="space-y-3">
-      <form className="flex gap-2" action="/patients" method="GET">
+      <form
+        className="flex flex-wrap items-center gap-2"
+        action="/patients"
+        method="GET"
+      >
         <input
           name="q"
           defaultValue={q}
-          placeholder="Tìm theo mã BN, tên, hoặc số điện thoại..."
-          className="h-9 flex-1 rounded-md border border-[#e4e4e7] px-3 text-sm text-[#171717] outline-none focus:border-[#ec4899] focus:ring-2 focus:ring-[#ec4899]/20"
+          placeholder="Tìm mã BN, tên, hoặc SĐT..."
+          className="h-9 min-w-0 flex-1 basis-full rounded-md border border-[#e4e4e7] px-3 text-sm text-[#171717] outline-none focus:border-[#ec4899] focus:ring-2 focus:ring-[#ec4899]/20 sm:basis-auto"
         />
         <button
           type="submit"
@@ -106,7 +110,54 @@ export default async function PatientsList({
         </div>
       )}
 
-      <div className="overflow-x-auto rounded-lg border border-[#e4e4e7] bg-white shadow-[0_1px_3px_rgba(0,0,0,0.08)]">
+      {/* Mobile: card list (<md). */}
+      <div className="space-y-2 md:hidden">
+        {rows.map((p) => (
+          <Link
+            key={p.clinic_patient_id}
+            href={`/patients/${p.clinic_patient_id}`}
+            className="block rounded-lg border border-[#e4e4e7] bg-white p-3 shadow-[0_1px_3px_rgba(0,0,0,0.06)] active:bg-[#f9fafb]"
+          >
+            <div className="flex items-start justify-between gap-2">
+              <span className="font-medium text-[#171717]">{p.full_name}</span>
+              <span className="font-mono text-xs text-[#ec4899]">
+                {p.patient_code}
+              </span>
+            </div>
+            <dl className="mt-1.5 grid grid-cols-3 gap-1 text-xs text-[#4d4d4d]">
+              <div>
+                <dt className="text-[10px] uppercase tracking-wide text-[#888888]">
+                  DOB
+                </dt>
+                <dd className="font-mono">{p.date_of_birth ?? "—"}</dd>
+              </div>
+              <div>
+                <dt className="text-[10px] uppercase tracking-wide text-[#888888]">
+                  Tuổi
+                </dt>
+                <dd>{ageFromDob(p.date_of_birth)}</dd>
+              </div>
+              <div>
+                <dt className="text-[10px] uppercase tracking-wide text-[#888888]">
+                  SĐT
+                </dt>
+                <dd className="font-mono">{p.phone_primary ?? "—"}</dd>
+              </div>
+            </dl>
+          </Link>
+        ))}
+        {rows.length === 0 && (
+          <div className="flex flex-col items-center gap-2 rounded-lg border border-[#e4e4e7] bg-white px-4 py-8 text-[#888888]">
+            <Inbox size={28} strokeWidth={1.5} />
+            <span className="text-sm">
+              {term ? `Không tìm thấy BN khớp "${term}".` : "Chưa có BN."}
+            </span>
+          </div>
+        )}
+      </div>
+
+      {/* Desktop: table (≥md). */}
+      <div className="hidden overflow-x-auto rounded-lg border border-[#e4e4e7] bg-white shadow-[0_1px_3px_rgba(0,0,0,0.08)] md:block">
         <table className="min-w-full divide-y divide-[#e4e4e7] text-sm">
           <thead className="text-left text-[11px] uppercase tracking-wide text-[#71717a]">
             <tr>
@@ -173,7 +224,7 @@ export default async function PatientsList({
       </div>
 
       {total > 0 && (
-        <div className="flex items-center justify-between gap-3 text-sm text-[#71717a]">
+        <div className="flex flex-wrap items-center justify-between gap-3 text-sm text-[#71717a]">
           <span>
             {rows.length > 0
               ? `${from + 1}–${from + rows.length} / ${total} bệnh nhân`

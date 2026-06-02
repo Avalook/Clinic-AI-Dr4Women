@@ -196,9 +196,12 @@ export default async function PatientHistory({ id }: { id: string }) {
                     <StatusBadge status={v.status} />
                   </div>
                   {soap.length > 0 ? (
-                    <dl className="mt-3 space-y-1.5">
+                    <dl className="mt-3 space-y-2 sm:space-y-1.5">
                       {soap.map((s) => (
-                        <div key={s.label} className="grid grid-cols-[120px_1fr] gap-2">
+                        <div
+                          key={s.label}
+                          className="grid grid-cols-1 gap-0.5 sm:grid-cols-[120px_1fr] sm:gap-2"
+                        >
                           <dt className="text-xs text-[#888888]">{s.label}</dt>
                           <dd className="text-sm text-[#171717]">{s.value}</dd>
                         </div>

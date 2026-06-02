@@ -48,7 +48,14 @@ function isActive(href: string, pathname: string, hrefs: string[]): boolean {
   );
 }
 
-export default function Nav({ role }: { role: ClinicRole | null }) {
+export default function Nav({
+  role,
+  onNavigate,
+}: {
+  role: ClinicRole | null;
+  /** Called after a nav item is tapped (used to close the mobile drawer). */
+  onNavigate?: () => void;
+}) {
   const pathname = usePathname();
   const visible = NAV.filter((item) => canSeeNav(role, item.href));
   const hrefs = visible.map((v) => v.href);
@@ -61,6 +68,7 @@ export default function Nav({ role }: { role: ClinicRole | null }) {
           <Link
             key={href}
             href={href}
+            onClick={onNavigate}
             className={
               active
                 ? "flex items-center gap-2.5 border-l-2 border-[#ec4899] bg-[#1f1f1f] px-3 py-2 text-sm font-medium text-white transition-colors duration-150"

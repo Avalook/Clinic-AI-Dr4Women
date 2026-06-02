@@ -98,7 +98,47 @@ export default function TasksRealtime({
         </span>
       </div>
 
-      <div className="overflow-x-auto rounded border border-gray-200 bg-white">
+      {/* Mobile: card list (<md). */}
+      <ul className="space-y-2 md:hidden">
+        {rows.map((t) => (
+          <li
+            key={t.task_id}
+            className="rounded-lg border border-gray-200 bg-white p-3 shadow-[0_1px_3px_rgba(0,0,0,0.06)]"
+          >
+            <div className="flex items-start justify-between gap-2">
+              <p className="font-medium text-gray-900">{t.title}</p>
+              <span
+                className={`shrink-0 rounded px-2 py-0.5 text-[11px] ${STATUS_COLOR[t.status] ?? ""}`}
+              >
+                {t.status}
+              </span>
+            </div>
+            <p className="mt-1 text-xs text-gray-600">
+              <span
+                className={`mr-1 rounded px-1.5 py-0.5 text-[11px] ${PRIORITY_COLOR[t.priority] ?? ""}`}
+              >
+                {t.priority}
+              </span>
+              <span className="font-mono">{t.task_type}</span>
+            </p>
+            <p className="mt-1 text-xs text-gray-500">
+              {t.staff?.short_name ?? t.staff?.full_name ?? "—"}
+              {" · "}SLA {t.sla_hours}h{" · "}
+              <span className="font-mono">
+                {t.created_at.slice(0, 16).replace("T", " ")}
+              </span>
+            </p>
+          </li>
+        ))}
+        {rows.length === 0 && (
+          <li className="rounded-lg border border-gray-200 bg-white px-4 py-6 text-center text-sm text-gray-500">
+            Chưa có task.
+          </li>
+        )}
+      </ul>
+
+      {/* Desktop: table (≥md). */}
+      <div className="hidden overflow-x-auto rounded border border-gray-200 bg-white md:block">
         <table className="min-w-full divide-y divide-gray-200 text-sm">
           <thead className="bg-gray-50 text-left text-xs uppercase text-gray-600">
             <tr>

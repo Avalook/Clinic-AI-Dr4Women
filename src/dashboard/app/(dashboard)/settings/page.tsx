@@ -54,8 +54,8 @@ export default async function SettingsPage() {
 
   return (
     <div className="space-y-4">
-      <header className="flex items-start justify-between gap-3">
-        <div>
+      <header className="flex flex-wrap items-start justify-between gap-3">
+        <div className="min-w-0">
           <h1 className="text-xl font-semibold text-[#171717]">Cài đặt</h1>
           <p className="text-sm text-[#888888]">
             Nhân viên + trạng thái liên kết tài khoản đăng nhập.
@@ -63,7 +63,7 @@ export default async function SettingsPage() {
         </div>
         <Link
           href="/settings/new-user"
-          className="rounded-md bg-[#ec4899] px-3.5 py-1.5 text-sm font-medium text-white transition-colors duration-150 hover:bg-[#db2777]"
+          className="shrink-0 rounded-md bg-[#ec4899] px-3.5 py-1.5 text-sm font-medium text-white transition-colors duration-150 hover:bg-[#db2777]"
         >
           + Thêm tài khoản
         </Link>
@@ -85,7 +85,65 @@ export default async function SettingsPage() {
         </div>
       )}
 
-      <div className="overflow-x-auto rounded-lg border border-[#e4e4e7] bg-white shadow-[0_1px_3px_rgba(0,0,0,0.08)]">
+      {/* Mobile: card list (<md). */}
+      <ul className="space-y-2 md:hidden">
+        {rows.map((r) => (
+          <li
+            key={r.id}
+            className="rounded-lg border border-[#e4e4e7] bg-white p-3 shadow-[0_1px_3px_rgba(0,0,0,0.06)]"
+          >
+            <div className="flex items-start justify-between gap-2">
+              <div className="min-w-0">
+                <p className="font-medium text-[#171717]">{r.full_name}</p>
+                <p className="text-xs text-[#71717a]">
+                  {DEPT_LABEL[r.primary_department] ?? r.primary_department}
+                  {" · "}
+                  <span className="text-[#888888]">{r.employment_type}</span>
+                </p>
+              </div>
+              {r.is_active ? (
+                <span className="inline-flex shrink-0 items-center gap-1 text-xs text-[#15803d]">
+                  <span className="h-1.5 w-1.5 rounded-full bg-[#22c55e]" />
+                  Active
+                </span>
+              ) : (
+                <span className="shrink-0 text-xs text-[#888888]">Inactive</span>
+              )}
+            </div>
+            <div className="mt-2 flex items-center justify-between gap-2">
+              {r.auth_user_id ? (
+                <span className="inline-flex items-center gap-1 text-xs text-[#15803d]">
+                  <span className="h-1.5 w-1.5 rounded-full bg-[#22c55e]" />
+                  Đã link
+                </span>
+              ) : (
+                <span className="inline-flex items-center gap-1 text-xs text-[#a16207]">
+                  <span className="h-1.5 w-1.5 rounded-full bg-[#eab308]" />
+                  Chưa link
+                </span>
+              )}
+              {r.auth_user_id ? (
+                <AccountActions staffId={r.id} staffName={r.full_name} />
+              ) : (
+                <Link
+                  href="/settings/new-user"
+                  className="text-xs text-[#ec4899] hover:underline"
+                >
+                  Tạo tài khoản
+                </Link>
+              )}
+            </div>
+          </li>
+        ))}
+        {rows.length === 0 && (
+          <li className="rounded-lg border border-[#e4e4e7] bg-white px-4 py-6 text-center text-sm text-[#888888]">
+            Chưa có nhân viên.
+          </li>
+        )}
+      </ul>
+
+      {/* Desktop: table (≥md). */}
+      <div className="hidden overflow-x-auto rounded-lg border border-[#e4e4e7] bg-white shadow-[0_1px_3px_rgba(0,0,0,0.08)] md:block">
         <table className="min-w-full divide-y divide-[#e4e4e7] text-sm">
           <thead className="bg-[#fafafa] text-left text-[11px] uppercase tracking-wide text-[#71717a]">
             <tr>
