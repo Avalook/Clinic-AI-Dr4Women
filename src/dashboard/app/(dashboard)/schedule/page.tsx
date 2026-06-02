@@ -53,7 +53,7 @@ export default async function SchedulePage({
           <h1 className="text-xl font-semibold text-[#171717]">Lịch làm việc</h1>
           <p className="text-sm text-[#888888]">
             {isAdmin
-              ? "Phân công theo phòng/trạm — click thẻ để xem chi tiết."
+              ? "Phân công theo vị trí — click thẻ để xem chi tiết."
               : "Ca trực của bạn trong tuần — click thẻ để xem chi tiết."}
           </p>
         </div>

@@ -121,7 +121,7 @@ export default function RosterEditor({
             </select>
           </div>
           <div>
-            <label className={LABEL}>Trạm / phòng</label>
+            <label className={LABEL}>Vị trí</label>
             <select
               value={station}
               onChange={(e) => setStation(e.target.value)}

@@ -114,7 +114,7 @@ export default function WeekKanban({
                     {open && (
                       <div className="mt-2 space-y-1 border-t border-[#f4f4f5] pt-2 text-xs text-[#4d4d4d]">
                         <p>
-                          <span className="text-[#a1a1aa]">Trạm: </span>
+                          <span className="text-[#a1a1aa]">Vị trí: </span>
                           {STATION_LABEL[it.station] ?? it.station}
                         </p>
                         <p>

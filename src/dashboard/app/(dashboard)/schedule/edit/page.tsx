@@ -57,7 +57,7 @@ export default async function ScheduleEditPage({
           <h1 className="text-xl font-semibold text-[#171717]">Sửa lịch làm việc</h1>
           <p className="text-sm text-[#888888]">
             Tuần {fmtDayMonth(dates[0])} – {fmtDayMonth(dates[6])}. Thêm từng phân
-            công (ngày · trạm · nhân viên).
+            công (ngày · vị trí · nhân viên).
           </p>
         </div>
         <Link

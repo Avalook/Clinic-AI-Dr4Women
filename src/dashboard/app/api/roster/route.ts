@@ -70,7 +70,7 @@ export async function POST(request: Request) {
 
   if (!week_start || !work_date || !station || !staff_name) {
     return NextResponse.json(
-      { error: "Thiếu tuần / ngày / trạm / nhân viên." },
+      { error: "Thiếu tuần / ngày / vị trí / nhân viên." },
       { status: 400 },
     );
   }
