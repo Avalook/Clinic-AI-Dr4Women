@@ -25,23 +25,18 @@ body {
   font-family: var(--font-geist-sans), system-ui, sans-serif;
 }
 
-html {
-  scroll-behavior: smooth;
-}
-
-/* Fade + nhẹ trượt lên khi đổi trang — cảm giác mượt. */
+/* Hiện tức thì khi đổi trang: chỉ opacity rất nhanh, KHÔNG trượt (tránh cảm
+ * giác chậm/giật). Bắt đầu từ 0.6 nên gần như snap vào ngay. */
 @keyframes pageIn {
   from {
-    opacity: 0;
-    transform: translateY(6px);
+    opacity: 0.6;
   }
   to {
     opacity: 1;
-    transform: translateY(0);
   }
 }
 .page-in {
-  animation: pageIn 0.22s ease-out;
+  animation: pageIn 0.12s ease-out;
 }
 
 /* Shimmer cho skeleton loading. */
@@ -71,9 +66,6 @@ html {
 }
 
 @media (prefers-reduced-motion: reduce) {
-  html {
-    scroll-behavior: auto;
-  }
   .page-in {
     animation: none;
   }
