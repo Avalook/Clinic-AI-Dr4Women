@@ -135,7 +135,12 @@ export async function POST(request: Request) {
   return NextResponse.json({ ok: true, appointment_id: data.id });
 }
 
-type PatchAction = "confirm" | "decline" | "checkin" | "undo_checkin";
+type PatchAction =
+  | "confirm"
+  | "decline"
+  | "checkin"
+  | "undo_checkin"
+  | "cskh_confirm";
 
 interface PatchBody {
   id?: string;
@@ -143,7 +148,12 @@ interface PatchBody {
 }
 
 const DOCTOR_ACTIONS = new Set<PatchAction>(["confirm", "decline"]);
-const CHECKIN_ACTIONS = new Set<PatchAction>(["checkin", "undo_checkin"]);
+// Front-desk (Lễ tân/CSKH/Quản lý) actions.
+const CHECKIN_ACTIONS = new Set<PatchAction>([
+  "checkin",
+  "undo_checkin",
+  "cskh_confirm",
+]);
 
 export async function PATCH(request: Request) {
   const caller = await getSupabaseServer();
@@ -226,6 +236,10 @@ export async function PATCH(request: Request) {
   } else if (action === "checkin") {
     newStatus = "CHECKED_IN";
     fromStatuses = ["SCHEDULED", "CONFIRMED"];
+  } else if (action === "cskh_confirm") {
+    // CSKH gọi xác nhận lịch với khách → SCHEDULED → CONFIRMED.
+    newStatus = "CONFIRMED";
+    fromStatuses = ["SCHEDULED"];
   } else {
     newStatus = "CONFIRMED";
     fromStatuses = ["CHECKED_IN"];
@@ -252,6 +266,7 @@ export async function PATCH(request: Request) {
     decline: "appointment.declined",
     checkin: "appointment.checked_in",
     undo_checkin: "appointment.checkin_undone",
+    cskh_confirm: "appointment.cskh_confirmed",
   };
 
   await logEvent(db, {

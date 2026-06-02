@@ -132,3 +132,84 @@ export async function POST(request: Request) {
     { status: 500 },
   );
 }
+
+// PATCH { clinic_patient_id, full_name?, date_of_birth?, phone_primary?,
+//         phone_secondary?, location_id? } → cập nhật thông tin BN (CSKH/Lễ tân/QL).
+// Không đụng national_id_number (D-identity). Ghi qua service-role.
+interface PatchBody {
+  clinic_patient_id?: string;
+  full_name?: string;
+  date_of_birth?: string;
+  phone_primary?: string;
+  phone_secondary?: string;
+  location_id?: string;
+}
+
+export async function PATCH(request: Request) {
+  const caller = await getSupabaseServer();
+  const {
+    data: { user },
+  } = await caller.auth.getUser();
+  if (!user) return NextResponse.json({ error: "Unauthorised" }, { status: 401 });
+  const role = await getClinicRole();
+  if (!canWriteIntake(role)) {
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  }
+
+  let body: PatchBody;
+  try {
+    body = (await request.json()) as PatchBody;
+  } catch {
+    return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
+  }
+  const id = (body.clinic_patient_id ?? "").trim();
+  if (!id) return NextResponse.json({ error: "Thiếu id bệnh nhân." }, { status: 400 });
+
+  const full_name = (body.full_name ?? "").trim();
+  if (!full_name) {
+    return NextResponse.json({ error: "Phải nhập họ tên." }, { status: 400 });
+  }
+
+  const db = getSupabaseService();
+  if (!db) {
+    return NextResponse.json(
+      { error: "SUPABASE_SERVICE_ROLE_KEY chưa cấu hình trên server." },
+      { status: 503 },
+    );
+  }
+
+  const patch: Record<string, string | null> = {
+    full_name,
+    date_of_birth: (body.date_of_birth ?? "").trim() || null,
+    phone_primary: (body.phone_primary ?? "").trim() || null,
+    phone_secondary: (body.phone_secondary ?? "").trim() || null,
+  };
+  const loc = (body.location_id ?? "").trim();
+  if (loc) patch.location_id = loc;
+
+  const { data, error } = await db
+    .from("patient")
+    .update(patch)
+    .eq("clinic_patient_id", id)
+    .select("clinic_patient_id, full_name, date_of_birth, phone_primary, phone_secondary, location_id")
+    .maybeSingle();
+
+  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  if (!data) {
+    return NextResponse.json({ error: "Không tìm thấy bệnh nhân." }, { status: 404 });
+  }
+
+  await logEvent(db, {
+    event_type: "patient.updated",
+    aggregate_type: "patient",
+    aggregate_id: id,
+    payload: { clinic_patient_id: id },
+    metadata: {
+      clinic_role: role,
+      actor_auth_user_id: user.id,
+      origin: "dashboard:patient-edit",
+    },
+  });
+
+  return NextResponse.json({ ok: true, patient: data });
+}
