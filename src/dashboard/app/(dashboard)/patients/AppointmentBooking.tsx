@@ -8,28 +8,12 @@
 
 import { useState, type ReactNode } from "react";
 import { vnLocalToUtcISO } from "../../../lib/datetime";
+import { INPUT, LABEL, BTN, CHANNELS, DURATIONS } from "../form-ui";
 
 export interface Option {
   id: string;
   label: string;
 }
-
-// text-base on mobile (16px) prevents iOS auto-zoom on focus; min-h gives a
-// comfortable tap target. Shrinks to the denser desktop sizing at ≥sm.
-const INPUT =
-  "w-full min-h-11 rounded-md border border-[#e4e4e7] px-3 py-2.5 text-base text-[#171717] outline-none focus:border-[#ec4899] focus:ring-2 focus:ring-[#ec4899]/20 sm:min-h-0 sm:py-2 sm:text-sm";
-const LABEL = "text-sm font-medium text-[#4d4d4d]";
-const BTN =
-  "min-h-11 w-full rounded-md bg-[#ec4899] px-4 py-2.5 text-sm font-medium text-white transition-colors duration-150 hover:bg-[#db2777] active:bg-[#db2777] disabled:opacity-50 sm:min-h-0 sm:w-auto sm:py-2";
-
-const CHANNELS = [
-  { id: "WALK_IN", label: "Khách tới trực tiếp" },
-  { id: "HOTLINE", label: "Hotline" },
-  { id: "ZALO_PK", label: "Zalo" },
-  { id: "FB_DR4WOMEN", label: "Facebook" },
-  { id: "REFERRAL", label: "Giới thiệu" },
-];
-const DURATIONS = [15, 30, 45, 60];
 
 export default function AppointmentBooking({
   clinicPatientId,

@@ -43,10 +43,10 @@ export default async function NewPatientPage() {
     <div className="space-y-4">
       <header>
         <h1 className="text-xl font-semibold text-[#171717]">
-          Nhập bệnh nhân mới
+          Nhập thông tin khách hàng
         </h1>
         <p className="text-sm text-[#888888]">
-          Tạo hồ sơ bệnh nhân và đặt lịch hẹn.
+          Tạo hồ sơ và đặt lịch hẹn trong một bước.
         </p>
       </header>
       <NewPatientForm

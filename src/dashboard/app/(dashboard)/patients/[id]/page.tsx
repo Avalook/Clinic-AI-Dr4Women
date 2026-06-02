@@ -15,10 +15,13 @@ export const dynamic = "force-dynamic";
 
 export default async function PatientDetailPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ id: string }>;
+  searchParams: Promise<{ new?: string }>;
 }) {
   const { id } = await params;
+  const { new: isNew } = await searchParams;
 
   // Booking is an intake action (CSKH / Lễ tân / Quản lý). Only those roles see
   // the form, so only load its dropdown options when they will be used.
@@ -57,11 +60,16 @@ export default async function PatientDetailPage({
   return (
     <div className="space-y-6">
       <header>
-        <h1 className="text-xl font-semibold text-gray-900">Chi tiết BN</h1>
-        <p className="text-sm text-gray-500">
+        <h1 className="text-xl font-semibold text-[#171717]">Hồ sơ bệnh nhân</h1>
+        <p className="text-sm text-[#888888]">
           Read-only. CCCD KHÔNG hiển thị (bảo mật D-identity).
         </p>
       </header>
+      {isNew && (
+        <div className="rounded-lg border border-[#bbf7d0] bg-[#f0fdf4] px-4 py-3 text-sm text-[#15803d]">
+          ✓ Đã tạo hồ sơ khách hàng. Thông tin & lịch hẹn hiển thị bên dưới.
+        </div>
+      )}
       <PatientDetail id={id} />
       {canBook && (
         <PatientBooking
