@@ -23,10 +23,25 @@ export interface NavItem {
 
 export const NAV: NavItem[] = [
   { href: "/home", label: "Trang chủ", shortLabel: "Trang chủ", icon: Home },
-  { href: "/appointments", label: "Lịch hẹn", icon: ClipboardList },
+  {
+    href: "/appointments",
+    label: "Lịch hẹn (check đặt lịch)",
+    shortLabel: "Lịch hẹn",
+    icon: ClipboardList,
+  },
   { href: "/patients", label: "Bệnh nhân", shortLabel: "Bệnh nhân", icon: Users },
-  { href: "/patients/new", label: "Nhập BN mới", shortLabel: "Nhập BN", icon: UserPlus },
-  { href: "/tasks", label: "Công việc", shortLabel: "Việc", icon: CheckSquare },
+  {
+    href: "/patients/new",
+    label: "Nhập thông tin Khách hàng",
+    shortLabel: "Nhập KH",
+    icon: UserPlus,
+  },
+  {
+    href: "/tasks",
+    label: "Công việc hàng ngày",
+    shortLabel: "Việc",
+    icon: CheckSquare,
+  },
   { href: "/work-sessions", label: "Ca trực", icon: Calendar },
   { href: "/reports", label: "Báo cáo", icon: BarChart3 },
   { href: "/settings", label: "Cài đặt", icon: Settings },
