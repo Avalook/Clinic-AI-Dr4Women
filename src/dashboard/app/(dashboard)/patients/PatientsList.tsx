@@ -86,18 +86,18 @@ export default async function PatientsList({
           name="q"
           defaultValue={q}
           placeholder="Tìm mã BN, tên, hoặc SĐT..."
-          className="h-9 min-w-0 flex-1 basis-full rounded-md border border-[#e4e4e7] px-3 text-sm text-[#171717] outline-none focus:border-[#ec4899] focus:ring-2 focus:ring-[#ec4899]/20 sm:basis-auto"
+          className="h-11 min-w-0 flex-1 basis-full rounded-md border border-[#e4e4e7] px-3 text-base text-[#171717] outline-none focus:border-[#ec4899] focus:ring-2 focus:ring-[#ec4899]/20 sm:h-9 sm:basis-auto sm:text-sm"
         />
         <button
           type="submit"
-          className="h-9 rounded-md bg-[#ec4899] px-3.5 text-sm font-medium text-white transition-colors duration-150 hover:bg-[#db2777]"
+          className="h-11 rounded-md bg-[#ec4899] px-3.5 text-sm font-medium text-white transition-colors duration-150 hover:bg-[#db2777] active:bg-[#db2777] sm:h-9"
         >
           Tìm
         </button>
         {term && (
           <Link
             href="/patients"
-            className="flex h-9 items-center rounded-md border border-[#e4e4e7] px-3.5 text-sm text-[#4d4d4d] transition-colors duration-150 hover:bg-[#f4f4f5]"
+            className="flex h-11 items-center rounded-md border border-[#e4e4e7] px-3.5 text-sm text-[#4d4d4d] transition-colors duration-150 hover:bg-[#f4f4f5] active:bg-[#f4f4f5] sm:h-9"
           >
             Xoá
           </Link>
@@ -234,12 +234,12 @@ export default async function PatientsList({
             {current > 1 ? (
               <Link
                 href={pageHref(current - 1)}
-                className="rounded-md border border-[#e4e4e7] px-3 py-1.5 text-[#4d4d4d] transition-colors duration-150 hover:bg-[#f4f4f5]"
+                className="rounded-md border border-[#e4e4e7] px-3 py-2 text-[#4d4d4d] transition-colors duration-150 hover:bg-[#f4f4f5] active:bg-[#f4f4f5] sm:py-1.5"
               >
                 ← Trước
               </Link>
             ) : (
-              <span className="rounded-md border border-[#f4f4f5] px-3 py-1.5 text-[#d4d4d8]">
+              <span className="rounded-md border border-[#f4f4f5] px-3 py-2 text-[#d4d4d8] sm:py-1.5">
                 ← Trước
               </span>
             )}
@@ -249,12 +249,12 @@ export default async function PatientsList({
             {current < totalPages ? (
               <Link
                 href={pageHref(current + 1)}
-                className="rounded-md border border-[#e4e4e7] px-3 py-1.5 text-[#4d4d4d] transition-colors duration-150 hover:bg-[#f4f4f5]"
+                className="rounded-md border border-[#e4e4e7] px-3 py-2 text-[#4d4d4d] transition-colors duration-150 hover:bg-[#f4f4f5] active:bg-[#f4f4f5] sm:py-1.5"
               >
                 Sau →
               </Link>
             ) : (
-              <span className="rounded-md border border-[#f4f4f5] px-3 py-1.5 text-[#d4d4d8]">
+              <span className="rounded-md border border-[#f4f4f5] px-3 py-2 text-[#d4d4d8] sm:py-1.5">
                 Sau →
               </span>
             )}

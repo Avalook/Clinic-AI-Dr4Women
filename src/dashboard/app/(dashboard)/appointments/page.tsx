@@ -128,7 +128,9 @@ export default async function AppointmentsPage({
         <StatCard label="Đã xác nhận" value={confirmedRes.count ?? 0} />
       </div>
 
-      <nav className="-mx-1 flex gap-1 overflow-x-auto px-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+      {/* Segmented control: full-width on mobile (no horizontal swipe),
+          auto-width pills on ≥sm. */}
+      <nav className="grid grid-cols-3 gap-1 rounded-lg bg-[#f4f4f5] p-1 sm:inline-grid sm:auto-cols-max sm:grid-flow-col sm:bg-transparent sm:p-0">
         {TABS.map((t) => {
           const active = t.key === tab;
           return (
@@ -137,8 +139,8 @@ export default async function AppointmentsPage({
               href={tabHref(t.key)}
               className={
                 active
-                  ? "shrink-0 whitespace-nowrap rounded-md bg-[#171717] px-3.5 py-1.5 text-sm font-medium text-white"
-                  : "shrink-0 whitespace-nowrap rounded-md border border-[#e4e4e7] px-3.5 py-1.5 text-sm text-[#71717a] transition-colors duration-150 hover:bg-[#f4f4f5] hover:text-[#171717]"
+                  ? "rounded-md bg-white px-3 py-2 text-center text-sm font-medium text-[#171717] shadow-[0_1px_2px_rgba(0,0,0,0.08)] sm:bg-[#171717] sm:py-1.5 sm:text-white sm:shadow-none"
+                  : "rounded-md px-3 py-2 text-center text-sm text-[#71717a] transition-colors duration-150 active:bg-white/60 sm:border sm:border-[#e4e4e7] sm:py-1.5 sm:hover:bg-[#f4f4f5] sm:hover:text-[#171717]"
               }
             >
               {t.label}

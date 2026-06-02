@@ -47,7 +47,7 @@ export default function RolePicker({ doctors }: { doctors: DoctorOption[] }) {
           <select
             value={docId}
             onChange={(e) => setDocId(e.target.value)}
-            className="mt-2 w-full rounded border border-[#e4e4e7] px-2 py-1.5 text-sm text-[#171717] outline-none focus:border-[#ec4899] focus:ring-2 focus:ring-[#ec4899]/20"
+            className="mt-2 min-h-11 w-full rounded-md border border-[#e4e4e7] px-2 py-2 text-base text-[#171717] outline-none focus:border-[#ec4899] focus:ring-2 focus:ring-[#ec4899]/20 sm:min-h-0 sm:py-1.5 sm:text-sm"
           >
             <option value="">— Chọn tên bác sĩ —</option>
             {doctors.map((d) => (
@@ -60,7 +60,7 @@ export default function RolePicker({ doctors }: { doctors: DoctorOption[] }) {
           <button
             type="submit"
             disabled={!docId}
-            className="mt-1 w-full rounded bg-[#ec4899] px-3 py-1.5 text-sm font-medium text-white transition-colors duration-150 hover:bg-[#db2777] disabled:opacity-40"
+            className="mt-1 min-h-11 w-full rounded-md bg-[#ec4899] px-3 py-2.5 text-sm font-medium text-white transition-colors duration-150 hover:bg-[#db2777] active:bg-[#db2777] disabled:opacity-40 sm:min-h-0 sm:py-1.5"
           >
             Vào
           </button>

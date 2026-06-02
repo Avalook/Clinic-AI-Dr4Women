@@ -111,7 +111,7 @@ export default function AccountActions({
             autoFocus
             onChange={(e) => setPassword(e.target.value)}
             placeholder={`Mật khẩu mới (≥${MIN_PASSWORD})`}
-            className="w-48 rounded border border-[#e4e4e7] px-2 py-1 text-xs text-[#171717] outline-none focus:border-[#ec4899] focus:ring-2 focus:ring-[#ec4899]/20"
+            className="w-full rounded-md border border-[#e4e4e7] px-2 py-2 text-base text-[#171717] outline-none focus:border-[#ec4899] focus:ring-2 focus:ring-[#ec4899]/20 sm:w-48 sm:py-1 sm:text-xs"
           />
           <button
             type="button"

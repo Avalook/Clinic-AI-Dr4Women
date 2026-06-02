@@ -19,11 +19,13 @@ interface DupMatch {
   date_of_birth: string | null;
 }
 
+// text-base on mobile (16px) prevents iOS auto-zoom on focus; min-h gives a
+// comfortable tap target. Shrinks to denser desktop sizing at ≥sm.
 const INPUT =
-  "w-full rounded border border-[#e4e4e7] px-3 py-2 text-sm text-[#171717] outline-none focus:border-[#ec4899] focus:ring-2 focus:ring-[#ec4899]/20";
+  "w-full min-h-11 rounded-md border border-[#e4e4e7] px-3 py-2.5 text-base text-[#171717] outline-none focus:border-[#ec4899] focus:ring-2 focus:ring-[#ec4899]/20 sm:min-h-0 sm:py-2 sm:text-sm";
 const LABEL = "text-sm font-medium text-[#4d4d4d]";
 const BTN =
-  "rounded bg-[#ec4899] px-4 py-2 text-sm font-medium text-white transition-colors duration-150 hover:bg-[#db2777] disabled:opacity-50";
+  "min-h-11 w-full rounded-md bg-[#ec4899] px-4 py-2.5 text-sm font-medium text-white transition-colors duration-150 hover:bg-[#db2777] active:bg-[#db2777] disabled:opacity-50 sm:min-h-0 sm:w-auto sm:py-2";
 const CARD =
   "rounded-lg border border-[#e4e4e7] bg-white p-5 shadow-[0_1px_3px_rgba(0,0,0,0.08)]";
 
@@ -113,10 +115,10 @@ export default function NewPatientForm({
           ✓ Đã tạo bệnh nhân <b>{created.full_name}</b> ({created.patient_code})
           và đặt lịch hẹn.
         </p>
-        <div className="flex gap-2">
+        <div className="flex flex-col gap-2 sm:flex-row">
           <Link
             href={`/patients/${created.clinic_patient_id}`}
-            className="rounded border border-[#e4e4e7] px-4 py-2 text-sm text-[#171717] hover:bg-[#f4f4f5]"
+            className="flex min-h-11 w-full items-center justify-center rounded-md border border-[#e4e4e7] px-4 py-2.5 text-sm text-[#171717] hover:bg-[#f4f4f5] active:bg-[#f4f4f5] sm:min-h-0 sm:w-auto sm:py-2"
           >
             Xem hồ sơ BN
           </Link>
@@ -147,7 +149,7 @@ export default function NewPatientForm({
           secondary={
             <button
               onClick={() => setApptDoneId("skipped")}
-              className="rounded border border-[#e4e4e7] px-4 py-2 text-sm text-[#71717a] hover:bg-[#f4f4f5]"
+              className="min-h-11 w-full rounded-md border border-[#e4e4e7] px-4 py-2.5 text-sm text-[#71717a] hover:bg-[#f4f4f5] active:bg-[#f4f4f5] sm:min-h-0 sm:w-auto sm:py-2"
             >
               Bỏ qua, chỉ tạo BN
             </button>
@@ -231,7 +233,7 @@ export default function NewPatientForm({
             {dupes.map((m) => (
               <li
                 key={m.clinic_patient_id}
-                className="flex items-center justify-between gap-2 rounded bg-white px-2 py-1"
+                className="flex flex-col gap-2 rounded bg-white px-2 py-2 sm:flex-row sm:items-center sm:justify-between"
               >
                 <span className="text-[#171717]">
                   {m.full_name}{" "}
@@ -246,7 +248,7 @@ export default function NewPatientForm({
                 </span>
                 <button
                   onClick={() => pickExisting(m)}
-                  className="rounded bg-[#ec4899] px-2 py-1 text-xs font-medium text-white hover:bg-[#db2777]"
+                  className="min-h-10 shrink-0 rounded-md bg-[#ec4899] px-3 py-2 text-xs font-medium text-white hover:bg-[#db2777] active:bg-[#db2777] sm:min-h-0 sm:py-1"
                 >
                   Dùng BN này
                 </button>

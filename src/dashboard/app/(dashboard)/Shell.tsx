@@ -1,13 +1,16 @@
 "use client";
 
-// Responsive shell: persistent sidebar on ≥md, hamburger + slide-in drawer
-// on <md. The dashboard layout (server) computes identity + nav visibility
-// and hands the inner pieces here as props.
+// Responsive shell.
+//  - ≥md: persistent dark sidebar (desktop).
+//  - <md: slim top bar (brand) + bottom tab bar (thumb-reach navigation,
+//    native-app style). The bottom bar's "Menu" opens a slide-in drawer with
+//    the full nav list, role switch, and logout.
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { Menu, X } from "lucide-react";
+import { X } from "lucide-react";
 import Nav from "./Nav";
+import BottomNav from "./BottomNav";
 import { type ClinicRole } from "../../lib/roles";
 
 interface ShellProps {
@@ -23,8 +26,7 @@ export default function Shell({
   leaveAction,
   children,
 }: ShellProps) {
-  // Each nav Link, "Đổi vai trò" link, and "Thoát" submit closes the drawer
-  // via the onClick handlers below — no pathname-watching effect needed.
+  // Drawer is opened from the bottom bar's "Menu"; each link / action closes it.
   const [open, setOpen] = useState(false);
 
   // Prevent body scroll when the drawer is open.
@@ -48,9 +50,9 @@ export default function Shell({
           type="button"
           onClick={() => setOpen(false)}
           aria-label="Đóng menu"
-          className="-mr-1 inline-flex h-8 w-8 items-center justify-center rounded-md text-[#a1a1aa] hover:bg-[#1a1a1a] hover:text-white md:hidden"
+          className="-mr-1 inline-flex h-9 w-9 items-center justify-center rounded-md text-[#a1a1aa] hover:bg-[#1a1a1a] hover:text-white md:hidden"
         >
-          <X size={18} />
+          <X size={20} />
         </button>
       </div>
       <Nav role={role} onNavigate={() => setOpen(false)} />
@@ -61,14 +63,14 @@ export default function Shell({
         <Link
           href="/role-picker"
           onClick={() => setOpen(false)}
-          className="block w-full rounded-md border border-[#262626] px-3 py-1.5 text-center text-sm text-[#a1a1aa] transition-colors duration-150 hover:bg-[#1a1a1a] hover:text-[#d4d4d8]"
+          className="block w-full rounded-md border border-[#262626] px-3 py-2 text-center text-sm text-[#a1a1aa] transition-colors duration-150 hover:bg-[#1a1a1a] hover:text-[#d4d4d8] active:bg-[#1a1a1a]"
         >
           Đổi vai trò
         </Link>
         <form action={leaveAction}>
           <button
             type="submit"
-            className="w-full rounded-md border border-[#262626] px-3 py-1.5 text-sm text-[#a1a1aa] transition-colors duration-150 hover:bg-[#1a1a1a] hover:text-[#d4d4d8]"
+            className="w-full rounded-md border border-[#262626] px-3 py-2 text-sm text-[#a1a1aa] transition-colors duration-150 hover:bg-[#1a1a1a] hover:text-[#d4d4d8] active:bg-[#1a1a1a]"
           >
             Thoát
           </button>
@@ -79,29 +81,20 @@ export default function Shell({
 
   return (
     <div className="flex min-h-screen bg-[#fafafa] font-sans">
-      {/* Mobile topbar (hamburger + brand). Hidden on ≥md. */}
-      <header className="fixed inset-x-0 top-0 z-30 flex h-12 items-center justify-between border-b border-[#1f1f1f] bg-[#0a0a0a] px-3 md:hidden">
-        <button
-          type="button"
-          onClick={() => setOpen(true)}
-          aria-label="Mở menu"
-          className="-ml-1 inline-flex h-9 w-9 items-center justify-center rounded-md text-white hover:bg-[#1a1a1a]"
-        >
-          <Menu size={20} />
-        </button>
+      {/* Mobile top bar (brand only). Hidden on ≥md. */}
+      <header className="fixed inset-x-0 top-0 z-20 flex h-12 items-center justify-center border-b border-[#1f1f1f] bg-[#0a0a0a] px-3 md:hidden">
         <span className="flex items-center gap-2 text-sm font-medium text-white">
           <span className="h-2 w-2 rounded-full bg-[#ec4899]" />
           Dr4Women
         </span>
-        <span aria-hidden className="w-9" />
       </header>
 
-      {/* Desktop sidebar (≥md). Same content as the drawer. */}
+      {/* Desktop sidebar (≥md). */}
       <aside className="hidden w-[220px] flex-col bg-[#0a0a0a] px-3 py-5 md:flex">
         {sidebarContent}
       </aside>
 
-      {/* Mobile drawer (<md, conditional). Overlay + slide-in. */}
+      {/* Mobile drawer (<md), opened from the bottom bar's Menu. */}
       {open && (
         <>
           <div
@@ -115,10 +108,13 @@ export default function Shell({
         </>
       )}
 
-      {/* Content. Top padding leaves room for the mobile topbar. */}
-      <main className="min-w-0 flex-1 p-4 pt-16 md:p-8 md:pt-8">
+      {/* Content. Padding leaves room for the mobile top bar + bottom nav. */}
+      <main className="min-w-0 flex-1 p-4 pb-24 pt-16 md:p-8 md:pb-8 md:pt-8">
         {children}
       </main>
+
+      {/* Mobile bottom tab bar (<md). */}
+      <BottomNav role={role} onMenu={() => setOpen(true)} />
     </div>
   );
 }

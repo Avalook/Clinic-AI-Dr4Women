@@ -136,7 +136,7 @@ export default function ResetPasswordForm() {
                 minLength={MIN_PASSWORD}
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                className="w-full rounded border border-[#e4e4e7] px-3 py-2 text-sm text-[#171717] outline-none focus:border-[#ec4899] focus:ring-2 focus:ring-[#ec4899]/20"
+                className="w-full rounded-md border border-[#e4e4e7] px-3 py-2.5 text-base text-[#171717] outline-none focus:border-[#ec4899] focus:ring-2 focus:ring-[#ec4899]/20 sm:py-2 sm:text-sm"
                 autoComplete="new-password"
               />
             </div>
@@ -155,7 +155,7 @@ export default function ResetPasswordForm() {
                 minLength={MIN_PASSWORD}
                 value={confirm}
                 onChange={(e) => setConfirm(e.target.value)}
-                className="w-full rounded border border-[#e4e4e7] px-3 py-2 text-sm text-[#171717] outline-none focus:border-[#ec4899] focus:ring-2 focus:ring-[#ec4899]/20"
+                className="w-full rounded-md border border-[#e4e4e7] px-3 py-2.5 text-base text-[#171717] outline-none focus:border-[#ec4899] focus:ring-2 focus:ring-[#ec4899]/20 sm:py-2 sm:text-sm"
                 autoComplete="new-password"
               />
             </div>
@@ -169,7 +169,7 @@ export default function ResetPasswordForm() {
             <button
               type="submit"
               disabled={loading}
-              className="w-full rounded bg-[#ec4899] px-3 py-2 text-sm font-medium text-white transition-colors duration-150 hover:bg-[#db2777] disabled:opacity-50"
+              className="min-h-11 w-full rounded-md bg-[#ec4899] px-3 py-2.5 text-sm font-medium text-white transition-colors duration-150 hover:bg-[#db2777] active:bg-[#db2777] disabled:opacity-50"
             >
               {loading ? "Đang lưu..." : "Đặt mật khẩu mới"}
             </button>

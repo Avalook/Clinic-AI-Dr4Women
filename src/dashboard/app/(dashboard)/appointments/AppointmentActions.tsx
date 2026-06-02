@@ -33,22 +33,22 @@ export default function AppointmentActions({
   }
 
   return (
-    <div className="flex items-center gap-2">
+    <div className="flex flex-wrap items-center gap-2">
       <button
         onClick={() => act("confirm")}
         disabled={busy !== null}
-        className="rounded bg-[#16a34a] px-2.5 py-1 text-xs font-medium text-white transition-colors duration-150 hover:bg-[#15803d] disabled:opacity-50"
+        className="min-h-9 flex-1 rounded-md bg-[#16a34a] px-2.5 py-1.5 text-xs font-medium text-white transition-colors duration-150 hover:bg-[#15803d] active:bg-[#15803d] disabled:opacity-50 sm:min-h-0 sm:flex-none sm:py-1"
       >
         {busy === "confirm" ? "..." : "Xác nhận"}
       </button>
       <button
         onClick={() => act("decline")}
         disabled={busy !== null}
-        className="rounded border border-[#dc2626] px-2.5 py-1 text-xs font-medium text-[#dc2626] transition-colors duration-150 hover:bg-[#fee2e2] disabled:opacity-50"
+        className="min-h-9 flex-1 rounded-md border border-[#dc2626] px-2.5 py-1.5 text-xs font-medium text-[#dc2626] transition-colors duration-150 hover:bg-[#fee2e2] active:bg-[#fee2e2] disabled:opacity-50 sm:min-h-0 sm:flex-none sm:py-1"
       >
         {busy === "decline" ? "..." : "Từ chối"}
       </button>
-      {error && <span className="text-xs text-[#dc2626]">{error}</span>}
+      {error && <span className="w-full text-xs text-[#dc2626]">{error}</span>}
     </div>
   );
 }

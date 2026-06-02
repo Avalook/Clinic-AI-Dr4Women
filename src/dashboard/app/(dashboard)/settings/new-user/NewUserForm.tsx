@@ -83,7 +83,7 @@ export default function NewUserForm({
           required
           value={staffId}
           onChange={(e) => setStaffId(e.target.value)}
-          className="w-full rounded border border-[#e4e4e7] px-3 py-2 text-sm text-[#171717] outline-none focus:border-[#ec4899] focus:ring-2 focus:ring-[#ec4899]/20"
+          className="w-full rounded-md border border-[#e4e4e7] px-3 py-2.5 text-base text-[#171717] outline-none focus:border-[#ec4899] focus:ring-2 focus:ring-[#ec4899]/20 sm:py-2 sm:text-sm"
         >
           {staffOptions.map((o) => (
             <option key={o.id} value={o.id}>
@@ -103,7 +103,7 @@ export default function NewUserForm({
           required
           value={email}
           onChange={(e) => setEmail(e.target.value)}
-          className="w-full rounded border border-[#e4e4e7] px-3 py-2 text-sm text-[#171717] outline-none focus:border-[#ec4899] focus:ring-2 focus:ring-[#ec4899]/20"
+          className="w-full rounded-md border border-[#e4e4e7] px-3 py-2.5 text-base text-[#171717] outline-none focus:border-[#ec4899] focus:ring-2 focus:ring-[#ec4899]/20 sm:py-2 sm:text-sm"
           autoComplete="off"
         />
       </div>
@@ -122,7 +122,7 @@ export default function NewUserForm({
           minLength={MIN_PASSWORD}
           value={password}
           onChange={(e) => setPassword(e.target.value)}
-          className="w-full rounded border border-[#e4e4e7] px-3 py-2 text-sm text-[#171717] outline-none focus:border-[#ec4899] focus:ring-2 focus:ring-[#ec4899]/20"
+          className="w-full rounded-md border border-[#e4e4e7] px-3 py-2.5 text-base text-[#171717] outline-none focus:border-[#ec4899] focus:ring-2 focus:ring-[#ec4899]/20 sm:py-2 sm:text-sm"
           autoComplete="off"
           placeholder="Gửi cho NV qua kênh an toàn — NV sẽ tự đổi sau đăng nhập đầu"
         />
@@ -144,17 +144,17 @@ export default function NewUserForm({
         </p>
       )}
 
-      <div className="flex items-center gap-3">
+      <div className="flex flex-col items-stretch gap-3 sm:flex-row sm:items-center">
         <button
           type="submit"
           disabled={loading}
-          className="rounded bg-[#ec4899] px-3.5 py-2 text-sm font-medium text-white transition-colors duration-150 hover:bg-[#db2777] disabled:opacity-50"
+          className="min-h-11 w-full rounded-md bg-[#ec4899] px-3.5 py-2.5 text-sm font-medium text-white transition-colors duration-150 hover:bg-[#db2777] active:bg-[#db2777] disabled:opacity-50 sm:min-h-0 sm:w-auto sm:py-2"
         >
           {loading ? "Đang tạo..." : "Tạo tài khoản"}
         </button>
         <Link
           href="/settings"
-          className="text-sm text-[#71717a] hover:text-[#171717]"
+          className="py-2 text-center text-sm text-[#71717a] hover:text-[#171717] sm:py-0"
         >
           ← Về Cài đặt
         </Link>
