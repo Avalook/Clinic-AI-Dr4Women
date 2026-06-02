@@ -97,18 +97,21 @@ export default function Shell({
       </aside>
 
       {/* Mobile drawer (<md), opened from the bottom bar's Menu. */}
-      {open && (
-        <>
-          <div
-            onClick={() => setOpen(false)}
-            aria-hidden
-            className="fixed inset-0 z-40 bg-black/40 md:hidden"
-          />
-          <aside className="fixed inset-y-0 left-0 z-50 flex w-72 max-w-[80vw] flex-col bg-[#0a0a0a] px-3 py-5 shadow-2xl md:hidden">
-            {sidebarContent}
-          </aside>
-        </>
-      )}
+      {/* Mobile drawer — luôn mount, trượt vào/ra bằng CSS transition (mượt cả 2 chiều). */}
+      <div
+        onClick={() => setOpen(false)}
+        aria-hidden
+        className={`fixed inset-0 z-40 bg-black/40 transition-opacity duration-300 motion-reduce:transition-none md:hidden ${
+          open ? "opacity-100" : "pointer-events-none opacity-0"
+        }`}
+      />
+      <aside
+        className={`fixed inset-y-0 left-0 z-50 flex w-72 max-w-[80vw] flex-col bg-[#0a0a0a] px-3 py-5 shadow-2xl transition-transform duration-300 ease-out motion-reduce:transition-none md:hidden ${
+          open ? "translate-x-0" : "-translate-x-full"
+        }`}
+      >
+        {sidebarContent}
+      </aside>
 
       {/* Content. Padding leaves room for the mobile top bar + bottom nav. */}
       <main className="min-w-0 flex-1 p-4 pb-24 pt-16 md:p-8 md:pb-8 md:pt-8">
