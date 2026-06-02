@@ -8,6 +8,7 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
+import { usePathname } from "next/navigation";
 import { X } from "lucide-react";
 import Nav from "./Nav";
 import BottomNav from "./BottomNav";
@@ -28,6 +29,7 @@ export default function Shell({
 }: ShellProps) {
   // Drawer is opened from the bottom bar's "Menu"; each link / action closes it.
   const [open, setOpen] = useState(false);
+  const pathname = usePathname();
 
   // Prevent body scroll when the drawer is open.
   useEffect(() => {
@@ -110,7 +112,10 @@ export default function Shell({
 
       {/* Content. Padding leaves room for the mobile top bar + bottom nav. */}
       <main className="min-w-0 flex-1 p-4 pb-24 pt-16 md:p-8 md:pb-8 md:pt-8">
-        {children}
+        {/* key=pathname → fade chạy lại mỗi lần đổi trang */}
+        <div key={pathname} className="page-in">
+          {children}
+        </div>
       </main>
 
       {/* Mobile bottom tab bar (<md). */}
