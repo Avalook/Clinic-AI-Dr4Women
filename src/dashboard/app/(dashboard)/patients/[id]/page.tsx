@@ -3,12 +3,13 @@
 // doctor's "bệnh án / tiền sử khám" view.
 // SECURITY: national_id_number (CCCD) is intentionally NOT selected — D-identity.
 
+import { redirect } from "next/navigation";
 import PatientDetail from "./PatientDetail";
 import PatientHistory from "./PatientHistory";
 import PatientBooking from "./PatientBooking";
 import { getSupabaseServer } from "../../../../lib/supabase-server";
-import { getClinicRole } from "../../../../lib/clinic-session";
-import { canWriteIntake } from "../../../../lib/roles";
+import { getClinicRole, getClinicStaffId } from "../../../../lib/clinic-session";
+import { canWriteIntake, isDoctorRole } from "../../../../lib/roles";
 import type { Option } from "../AppointmentBooking";
 
 export const dynamic = "force-dynamic";
@@ -23,9 +24,25 @@ export default async function PatientDetailPage({
   const { id } = await params;
   const { new: isNew } = await searchParams;
 
+  const role = await getClinicRole();
+
+  // Bác sĩ chỉ được mở hồ sơ BN CỦA MÌNH (có lịch hẹn với bác sĩ này). Chặn cả
+  // truy cập trực tiếp bằng URL, không chỉ ẩn ở danh sách.
+  if (isDoctorRole(role)) {
+    const staffId = await getClinicStaffId();
+    const supabase = await getSupabaseServer();
+    const { data: own } = await supabase
+      .from("appointment")
+      .select("id")
+      .eq("doctor_id", staffId)
+      .eq("clinic_patient_id", id)
+      .limit(1)
+      .maybeSingle();
+    if (!own) redirect("/patients");
+  }
+
   // Booking is an intake action (CSKH / Lễ tân / Quản lý). Only those roles see
   // the form, so only load its dropdown options when they will be used.
-  const role = await getClinicRole();
   const canBook = canWriteIntake(role);
 
   let services: Option[] = [];

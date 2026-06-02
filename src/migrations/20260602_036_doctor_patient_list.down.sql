@@ -1,0 +1,4 @@
+BEGIN;
+DROP FUNCTION IF EXISTS doctor_patient_list(UUID, TEXT, INT, INT);
+DROP FUNCTION IF EXISTS doctor_patient_count(UUID);
+COMMIT;

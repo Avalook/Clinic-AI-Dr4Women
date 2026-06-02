@@ -35,8 +35,11 @@ const PAGE_SIZE = 50;
 
 export default async function PatientsList({
   searchParams,
+  doctorId = null,
 }: {
   searchParams: Promise<{ q?: string; page?: string }>;
+  /** Khi set (bác sĩ): chỉ liệt kê BN của bác sĩ này (qua RPC). */
+  doctorId?: string | null;
 }) {
   const { q = "", page = "1" } = await searchParams;
   const supabase = await getSupabaseServer();
@@ -45,25 +48,48 @@ export default async function PatientsList({
   const current = Math.max(1, Number.parseInt(page, 10) || 1);
   const from = (current - 1) * PAGE_SIZE;
 
-  let query = supabase
-    .from("patient")
-    .select(SAFE_COLUMNS, { count: "exact" })
-    .order("created_at", { ascending: false })
-    .range(from, from + PAGE_SIZE - 1);
+  let rows: PatientRow[] = [];
+  let total = 0;
+  let error: { message: string } | null = null;
 
-  if (term) {
-    // OR over patient_code + full_name + phone_primary. PostgREST takes
-    // a comma-joined ``or=`` filter; Supabase escapes the literal.
-    query = query.or(
-      `patient_code.ilike.%${term}%,` +
-        `full_name.ilike.%${term}%,` +
-        `phone_primary.ilike.%${term}%`,
-    );
+  if (doctorId) {
+    // Bác sĩ → chỉ BN của mình (lọc + tìm + phân trang phía DB).
+    const { data, error: rpcErr } = await supabase.rpc("doctor_patient_list", {
+      p_doctor_id: doctorId,
+      p_term: term,
+      p_limit: PAGE_SIZE,
+      p_offset: from,
+    });
+    const list = (data as (PatientRow & { total_count: number })[] | null) ?? [];
+    rows = list.map((r) => ({
+      clinic_patient_id: r.clinic_patient_id,
+      patient_code: r.patient_code,
+      full_name: r.full_name,
+      date_of_birth: r.date_of_birth,
+      phone_primary: r.phone_primary,
+      created_at: r.created_at,
+    }));
+    total = list.length > 0 ? Number(list[0].total_count) : 0;
+    error = rpcErr;
+  } else {
+    let query = supabase
+      .from("patient")
+      .select(SAFE_COLUMNS, { count: "exact" })
+      .order("created_at", { ascending: false })
+      .range(from, from + PAGE_SIZE - 1);
+    if (term) {
+      query = query.or(
+        `patient_code.ilike.%${term}%,` +
+          `full_name.ilike.%${term}%,` +
+          `phone_primary.ilike.%${term}%`,
+      );
+    }
+    const { data, error: qErr, count } = await query;
+    rows = (data as PatientRow[] | null) ?? [];
+    total = count ?? 0;
+    error = qErr;
   }
 
-  const { data, error, count } = await query;
-  const rows = (data as PatientRow[] | null) ?? [];
-  const total = count ?? 0;
   const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
 
   // Page link that preserves the active search term.
