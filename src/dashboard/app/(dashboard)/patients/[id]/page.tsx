@@ -7,6 +7,7 @@ import { redirect } from "next/navigation";
 import PatientDetail from "./PatientDetail";
 import PatientHistory from "./PatientHistory";
 import PatientBooking from "./PatientBooking";
+import PatientCskhLog from "./PatientCskhLog";
 import { getSupabaseServer } from "../../../../lib/supabase-server";
 import { getClinicRole, getClinicStaffId } from "../../../../lib/clinic-session";
 import { canWriteIntake, isDoctorRole } from "../../../../lib/roles";
@@ -96,6 +97,7 @@ export default async function PatientDetailPage({
           locations={locations}
         />
       )}
+      <PatientCskhLog id={id} />
       <PatientHistory id={id} />
     </div>
   );

@@ -105,15 +105,28 @@ export default async function PatientDetail({ id }: { id: string }) {
         ← Về danh sách BN
       </Link>
 
-      <section className="rounded-lg border border-[#e4e4e7] bg-white p-4 shadow-[0_1px_3px_rgba(0,0,0,0.08)] sm:p-6">
-        <h2 className="mb-4 text-lg font-semibold text-[#171717]">
-          {patient.full_name}
-        </h2>
-        <dl className="grid grid-cols-2 gap-x-4 gap-y-4 sm:gap-x-6 md:grid-cols-4">
-          <Field label="Mã BN" value={patient.patient_code} />
+      <section className="overflow-hidden rounded-xl border border-[#e4e4e7] bg-white shadow-[0_1px_3px_rgba(0,0,0,0.06)]">
+        <div className="flex items-center gap-4 border-b border-[#f4f4f5] bg-gradient-to-r from-[#fdf2f8] to-white p-4 sm:p-6">
+          <span className="flex h-14 w-14 shrink-0 items-center justify-center rounded-full bg-[#ec4899] text-xl font-semibold text-white">
+            {patient.full_name.trim().charAt(0).toUpperCase() || "?"}
+          </span>
+          <div className="min-w-0">
+            <h2 className="truncate text-lg font-semibold text-[#171717]">
+              {patient.full_name}
+            </h2>
+            <p className="mt-0.5 font-mono text-sm text-[#888888]">
+              {patient.patient_code}
+            </p>
+          </div>
+        </div>
+        <dl className="grid grid-cols-2 gap-x-4 gap-y-4 p-4 sm:grid-cols-4 sm:gap-x-6 sm:p-6">
           <Field label="Ngày sinh" value={patient.date_of_birth ?? "—"} />
           <Field label="Tuổi" value={ageFromDob(patient.date_of_birth)} />
           <Field label="SĐT" value={patient.phone_primary ?? "—"} />
+          <Field
+            label="Số lịch hẹn"
+            value={appointments.length >= 20 ? "20+" : String(appointments.length)}
+          />
         </dl>
       </section>
 
