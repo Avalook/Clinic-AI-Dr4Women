@@ -3,16 +3,24 @@
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { ROLE_COOKIE, STAFF_COOKIE } from "../../lib/clinic-session";
-import { isClinicRole, isDoctorRole, roleLanding } from "../../lib/roles";
+import { departmentToRole, roleLanding } from "../../lib/roles";
+import { getSupabaseServer } from "../../lib/supabase-server";
 
-// Persist the picked role (+ doctor identity) in cookies, then land the user.
-export async function chooseRole(formData: FormData): Promise<void> {
-  const role = String(formData.get("role") ?? "");
+// Mỗi người chọn ĐÚNG TÊN MÌNH từ danh sách. Vai trò + không gian làm việc suy
+// ra từ chức danh (primary_department) đọc THẲNG từ DB — không tin client.
+export async function chooseStaffIdentity(formData: FormData): Promise<void> {
   const staffId = String(formData.get("staffId") ?? "").trim();
-  if (!isClinicRole(role)) redirect("/role-picker");
+  if (!staffId) redirect("/role-picker");
 
-  // A doctor must have picked their name (for "lịch của tôi" scope).
-  if (isDoctorRole(role) && !staffId) redirect("/role-picker");
+  const supabase = await getSupabaseServer();
+  const { data: staff } = await supabase
+    .from("staff")
+    .select("id, primary_department, is_active")
+    .eq("id", staffId)
+    .maybeSingle();
+  if (!staff || staff.is_active === false) redirect("/role-picker");
+
+  const role = departmentToRole(staff.primary_department as string);
 
   const c = await cookies();
   const opts = {
@@ -22,10 +30,6 @@ export async function chooseRole(formData: FormData): Promise<void> {
     maxAge: 60 * 60 * 12, // one clinic workday
   };
   c.set(ROLE_COOKIE, role, opts);
-  if (isDoctorRole(role)) {
-    c.set(STAFF_COOKIE, staffId, opts);
-  } else {
-    c.delete(STAFF_COOKIE);
-  }
+  c.set(STAFF_COOKIE, staffId, opts);
   redirect(roleLanding(role));
 }

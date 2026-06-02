@@ -5,10 +5,9 @@
 // Dữ liệu đọc qua RLS (SELECT cho authenticated); ghi qua /api/roster (admin).
 
 import Link from "next/link";
-import { cookies } from "next/headers";
 import { getSupabaseServer } from "../../../lib/supabase-server";
 import { getClinicRole, getClinicStaffId } from "../../../lib/clinic-session";
-import { isAdminRole, isDoctorRole } from "../../../lib/roles";
+import { isAdminRole } from "../../../lib/roles";
 import {
   STATIONS,
   STATION_LABEL,
@@ -21,9 +20,7 @@ import {
   weekStartOf,
   shiftWeek,
   currentWeekStartVn,
-  ROSTER_STAFF_COOKIE,
 } from "../../../lib/roster";
-import PersonPicker, { type StaffOpt } from "./PersonPicker";
 
 export const dynamic = "force-dynamic";
 
@@ -52,37 +49,18 @@ export default async function SchedulePage({
   const role = await getClinicRole();
   const isAdmin = isAdminRole(role);
 
-  // Danh tính để lọc "lịch của tôi".
-  let myStaffId: string | null = null;
-  if (isDoctorRole(role)) {
-    myStaffId = await getClinicStaffId();
-  } else if (!isAdmin) {
-    myStaffId = (await cookies()).get(ROSTER_STAFF_COOKIE)?.value ?? null;
-  }
+  // Mọi người đã chọn tên mình khi đăng nhập → có staff_id để lọc "lịch của tôi".
+  const myStaffId = isAdmin ? null : await getClinicStaffId();
 
   const supabase = await getSupabaseServer();
-  const [rosterRes, staffRes] = await Promise.all([
-    supabase
-      .from("work_roster")
-      .select("id, work_date, shift, station, staff_id, staff_name")
-      .eq("week_start", week)
-      .order("work_date", { ascending: true })
-      .order("sort", { ascending: true }),
-    // Staff cho person-picker (vai trò non-doctor) + tên hiển thị.
-    !isAdmin && !isDoctorRole(role)
-      ? supabase
-          .from("staff")
-          .select("id, full_name, short_name")
-          .eq("is_active", true)
-          .order("full_name")
-      : Promise.resolve({ data: [], error: null }),
-  ]);
+  const { data: rosterData } = await supabase
+    .from("work_roster")
+    .select("id, work_date, shift, station, staff_id, staff_name")
+    .eq("week_start", week)
+    .order("work_date", { ascending: true })
+    .order("sort", { ascending: true });
 
-  const rows = (rosterRes.data as RosterRow[] | null) ?? [];
-  const staffOpts: StaffOpt[] = (
-    (staffRes.data as { id: string; full_name: string; short_name: string | null }[] | null) ??
-    []
-  ).map((s) => ({ id: s.id, label: s.short_name ?? s.full_name }));
+  const rows = (rosterData as RosterRow[] | null) ?? [];
 
   const weekLabel = `${fmtDayMonth(dates[0])} – ${fmtDayMonth(dates[6])}`;
   const navHref = (w: string) => `/schedule?week=${w}`;
@@ -130,13 +108,7 @@ export default async function SchedulePage({
       {isAdmin ? (
         <AdminGrid dates={dates} rows={rows} />
       ) : (
-        <PersonalView
-          dates={dates}
-          rows={rows}
-          myStaffId={myStaffId}
-          showPicker={!isDoctorRole(role)}
-          staffOpts={staffOpts}
-        />
+        <PersonalView dates={dates} rows={rows} myStaffId={myStaffId} />
       )}
     </div>
   );
@@ -208,19 +180,11 @@ function PersonalView({
   dates,
   rows,
   myStaffId,
-  showPicker,
-  staffOpts,
 }: {
   dates: string[];
   rows: RosterRow[];
   myStaffId: string | null;
-  showPicker: boolean;
-  staffOpts: StaffOpt[];
 }) {
-  if (!myStaffId && showPicker) {
-    return <PersonPicker staff={staffOpts} current={null} />;
-  }
-
   const mine = rows.filter((r) => myStaffId && r.staff_id === myStaffId);
   const byDate = dates
     .map((d) => ({ date: d, items: mine.filter((r) => r.work_date === d) }))
@@ -228,10 +192,6 @@ function PersonalView({
 
   return (
     <div className="space-y-3">
-      {showPicker && (
-        <PersonPicker staff={staffOpts} current={myStaffId} />
-      )}
-
       {byDate.length === 0 ? (
         <div className="rounded-lg border border-[#e4e4e7] bg-white px-4 py-10 text-center text-sm text-[#888888]">
           Tuần này bạn chưa có ca trực.

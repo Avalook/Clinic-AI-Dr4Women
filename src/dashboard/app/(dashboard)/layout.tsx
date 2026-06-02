@@ -4,7 +4,7 @@ import DeclinedNotice, { type DeclinedItem } from "./DeclinedNotice";
 import { leaveClinic } from "../(auth)/enter/actions";
 import { getSupabaseServer } from "../../lib/supabase-server";
 import { getClinicRole, getClinicStaffId } from "../../lib/clinic-session";
-import { ROLE_LABEL, isDoctorRole, canWriteIntake } from "../../lib/roles";
+import { ROLE_LABEL, canWriteIntake } from "../../lib/roles";
 import { fmtDayTime, vnTodayRangeUtc } from "../../lib/datetime";
 
 interface DeclinedRow {
@@ -22,19 +22,17 @@ export default async function DashboardLayout({
   const role = await getClinicRole();
   if (!role) redirect("/role-picker");
 
-  // For a doctor, show the picked name; the cookie identity drives all scoping.
+  // Everyone now picks their own name at login → show "<Vai trò> · <Tên>".
   let identity = ROLE_LABEL[role];
-  if (isDoctorRole(role)) {
-    const staffId = await getClinicStaffId();
-    if (staffId) {
-      const supabase = await getSupabaseServer();
-      const { data } = await supabase
-        .from("staff")
-        .select("full_name, short_name")
-        .eq("id", staffId)
-        .maybeSingle();
-      if (data) identity = `${ROLE_LABEL[role]} · ${data.short_name ?? data.full_name}`;
-    }
+  const staffId = await getClinicStaffId();
+  if (staffId) {
+    const supabase = await getSupabaseServer();
+    const { data } = await supabase
+      .from("staff")
+      .select("full_name, short_name")
+      .eq("id", staffId)
+      .maybeSingle();
+    if (data) identity = `${ROLE_LABEL[role]} · ${data.short_name ?? data.full_name}`;
   }
 
   // Reception / CSKH / management get a top-right notice of appointments a

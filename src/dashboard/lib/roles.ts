@@ -8,6 +8,7 @@
 export type ClinicRole =
   | "DOCTOR"
   | "ULTRASOUND_DOCTOR"
+  | "NURSE_ULTRASOUND"
   | "CSKH"
   | "MANAGEMENT"
   | "RECEPTION";
@@ -15,10 +16,17 @@ export type ClinicRole =
 export const ALL_ROLES: ClinicRole[] = [
   "DOCTOR",
   "ULTRASOUND_DOCTOR",
+  "NURSE_ULTRASOUND",
   "CSKH",
   "MANAGEMENT",
   "RECEPTION",
 ];
+
+// staff.primary_department → vai trò ứng dụng. Mỗi người chọn tên mình khi
+// đăng nhập; vai trò (và nav) suy ra từ chức danh, không tin client.
+export function departmentToRole(dept: string | null | undefined): ClinicRole {
+  return isClinicRole(dept ?? "") ? (dept as ClinicRole) : "CSKH";
+}
 
 export function isClinicRole(v: string | undefined | null): v is ClinicRole {
   return !!v && (ALL_ROLES as string[]).includes(v);
@@ -50,6 +58,7 @@ export function roleLanding(role: ClinicRole | null): string {
 export const ROLE_LABEL: Record<ClinicRole, string> = {
   DOCTOR: "Bác sĩ",
   ULTRASOUND_DOCTOR: "Bác sĩ Siêu âm",
+  NURSE_ULTRASOUND: "Điều dưỡng / Phụ siêu âm",
   CSKH: "CSKH",
   MANAGEMENT: "Quản lý",
   RECEPTION: "Lễ tân",
@@ -62,6 +71,7 @@ export const ROLE_LABEL: Record<ClinicRole, string> = {
 const NOT_RECEPTION: ClinicRole[] = [
   "DOCTOR",
   "ULTRASOUND_DOCTOR",
+  "NURSE_ULTRASOUND",
   "CSKH",
   "MANAGEMENT",
 ];
