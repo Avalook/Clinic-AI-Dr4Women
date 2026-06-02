@@ -68,21 +68,19 @@ export const ROLE_LABEL: Record<ClinicRole, string> = {
 // RECEPTION (Lễ tân) is a front-desk role with a deliberately small menu:
 // only Trang chủ + Nhập khách hàng + Check-in. So the broader destinations
 // are scoped to everyone-except-reception.
-// Lịch làm việc: ai cũng xem ca trực của mình, trừ Lễ tân (menu 3 nút).
+// Lịch làm việc: bác sĩ/điều dưỡng xem ca trực của mình + quản lý xem cả bảng.
+// CSKH & Lễ tân KHÔNG xem (sidebar gọn theo đầu việc của họ).
 const ROSTER_ROLES: ClinicRole[] = [
   "DOCTOR",
   "ULTRASOUND_DOCTOR",
   "NURSE_ULTRASOUND",
-  "CSKH",
   "MANAGEMENT",
 ];
-// Bệnh nhân + lịch hẹn: chỉ vai trò làm việc trực tiếp với BN. Điều dưỡng KHÔNG
-// xem (chỉ thấy ca trực của mình); bác sĩ xem nhưng bị giới hạn ở BN của mình
-// (scope ở patients/page). Lễ tân không vào (chỉ nhập khách + check-in).
+// Bệnh nhân + lịch hẹn: bác sĩ (giới hạn BN của mình) + quản lý. Điều dưỡng,
+// CSKH, Lễ tân KHÔNG vào danh sách BN/lịch hẹn — sidebar gọn theo việc của họ.
 const PATIENT_STAFF: ClinicRole[] = [
   "DOCTOR",
   "ULTRASOUND_DOCTOR",
-  "CSKH",
   "MANAGEMENT",
 ];
 

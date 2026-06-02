@@ -47,7 +47,7 @@ export const NAV: NavItem[] = [
   },
   {
     href: "/tasks",
-    label: "Công việc hàng ngày",
+    label: "Công việc của tôi",
     shortLabel: "Việc",
     icon: CheckSquare,
   },
