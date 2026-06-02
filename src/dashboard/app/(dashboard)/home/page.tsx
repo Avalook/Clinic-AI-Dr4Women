@@ -9,7 +9,13 @@ import StatCard from "../StatCard";
 import { NAV } from "../nav-items";
 import { getSupabaseServer } from "../../../lib/supabase-server";
 import { getClinicRole, getActiveStaff, getClinicStaffId } from "../../../lib/clinic-session";
-import { isDoctorRole, isAdminRole, canSeeNav, ROLE_LABEL } from "../../../lib/roles";
+import {
+  isDoctorRole,
+  isAdminRole,
+  canSeeNav,
+  type ClinicRole,
+} from "../../../lib/roles";
+import type { ActiveStaff } from "../../../lib/clinic-session";
 import { vnTodayRangeUtc, fmtDate } from "../../../lib/datetime";
 import {
   STATION_SHORT,
@@ -23,6 +29,27 @@ import {
 export const dynamic = "force-dynamic";
 
 const ACTIVE_APPT_STATUSES = ["SCHEDULED", "CONFIRMED", "CHECKED_IN"];
+
+// Chức danh ngắn dùng trong lời chào (vd "Chào bác sĩ Thành").
+const GREET_LABEL: Record<ClinicRole, string> = {
+  DOCTOR: "bác sĩ",
+  ULTRASOUND_DOCTOR: "bác sĩ",
+  NURSE_ULTRASOUND: "điều dưỡng",
+  CSKH: "CSKH",
+  MANAGEMENT: "quản lý",
+  RECEPTION: "lễ tân",
+};
+
+// Bỏ tiền tố chức danh khỏi tên ("BS Thành" → "Thành", "ĐD Hà Vũ" → "Hà Vũ").
+function cleanName(name: string): string {
+  return name.replace(/^(BS\s*SA|BS|ĐD|TL)\s+/i, "").trim();
+}
+
+function greet(role: ClinicRole | null, staff: ActiveStaff | null): string {
+  if (!role || !staff) return "Trang chủ";
+  const name = cleanName(staff.short_name ?? staff.full_name);
+  return `Chào ${GREET_LABEL[role]} ${name}`;
+}
 
 interface StatTriple {
   title: string;
@@ -46,7 +73,7 @@ async function buildStats(): Promise<StatTriple> {
         .eq("assigned_staff_id", staff.id).eq("status", "PENDING"),
     ]);
     return {
-      title: `Chào ${staff.short_name ?? staff.full_name}`,
+      title: greet(role, staff),
       cards: [
         { label: "Lịch hẹn hôm nay (của tôi)", value: appt.count ?? 0 },
         { label: "BN đã khám hôm nay", value: visit.count ?? 0 },
@@ -64,7 +91,7 @@ async function buildStats(): Promise<StatTriple> {
         .eq("status", "SCHEDULED").gte("slot_start", dayStart).lt("slot_start", dayEnd),
     ]);
     return {
-      title: "Chào CSKH",
+      title: greet(role, staff),
       cards: [
         { label: "Việc đang chờ làm", value: task.count ?? 0 },
         { label: "BN mới đăng ký hôm nay", value: newPatient.count ?? 0 },
@@ -81,7 +108,7 @@ async function buildStats(): Promise<StatTriple> {
     supabase.from("staff_task").select("*", { count: "exact", head: true }).eq("status", "PENDING"),
   ]);
   return {
-    title: role ? `Chào ${ROLE_LABEL[role]}` : "Trang chủ",
+    title: greet(role, staff),
     cards: [
       { label: "Lịch hẹn hôm nay", value: appt.count ?? 0 },
       { label: "BN mới đăng ký hôm nay", value: patient.count ?? 0 },
