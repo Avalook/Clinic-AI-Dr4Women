@@ -6,7 +6,7 @@
 import { getSupabaseServer } from "../../../lib/supabase-server";
 import { vnTodayRangeUtc } from "../../../lib/datetime";
 import ConfirmBoard, { type ApptRow, type Opt } from "./ConfirmBoard";
-import TrackBoard from "./TrackBoard";
+import CskhActionBoard, { type CskhActionRow } from "./CskhActionBoard";
 
 export const dynamic = "force-dynamic";
 
@@ -28,7 +28,14 @@ export default async function TasksPage() {
   // Hàng đợi CSKH: từ hôm nay tới 7 ngày tới, các lịch chờ/đã xác nhận.
   const endUtc = new Date(new Date(startUtc).getTime() + 7 * DAY_MS).toISOString();
 
-  const [apptRes, locRes] = await Promise.all([
+  const CSKH_SELECT = `
+    id, category, status, description, action_data, source_created_at, created_by_text,
+    patient:patient!clinic_patient_id (
+      clinic_patient_id, full_name, patient_code, phone_primary
+    )
+  `;
+
+  const [apptRes, locRes, cskhRes] = await Promise.all([
     supabase
       .from("appointment")
       .select(SELECT)
@@ -48,9 +55,16 @@ export default async function TasksPage() {
       .order("slot_start", { ascending: true })
       .limit(300),
     supabase.from("clinic_location").select("id, name").order("name"),
+    // Bảng 2: nhật ký việc CSKH (CSKH-Action), 200 việc gần nhất.
+    supabase
+      .from("cskh_action")
+      .select(CSKH_SELECT)
+      .order("source_created_at", { ascending: false, nullsFirst: false })
+      .limit(200),
   ]);
 
   const rows = (apptRes.data as ApptRow[] | null) ?? [];
+  const cskhRows = (cskhRes.data as CskhActionRow[] | null) ?? [];
   const locations: Opt[] = (locRes.data ?? []).map((r) => ({
     id: r.id as string,
     label: r.name as string,
@@ -113,10 +127,20 @@ export default async function TasksPage() {
                 Theo dõi tình trạng lịch hẹn
               </h2>
               <p className="text-sm text-[#888888]">
-                Các lịch NGOÀI luồng khám · hủy hẹn / không đến / bác sĩ từ chối.
+                Nhật ký việc CSKH theo loại (từ bảng CSKH-Action) · mỗi thẻ = 1 lần
+                thao tác với khách.
+              </p>
+              <p className="mt-1 inline-flex rounded-md bg-[#eff6ff] px-2 py-0.5 text-xs text-[#1d4ed8]">
+                🤖 Phần này sẽ tự ghi khi nối Zalo / Pancake — CSKH không phải nhập tay.
               </p>
             </div>
-            <TrackBoard rows={rows} locations={locations} />
+            {cskhRes.error ? (
+              <div className="rounded-md bg-[#fef9c3] px-3 py-2 text-sm text-[#a16207]">
+                Chưa đọc được CSKH-Action: {cskhRes.error.message}
+              </div>
+            ) : (
+              <CskhActionBoard rows={cskhRows} />
+            )}
           </section>
         </>
       )}
