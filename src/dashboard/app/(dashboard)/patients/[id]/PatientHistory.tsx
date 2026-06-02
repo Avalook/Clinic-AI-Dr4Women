@@ -227,8 +227,36 @@ export default async function PatientHistory({ id }: { id: string }) {
             Chưa có kết quả xét nghiệm.
           </div>
         ) : (
-          <div className={`overflow-x-auto ${CARD}`}>
-            <table className="min-w-full divide-y divide-[#e4e4e7] text-sm">
+          <>
+            {/* Mobile: card list (<md). */}
+            <div className="space-y-2 md:hidden">
+              {labs.map((l) => (
+                <div key={l.lab_result_id} className={`${CARD} p-3`}>
+                  <div className="flex items-start justify-between gap-2">
+                    <span className="font-medium text-[#171717]">
+                      {l.test_name}
+                    </span>
+                    <span className="shrink-0 font-mono text-xs text-[#888888]">
+                      {fmtDate(l.result_received_at)}
+                    </span>
+                  </div>
+                  <p className="mt-1 text-sm text-[#4d4d4d]">
+                    {l.result_value ??
+                      (l.result_numeric != null
+                        ? String(l.result_numeric)
+                        : "—")}
+                    {l.result_unit ? ` ${l.result_unit}` : ""}
+                  </p>
+                  <p className="mt-0.5 text-xs text-[#888888]">
+                    Cờ: {l.flag ?? "—"} · Phân nhóm: {l.triage_group}
+                  </p>
+                </div>
+              ))}
+            </div>
+
+            {/* Desktop: table (≥md). */}
+            <div className={`hidden overflow-x-auto md:block ${CARD}`}>
+              <table className="min-w-full divide-y divide-[#e4e4e7] text-sm">
               <thead className="bg-[#fafafa] text-left text-[11px] uppercase tracking-wide text-[#71717a]">
                 <tr>
                   <th className={TH}>Ngày</th>
@@ -255,8 +283,9 @@ export default async function PatientHistory({ id }: { id: string }) {
                   </tr>
                 ))}
               </tbody>
-            </table>
-          </div>
+              </table>
+            </div>
+          </>
         )}
       </section>
     </div>
