@@ -7,7 +7,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { Search, Check } from "lucide-react";
-import { fmtTime } from "../../../lib/datetime";
+import { fmtTime, isVnMidnight } from "../../../lib/datetime";
 
 export interface CheckinRow {
   id: string;
@@ -110,8 +110,11 @@ export default function CheckinList({ rows }: { rows: CheckinRow[] }) {
                 }
               >
                 <div className="flex w-14 shrink-0 flex-col items-center">
-                  <span className="text-sm font-semibold text-[#171717]">
-                    {fmtTime(r.slot_start)}
+                  <span
+                    className="text-sm font-semibold text-[#171717]"
+                    title={isVnMidnight(r.slot_start) ? "Chưa có giờ" : undefined}
+                  >
+                    {isVnMidnight(r.slot_start) ? "—" : fmtTime(r.slot_start)}
                   </span>
                   {r.queue_number && (
                     <span className="mt-0.5 rounded-full bg-[#f4f4f5] px-1.5 text-[10px] font-medium text-[#71717a]">

@@ -29,6 +29,30 @@ export function fmtDateTime(ts: TimeInput): string {
     : "—";
 }
 
+/** True nếu mốc rơi đúng 00:00 giờ VN — dấu hiệu lịch CHỈ CÓ NGÀY (nguồn không
+ *  nhập giờ). Phòng khám không đặt lịch lúc nửa đêm nên coi 00:00 = "chưa có giờ". */
+export function isVnMidnight(ts: TimeInput): boolean {
+  const d = toDate(ts);
+  if (!d) return false;
+  return (
+    d.toLocaleTimeString("en-GB", {
+      timeZone: VN_TZ,
+      hour: "2-digit",
+      minute: "2-digit",
+    }) === "00:00"
+  );
+}
+
+/** Giờ VN, hoặc "Chưa có giờ" nếu lịch chỉ có ngày (00:00). */
+export function fmtTimeOrNone(ts: TimeInput): string {
+  return isVnMidnight(ts) ? "Chưa có giờ" : fmtTime(ts);
+}
+
+/** "dd/MM/yyyy HH:mm", hoặc chỉ "dd/MM/yyyy" nếu lịch chỉ có ngày (00:00). */
+export function fmtDateTimeOrDate(ts: TimeInput): string {
+  return isVnMidnight(ts) ? fmtDate(ts) : fmtDateTime(ts);
+}
+
 /** "HH:mm" in Vietnam time. */
 export function fmtTime(ts: TimeInput): string {
   const d = toDate(ts);

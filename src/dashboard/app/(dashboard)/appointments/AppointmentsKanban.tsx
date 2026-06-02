@@ -6,7 +6,7 @@
 
 import Link from "next/link";
 import AppointmentActions from "./AppointmentActions";
-import { fmtTime, fmtDate } from "../../../lib/datetime";
+import { fmtTimeOrNone, fmtDate } from "../../../lib/datetime";
 
 export interface KanbanRow {
   id: string;
@@ -102,7 +102,7 @@ function Card({
       <p className="mt-2 text-sm text-[#171717]">
         <span className="font-medium">
           {withDate ? `${fmtDate(a.slot_start)} · ` : ""}
-          {fmtTime(a.slot_start)}
+          {fmtTimeOrNone(a.slot_start)}
         </span>
         {a.service?.name ? ` · ${a.service.name}` : ""}
       </p>

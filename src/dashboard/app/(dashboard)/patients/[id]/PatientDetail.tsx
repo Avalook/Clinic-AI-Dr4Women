@@ -4,7 +4,7 @@
 import Link from "next/link";
 import StatusBadge from "../../StatusBadge";
 import { getSupabaseServer } from "../../../../lib/supabase-server";
-import { fmtDateTime } from "../../../../lib/datetime";
+import { fmtDateTimeOrDate } from "../../../../lib/datetime";
 
 interface PatientRow {
   clinic_patient_id: string;
@@ -144,7 +144,7 @@ export default async function PatientDetail({ id }: { id: string }) {
             >
               <div className="flex items-start justify-between gap-2">
                 <span className="font-mono text-xs text-[#4d4d4d]">
-                  {fmtDateTime(a.slot_start)}
+                  {fmtDateTimeOrDate(a.slot_start)}
                 </span>
                 <StatusBadge status={a.status} />
               </div>
@@ -183,7 +183,7 @@ export default async function PatientDetail({ id }: { id: string }) {
                   className="transition-colors duration-150 hover:bg-[#f9fafb]"
                 >
                   <td className="px-4 py-2.5 font-mono text-xs text-[#4d4d4d]">
-                    {fmtDateTime(a.slot_start)}
+                    {fmtDateTimeOrDate(a.slot_start)}
                   </td>
                   <td className="px-4 py-2.5 text-[#171717]">
                     {a.service?.name ?? "—"}
