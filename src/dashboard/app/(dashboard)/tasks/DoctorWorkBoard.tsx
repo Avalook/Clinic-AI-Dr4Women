@@ -78,7 +78,8 @@ export default function DoctorWorkBoard({
         </div>
       )}
 
-      <div className="overflow-hidden rounded-xl border border-[#e4e4e7] bg-white shadow-[0_1px_3px_rgba(0,0,0,0.06)]">
+      <div className="flex flex-col gap-4 lg:flex-row lg:items-start">
+      <div className="min-w-0 flex-1 overflow-hidden rounded-xl border border-[#e4e4e7] bg-white shadow-[0_1px_3px_rgba(0,0,0,0.06)]">
         <div className="grid grid-cols-[7rem_1fr] border-b border-[#e4e4e7] bg-[#fafafa] text-xs font-semibold uppercase tracking-wide text-[#71717a]">
           <div className="px-3 py-2">Ngày</div>
           <div className="border-l border-[#e4e4e7] px-3 py-2">
@@ -156,24 +157,17 @@ export default function DoctorWorkBoard({
         ))}
       </div>
 
-      {open && (
-        <div
-          className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/40 p-4"
-          onClick={() => setOpenId(null)}
-        >
-          <div
-            className="my-6 w-full max-w-3xl rounded-xl bg-white shadow-xl"
-            onClick={(e) => e.stopPropagation()}
-          >
+        {open && (
+          <aside className="w-full shrink-0 lg:sticky lg:top-4 lg:w-[440px]">
             <ClinicalRecordForm
               key={open.id}
               appt={open}
               staffId={staffId}
               onClose={() => setOpenId(null)}
             />
-          </div>
-        </div>
-      )}
+          </aside>
+        )}
+      </div>
     </>
   );
 }
