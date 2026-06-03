@@ -103,8 +103,8 @@ function AdminRow({ label, value }: { label: string; value?: string | null }) {
   );
 }
 
-function Section({ no, title, synced, children }: {
-  no: string; title: string; synced?: boolean; children: React.ReactNode;
+function Section({ no, title, synced, editorLabel = "bác sĩ điền", children }: {
+  no: string; title: string; synced?: boolean; editorLabel?: string; children: React.ReactNode;
 }) {
   return (
     <section className="border-t border-[#f4f4f5] pt-3">
@@ -114,7 +114,7 @@ function Section({ no, title, synced, children }: {
           "rounded px-1.5 py-0.5 text-[10px] font-medium " +
           (synced ? "bg-[#dcfce7] text-[#15803d]" : "bg-[#fef9c3] text-[#a16207]")
         }>
-          {synced ? "đồng bộ" : "bác sĩ điền"}
+          {synced ? "đồng bộ" : editorLabel}
         </span>
       </h4>
       {children}
@@ -322,7 +322,7 @@ export default function ClinicalRecordForm({
           </dl>
         </Section>
 
-        <Section no="" title="Sinh hiệu">
+        <Section no="" title="Sinh hiệu" editorLabel={vitalsOnly ? "lễ tân điền" : "bác sĩ điền"}>
           <div className="grid grid-cols-2 gap-2">
             {([
               ["mach", "Mạch (l/p)"], ["nhiet_do", "Nhiệt độ (°C)"],
