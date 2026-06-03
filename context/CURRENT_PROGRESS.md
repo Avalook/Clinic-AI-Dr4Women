@@ -574,3 +574,28 @@ Chuỗi nguyên nhân (gỡ từng lớp):
 ## === PHIÊN 01/06 (tiếp) — PAGINATION LIST BN + DOC TEST NỘI BỘ ===
 - **Pagination list bệnh nhân** (`PatientsList.tsx` + type ở `patients/page.tsx`): bỏ hard-cap `.limit(50)` (chỉ thấy 50/5.520 BN) → `.range(from, from+49)` + `count:exact`, **50 BN/trang**, thanh điều hướng "X–Y / total" + Trước/Sau + Trang N/M (tự disable ở đầu–cuối). Giữ từ khoá khi chuyển trang; "Tìm" mới / "Xoá" → về trang 1. Đếm theo **kết quả đã lọc**. 5.520 BN → 111 trang. Không cần migration. tsc=0, eslint=0, VERCEL=1 build OK.
 - **Doc test nội bộ** `docs/HUONG_DAN_TEST_DASHBOARD.md`: link + data thật + cảnh báo (không xóa được, đặt tên "TEST –"), luồng đăng nhập/role, kịch bản KB-A→F (tạo BN, đặt lịch BN có sẵn, BS xác nhận/từ chối, thông báo từ chối, phân quyền), giới hạn đã biết, mẫu báo lỗi. Còn placeholder kênh báo lỗi; mật khẩu phòng khám gửi team riêng (KHÔNG để trong file).
+
+## === PHIÊN 03/06 — DASHBOARD CSKH (2 board) + 7 CỘT ADMIN + LUỒNG BÁC SĨ ===
+> Branch feat/t-transform-01. Mọi commit tsc=0/eslint=0, đã push (mượn gh account `Avalook` lúc push vì `nguyencongtuyenlp` không có quyền vào repo Avalook, trả account về sau mỗi lần).
+
+### CSKH "Công việc của tôi" (/tasks) — 2 board
+- **Bảng 1 "Tình trạng lịch hẹn"** (ConfirmBoard): 2→**3 cột** Chờ xác nhận → Đã xác nhận (gồm CHECKED_IN) → **Đã khám xong** (COMPLETED), khớp board bác sĩ. (hướng A theo PM, "kx"=khám xong). + **chú thích ý nghĩa** 3 trạng thái dưới bảng (PM yêu cầu).
+- **Bảng 2 "Theo dõi tình trạng lịch hẹn"** (CskhActionBoard, MỚI): QUYẾT ĐỊNH cuối = lấy từ bảng **cskh_action** (PM "xem CSKH Action"), KHÔNG phải trạng thái lịch. Cột = 7 `Phân loại` (Đặt hẹn/Tư vấn/Trả XN/CSKH sau khám/Mổ&thủ thuật/Xử lí sự cố/Ghi chú) + "Khác". Thẻ = 1 thao tác CSKH. CHỈ ĐỌC + nhãn "🤖 sẽ tự ghi". LÝ DO read-only: log này về sau hệ tự ghi (Zalo/Pancake), làm ô nhập tay = đi ngược mục tiêu cắt-việc. (Đã gỡ TrackBoard outcome-board — sai nguồn.)
+
+### +7 cột HÀNH CHÍNH cho patient (migration 038 — ĐÃ APPLY tay 03/06)
+- `038_patient_admin_fields.sql`: ADD gender/ethnicity/nationality/occupation/patient_objection/address/guardian_name (NULLABLE) + CHECK gender Nam/Nữ. **User chạy SQL tay trên Supabase** (tôi KHÔNG tự áp prod — §3 cấm deploy tự động).
+- API /api/patients POST+PATCH + NewPatientForm: nhận/ghi 7 trường → ĐỒNG BỘ mục I (Hành chính) sang hồ sơ lâm sàng.
+- NỢ: popup sửa CSKH (ConfirmBoard) chưa thêm 7 trường (giờ migration đã áp → làm được).
+
+### Luồng BÁC SĨ (MỚI)
+- **roles.ts**: bác sĩ (DOCTOR/ULTRASOUND_DOCTOR) sidebar CHỈ Trang chủ + Công việc của tôi. Bỏ /appointments,/patients,/schedule khỏi bác sĩ. roleLanding bác sĩ → /tasks. QUYẾT ĐỊNH: confirm/decline gộp vào board mới (không mất); xem-list-BN + ca-trực bác sĩ không còn trên sidebar (đúng spec "2 nút").
+- **/tasks** branch theo role: bác sĩ → DoctorWorkBoard; CSKH/QL giữ board cũ.
+- **DoctorWorkBoard**: bảng 2 cột Ngày (Hôm nay/Ngày mai/…) × Thông tin BN (lịch của bác sĩ). Bấm BN → modal hồ sơ. + Xác nhận/Từ chối lịch của chính bác sĩ.
+- **ClinicalRecordForm** (TÓM TẮT KHÁM BỆNH I–VIII theo mẫu phòng khám gửi):
+  - I Hành chính ← patient; III/IV Tiền sử ← patient_medical_profile; V thai ← pregnancy; VI cận lâm sàng ← lab_result — tất cả **READ-ONLY** qua **/api/clinical-record** (MỚI). Data thật (visit ~5.6k, lab ~4.7k).
+  - Sinh hiệu, II, VII, VIII = bác sĩ điền (placeholder).
+- **🔒 LƯU hồ sơ HOÃN (Tầng 2)**: nút "Lưu" disable. LÝ DO: visit FINALIZED bị DB trigger khóa sửa (TT13/2011/TT-BYT) + lab GROUP_C cần duyệt — §3 cấm tự quyết safety gate.
+
+### NỢ / TIẾP THEO
+- **Tầng 2**: wiring LƯU hồ sơ (tôn trọng gate — chỉ sửa visit OPEN; FINALIZED → amend kèm lý do). Sinh hiệu chưa có bảng đích (cân nhắc soap_objective JSONB hay bảng vital).
+- Popup sửa CSKH + 7 trường admin.

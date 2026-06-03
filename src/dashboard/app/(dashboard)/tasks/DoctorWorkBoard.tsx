@@ -166,6 +166,7 @@ export default function DoctorWorkBoard({
             onClick={(e) => e.stopPropagation()}
           >
             <ClinicalRecordForm
+              key={open.id}
               appt={open}
               staffId={staffId}
               onClose={() => setOpenId(null)}
