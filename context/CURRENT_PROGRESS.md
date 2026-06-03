@@ -17,10 +17,11 @@
 - review_queue 220 dòng = 100% SAME_PHONE_DIFFERENT_NAME (phần lớn đặt hộ — LÀNH). Code KHÔNG có rule gỡ hậu tố "(huỷ)".
 - 🚩 TRIPWIRE BỊ VƯỢT: kế hoạch ghi "reject hàng trăm → DỪNG", thực tế 415 vẫn xuất+commit. CHƯA soi tay 415 dòng này.
 
-### B. SYSTEM_STATE_ACTUAL.md (hệ thống)
-- DB: 17/35 bảng (+mpi_merge_queue +patient_summary VIEW). D4 đủ 5/5. D7 Finance + D8 Inventory = 0 bảng.
-- Data BN THẬT CHƯA vào DB: patient=30 (demo), transform 5.728 còn ở file. NHỊP 2 LOAD CHƯA chạy.
-- Seed DỞ: service_type=1 (cần 15), staff=0 (file seed 29 tồn tại nhưng chưa apply — cần điều tra vì sao).
+### B. SYSTEM_STATE_ACTUAL.md (hệ thống) — ⚠️ KHỐI NÀY LÀ SNAPSHOT 25/5, ĐÃ STALE
+> Tình trạng thật 03/06 đã refresh trong [`context/SYSTEM_STATE_ACTUAL.md`](./SYSTEM_STATE_ACTUAL.md) §"TÓM TẮT THAY ĐỔI 25/5 → 03/06". Đọc file đó để lấy số mới. Mục dưới giữ lại để truy vết.
+- DB: 17/35 bảng (+mpi_merge_queue +patient_summary VIEW). D4 đủ 5/5. D7 Finance + D8 Inventory = 0 bảng. → **03/06: 23/35 canon, hết bảng Phase-1; D7/D8 vẫn 0.**
+- Data BN THẬT CHƯA vào DB: patient=30 (demo), transform 5.728 còn ở file. NHỊP 2 LOAD CHƯA chạy. → **03/06: ĐÃ LOAD — patient 5.524, appointment 9.177, visit/clinical 5.583, lab 4.724, prescription 14.300, cskh_action 31.179, service_log 15.075.**
+- Seed DỞ: service_type=1 (cần 15), staff=0 (file seed 29 tồn tại nhưng chưa apply — cần điều tra vì sao). → **03/06: service_type=14, staff=41 (mig 003/005 đã apply 29/5).**
 - Code: 4/5 sub-graph THẬT (scheduling, lab_triage, task_manager, pre_visit_brief). communication = stub. pre_visit_brief CHƯA nối orchestrator. 412 test/12 skip.
 - ⚠️ Voice-to-EMR = 0% (không có speech-to-text, chỉ có 3 cột DB chờ). Worklog cũ ghi sai — phải bỏ khỏi mọi danh sách DONE.
 - 3 nợ Phase-1: patient_contact_channel (THIẾU → chưa có zalo_user_id), booking_channel (TEXT trần không FK), patient_next_of_kin (chưa có, defer được).
@@ -48,10 +49,12 @@
    - LƯU Ý: Next.js 16 — convention khác bản cũ (middleware = proxy.ts), dặn Claude Code không dùng pattern Next 14/15.
 
 ## NỢ / VIỆC TỒN ĐỌNG (chưa làm, đừng quên)
-- Vá nền trước LOAD: patient_contact_channel + booking_channel + bảng prescription (rx 15.319 PARKED) + seed service_type 15 + apply staff 29. (Đã soạn Task Packet gộp A+B+C nhưng CHƯA chạy — Tuyền chuyển hướng sang dashboard trước.)
-- Soi tay 415 dòng reject + 3 BN full_name rỗng (vi phạm NOT NULL khi LOAD).
-- Khảo sát nội dung 2 file CSKH 31k + Dịch vụ 15k → quyết chúng map bảng nào (CSKH có zalo_user_id? Dịch vụ có giá tiền → invoice?). Treo con số "data lấp được 6-16/35 bảng".
-- Sửa worklog cũ: bỏ Voice-to-EMR khỏi danh sách DONE.
+- ~~Vá nền trước LOAD: patient_contact_channel + booking_channel + bảng prescription~~ → **XONG** (mig 026/027/028/031 apply, LOAD đủ data).
+- ~~Seed service_type 15 + apply staff 29~~ → **XONG** (service_type=14, staff=41).
+- ~~Khảo sát nội dung 2 file CSKH 31k + Dịch vụ 15k~~ → **PHẦN LỚN XONG**: 2 file đã LOAD vào `cskh_action` (31.179) + `service_log` (15.075). Còn câu hỏi mở: CSKH có cột `zalo_user_id` ở mức row không? Dịch vụ có giá tiền → có map được Invoice không? Chưa khảo cột chi tiết.
+- Soi tay 415 dòng reject + 3 BN full_name rỗng (vi phạm NOT NULL khi LOAD). **Trạng thái: chưa rõ — DB hiện 5.524 vs file 5.728 chênh 204, cần đối chiếu xem có lọt qua không.**
+- Backfill `schema_migrations` 14 row cho 021–032/034/038 (runner sót log — schema thật đã đúng).
+- Sửa worklog cũ: bỏ Voice-to-EMR khỏi danh sách DONE. **Trạng thái: SYSTEM_STATE_ACTUAL §3.3 đã ghi Voice-to-EMR=0%, danh sách DONE cũ không còn ghi nhầm.**
 
 ## ĐÃ GIAO PM
 - File "ClinicAI — Hiện trạng & Kế hoạch làm việc của DEV": kế hoạch 4 tuần có cờ 🟢🟡🔴.
@@ -626,3 +629,76 @@ Chuỗi nguyên nhân (gỡ từng lớp):
 
 ### COMMITS phiên này (feat/t-transform-01, đẩy repo **Avalook/Clinic-AI-Dr4Women** — mượn gh account Avalook lúc push)
 `fead191` Bảng2 theo dõi → `9460a7c` Bảng1 3 cột+chú thích → `41bd9fb` Bảng2=CSKH-Action → `21ed906` +7 cột admin (038) → `7d530b8` luồng bác sĩ → `7033a56` hồ sơ read đồng bộ → `ab44fa5` Tầng2 lưu+panel → `9afc615` III/IV editable → `555c4f7` trang chủ 4 khối → `ce1bc94` trang chủ 2 bảng → `2a6aa2e` fix bảng dài. **Tree clean, đã push hết.**
+
+---
+
+## CẬP NHẬT 03/06 — XÁC NHẬN DỮ LIỆU DASHBOARD LÀ THẬT + REFRESH SYSTEM_STATE_ACTUAL
+
+**Câu hỏi user:** "data dashboard giờ có phải thật không hay chỉ random?"
+
+**Khảo sát thật (Claude Code, 03/06):**
+- Grep toàn bộ `src/dashboard/{app,lib}` cho `Math.random|faker|mock|fake|dummy|seedData` → **0 hit**. Không có hardcode/random.
+- 30+ trang dashboard đều `supabase.from(<table>)` đọc thẳng DB qua RLS.
+- Home page ([home/page.tsx:88-123](src/dashboard/app/(dashboard)/home/page.tsx:88-123)): 6 query song song = `staff_task`, `patient` (today), `appointment` (today+week), `work_roster` (today+week).
+- **psql counts THẬT (03/06):** patient 5.524 · appointment 9.177 (COMPLETED 5168 / NO_SHOW 3145 / SCHEDULED 857 / CONFIRMED 5 / CHECKED_IN 1 / DOCTOR_DECLINED 1; range 1989-04-27 → 2027-04-09) · visit 5.583 · clinical_record 5.583 · lab_result 4.724 · prescription 14.300 · cskh_action 31.179 · service_log 15.075 · cskh_log 1.301 · patient_contact_channel 5.518 · booking_channel 7 · service_type 14 · staff 41 · work_roster 88. Bảng vẫn rỗng: patient_medical_profile, pregnancy, patient_next_of_kin, ultrasound_record, visit_amendment, staff_task, staff_capability, work_session, work_session_staff, mpi_merge_queue.
+
+**KẾT LUẬN:** dashboard = data thật từ DB. Bảng vẫn rỗng (vd staff_task=0 → ô "Việc đang chờ" = 0) là số thật, không phải UI bug.
+
+**SYSTEM_STATE_ACTUAL refresh (xem chi tiết file đó):**
+- Header date thêm "REFRESH 03/06"; thêm khối "TÓM TẮT THAY ĐỔI 25/5 → 03/06" trên cùng.
+- §1.1: 19 BASE TABLE → **27** (26 domain + schema_migrations).
+- §1.2: 17/35 canon → **23/35 canon** (D1/D2/D3/D4 đủ 5/5; D5 còn 2; D7/D8/KB của D9 chưa).
+- §1.4 row counts: chuyển sang số 03/06.
+- §1.5 LOAD: từ "wet sync đang chạy nền" → "ĐÃ XONG"; ghi chênh 204 row file vs DB cần khảo.
+- §1.6 (MỚI): giải thích gap `schema_migrations` 24 row vs files tới 038 — runner ghi log sót, schema THẬT đúng.
+- §2.1: 3 nợ Phase-1 (PatientContactChannel/BookingChannel/PatientNextOfKin) → **GIẢI CẢ 3**.
+- §2.2: Prescription PARKED → **GIẢI** (mig 031 + 14.300 row).
+- §ĐỒNG BỘ PLANNER 5 dòng: viết lại theo state 03/06.
+
+**Sửa khối "KHẢO SÁT THẬT 25/5" trong file này:** đánh dấu §B stale + chú thích inline số 03/06 (giữ nguyên dòng cũ để truy vết, KHÔNG xoá).
+
+**Sửa khối "NỢ / TỒN ĐỌNG":** strike-through các mục đã làm xong (LOAD/seed/2 file CSKH+Dịch vụ); thêm 1 nợ mới = backfill `schema_migrations` 14 row.
+
+**KHÔNG đổi:** Voice-to-EMR vẫn 0%; communication stub; pre_visit_brief chưa nối orchestrator; các quyết định kiến trúc Phase-1.
+
+**NỢ phát hiện trong phiên này:**
+- Backfill `schema_migrations` cho 021–032 + 034 + 038 (idempotency runner).
+- Chỉ 1/5524 patient có ĐỦ DOB+gender (5.523 skeleton) — nếu form bắt buộc cần xử.
+- DB 5.524 vs file transform 5.728 chênh 204 → soi xem rơi đâu.
+- Lab=4.724 trong khi dry-run 29/5 ra 0 → wet sync sau extract từ nguồn khác, cần khảo lại path.
+- `cskh_action` có cột `zalo_user_id` ở row không? `service_log` có giá tiền → map Invoice được không? — chưa khảo cột chi tiết 2 file đã LOAD.
+
+**Tree state:** working tree clean trước update; lần update này CHỈ chạm 2 file context (không động code/test/migration).
+
+---
+
+## CẬP NHẬT 03/06 (tiếp) — UI DASHBOARD: 2 bảng theo form Excel + màu hồng + tách hồ sơ KH/BN
+
+**Yêu cầu user (6 ý):** (1) xóa dòng thừa "Chưa điền lịch…"; (2) tô màu hồng nhẹ MỌI bảng (như thẻ thông tin BN); (3) bảng "Lịch hẹn khám" theo đúng file `Check đặt lịch (1).xlsx`; (4) bảng "Lịch làm việc" theo đúng `BẢNG LÀM VIỆC 05.2026 (1).xlsx` (đủ Tầng 1/2/4); (5) thêm field thiếu (dân tộc…) cho tóm tắt bác sĩ + form thêm BN; (6) sau khi tạo BN → trang "Hồ sơ khách hàng" hiện ĐỦ info vừa nhập, tách khỏi "hồ sơ bệnh nhân" (clinical) — đang nhầm.
+
+**Đã khảo sát 2 file Excel (openpyxl):**
+- `Check đặt lịch`: NGÀY là cột-nhóm trên cùng; trong ngày GOM THEO BÁC SĨ; mỗi bác sĩ 4 cột `Khung giờ · Số khám · Thông tin · Phân loại khám` (Tái khám/Khám lần đầu).
+- `BẢNG LÀM VIỆC` (sheet LLV 06-2026): hàng = ngày; cột = trạm GOM THEO TẦNG: (Lịch khám) · Thủ thuật ngoài giờ · HSS · **Tầng 1 (ko SÂ)** [Lễ tân/Lấy máu/Phụ BS/TLYK] · **Tầng 2 (Khám Sản E10+Mor)** [Phụ BS+đánh SÂ] · **Tầng 4** [Phòng ngoài+mor MÁY730] · **Tầng 4 phòng trong** [Máy trong E10+VLTL / Máy ngoài].
+
+**Đã làm (12 file dashboard, build PASS):**
+1. **NewPatientForm.tsx**: gỡ span "Chưa điền lịch — chỉ tạo hồ sơ…".
+2. **form-ui.ts**: thêm token bảng hồng dùng chung (TBL_WRAP/TBL_HEAD/TBL_ROW/TBL_DIV) — nền `#fce7f3`, viền `#f3cfe0`, hover `#fdf2f8`.
+3. **WeeklyAppointmentsTable.tsx**: viết lại — mỗi ngày 1 khối, GOM THEO BÁC SĨ (cụm "Chưa phân bác sĩ" để cuối), 4 cột đúng Excel; "Phân loại khám" = badge Tái khám/Khám lần đầu.
+4. **home/page.tsx**: thêm `clinic_patient_id` vào join; query phụ suy "Phân loại khám" = nếu BN có lịch hẹn SỚM HƠN → Tái khám, lịch sớm nhất → Khám lần đầu (KHÔNG bịa; DB chưa có cột phân loại).
+5. **roster.ts**: thêm `floor` cho mỗi STATION (nhãn Tầng theo Excel) + `STATION_SEGMENTS` (gom cột cùng tầng) + `FLOOR_COLOR`. GIỮ `group`/`GROUP_COLOR` để không phá schedule kanban + chip trang chủ.
+6. **WorkRosterTable.tsx**: viết lại — header 2 hàng (hàng trên = tên TẦNG gộp cột, hàng dưới = tên trạm), cột "Lịch khám" đứng riêng, sticky cột Ngày, zebra hồng.
+7. **PatientDetail.tsx** (trang sau khi tạo BN): mở rộng select + hiển thị ĐỦ mục I Hành chính (giới tính/dân tộc/quốc tịch/nghề nghiệp/đối tượng/người bảo lãnh/SĐT người nhà/địa chỉ). Bảng lịch hẹn tô hồng. CCCD vẫn KHÔNG select (D-identity).
+8. **patients/[id]/page.tsx**: đổi tiêu đề "Hồ sơ bệnh nhân" → **"Hồ sơ khách hàng"** + chú thích: hồ sơ KHÁM BỆNH (tóm tắt) do bác sĩ xem ở "Công việc của tôi". → giải quyết "đang nhầm KH vs BN".
+9. **Màu hồng** thêm cho: PatientsList, PatientHistory (bảng lab), settings, work-sessions, ConfirmBoard, CskhActionBoard, DoctorWorkBoard (header), AppointmentsKanban, WeekKanban (schedule).
+
+**Lưu ý data thật (không bịa):** appointment tuần này `queue_number` NULL 100%, `doctor_id` chỉ 13/93, giờ phần lớn 00:00 → cột Số khám/Bác sĩ hiện "—", giờ hiện "Chưa có giờ". Đúng hiện trạng DB, không phải lỗi UI.
+
+**ClinicalRecordForm (tóm tắt bác sĩ) + NewPatientForm:** ĐÃ có sẵn đủ field từ phiên trước (mục I–VIII khớp ảnh TÓM TẮT KHÁM BỆNH). "Field thiếu" thực ra là ở trang Hồ sơ khách hàng (đã sửa ở mục 7).
+
+**Verify:** `npx tsc --noEmit` ✅ · `eslint` ✅ · `next build` (Next 16.2.6 Turbopack) ✅ build cả 25 route. Chưa chạy thử UI có đăng nhập (route sau auth gate) — chờ user xem trực quan.
+
+**NỢ / chờ user:**
+- Bảng lịch hẹn hiện vẫn NGÀY-DỌC (mỗi ngày 1 khối, gom theo bác sĩ) chứ KHÔNG ngày-ngang như Excel — chọn cách này cho hợp web dọc; nếu user muốn đúng ngày-ngang (cuộn ngang) thì đổi tiếp.
+- 3 cột trạm trống data (SB_CHIEU/THU_THUAT_NGOAI_GIO/HSS) vẫn hiện cột rỗng — giữ cho khớp form, có data sẽ tự đầy.
+
+**COMMITS:** chưa commit (chờ lệnh). 12 file dashboard + 2 file context modified.
