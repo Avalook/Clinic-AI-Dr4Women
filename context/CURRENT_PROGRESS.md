@@ -596,6 +596,33 @@ Chuỗi nguyên nhân (gỡ từng lớp):
   - Sinh hiệu, II, VII, VIII = bác sĩ điền (placeholder).
 - **🔒 LƯU hồ sơ HOÃN (Tầng 2)**: nút "Lưu" disable. LÝ DO: visit FINALIZED bị DB trigger khóa sửa (TT13/2011/TT-BYT) + lab GROUP_C cần duyệt — §3 cấm tự quyết safety gate.
 
-### NỢ / TIẾP THEO
-- **Tầng 2**: wiring LƯU hồ sơ (tôn trọng gate — chỉ sửa visit OPEN; FINALIZED → amend kèm lý do). Sinh hiệu chưa có bảng đích (cân nhắc soap_objective JSONB hay bảng vital).
-- Popup sửa CSKH + 7 trường admin.
+### (tiếp 03/06) — HOÀN THIỆN HỒ SƠ LÂM SÀNG + TRANG CHỦ 2 BẢNG + FIX BẢNG DÀI
+
+**Hồ sơ lâm sàng — đọc đồng bộ + GHI nháp (Tầng 2 ĐÃ XONG):**
+- **/api/clinical-record** (MỚI): `GET ?patientId=&appointmentId=` trả profile (patient_medical_profile) + pregnancy + labs (lab_result) + bản NHÁP (visit gắn appointment + clinical_record). `POST` = LƯU NHÁP: tìm/tạo visit `IN_PROGRESS` (KHÔNG tự chốt) + upsert clinical_record (soap_*) + upsert patient_medical_profile; visit FINALIZED → **409** (luật cấm sửa). Ghi bằng service-role; chỉ `isDoctorRole`.
+- **ClinicalRecordForm**:
+  - I Hành chính (read) · V thai (read pregnancy) · **VI Cận lâm sàng GIỮ read-only** (máy XN là nguồn, bác sĩ KHÔNG gõ số).
+  - **III Dị ứng + IV Tiền sử** (nhóm máu/mạn tính/PT/thuốc/gia đình/ghi chú) → BÁC SĨ SỬA, lưu `patient_medical_profile` (patient-level, dùng cho mọi lần khám sau). LÝ DO mở: tiền sử là thông tin người khai + bác sĩ xác nhận/cập nhật, không phải kết quả máy.
+  - Sinh hiệu + II Lý do + V bệnh sử/khám thai + VII Chẩn đoán + VIII Lời dặn → lưu `clinical_record` (JSONB: soap_objective.vitals/kham_thai · soap_subjective.benh_su · chief_complaint · soap_assessment.chan_doan · soap_plan.loi_dan). Prefill khi mở lại.
+  - Khóa toàn form nếu visit FINALIZED.
+- **DoctorWorkBoard**: hồ sơ hiện ở **PANEL bên phải** board (đổi từ modal → panel, theo yêu cầu user).
+
+**Trang chủ (DÙNG CHUNG mọi vai trò):**
+- Giữ ĐÚNG **4 khối** (3 ô số + Ca trực) — bỏ khối "2 mục" (Lịch hẹn/Lịch làm việc dạng link) cũ.
+- Thêm **2 bảng tuần này** dưới Ca trực, form theo file Excel khách gửi (`Data khách gửi/Check đặt lịch (1).xlsx`, `BẢNG LÀM VIỆC 05.2026 (1).xlsx`):
+  - **WeeklyAppointmentsTable**: gom theo ngày, cột Khung giờ/Số khám/Bác sĩ/Thông tin BN/Dịch vụ. ⚠️ File gốc để NGÀY=cột (rất rộng); tôi render NGÀY=hàng cho web — KHÁC bố cục, **chờ user chốt** ngày-dọc hay ngày-ngang.
+  - **WorkRosterTable**: lưới Ngày×Trạm (STATIONS từ lib/roster) từ `work_roster` (where week_start = tuần này) — ĐÚNG form file. (Roster có thể thưa/rỗng → ô "—".)
+
+**Fix UX bảng dài:** 5 bảng (2 trang chủ + ConfirmBoard/CskhActionBoard cột + DoctorWorkBoard) thêm `max-h + overflow scroll` → cuộn TRONG khung, trang không dài lê thê.
+
+### NỢ / TIẾP THEO (cập nhật 03/06 cuối phiên)
+- ~~Tầng 2 wiring LƯU hồ sơ~~ → **XONG** (lưu nháp, tôn trọng gate FINALIZED). ~~Sinh hiệu bảng đích~~ → lưu `clinical_record.soap_objective` JSONB.
+- **Nút "Chốt hồ sơ" (FINALIZE)** CHƯA có (cố ý — chốt = khóa vĩnh viễn theo TT13, cần quyết riêng). Cơ chế **amend** (sửa hồ sơ đã chốt + lý do, ghi visit_amendment) cũng chưa.
+- **Popup sửa CSKH (ConfirmBoard)** + 7 trường admin — chưa làm (migration 038 đã áp → làm được).
+- **"Phân loại khám" (Tái khám/Khám lần đầu)** ở bảng lịch hẹn — DB chưa lưu, tạm dùng Dịch vụ. Cần thêm field hoặc suy từ lịch sử visit.
+- **Bảng lịch hẹn: ngày-dọc (giờ) vs ngày-ngang đúng Excel** — chờ user chốt.
+- **3 ô số trang chủ** đang đếm TOÀN phòng khám — chưa lọc theo vai trò (bác sĩ chỉ thấy việc/lịch của mình…).
+- **Cap scroll** chưa áp cho /appointments (kanban QL), /patients (đã phân trang 50), /schedule — chờ user.
+
+### COMMITS phiên này (feat/t-transform-01, đẩy repo **Avalook/Clinic-AI-Dr4Women** — mượn gh account Avalook lúc push)
+`fead191` Bảng2 theo dõi → `9460a7c` Bảng1 3 cột+chú thích → `41bd9fb` Bảng2=CSKH-Action → `21ed906` +7 cột admin (038) → `7d530b8` luồng bác sĩ → `7033a56` hồ sơ read đồng bộ → `ab44fa5` Tầng2 lưu+panel → `9afc615` III/IV editable → `555c4f7` trang chủ 4 khối → `ce1bc94` trang chủ 2 bảng → `2a6aa2e` fix bảng dài. **Tree clean, đã push hết.**
