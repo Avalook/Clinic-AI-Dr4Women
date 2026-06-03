@@ -143,9 +143,9 @@ export default async function SettingsPage() {
       </ul>
 
       {/* Desktop: table (≥md). */}
-      <div className="hidden overflow-x-auto rounded-lg border border-[#e4e4e7] bg-white shadow-[0_1px_3px_rgba(0,0,0,0.08)] md:block">
-        <table className="min-w-full divide-y divide-[#e4e4e7] text-sm">
-          <thead className="bg-[#fafafa] text-left text-[11px] uppercase tracking-wide text-[#71717a]">
+      <div className="hidden overflow-x-auto rounded-lg border border-[#f3cfe0] bg-white shadow-[0_1px_3px_rgba(236,72,153,0.08)] md:block">
+        <table className="min-w-full divide-y divide-[#f6e0ec] text-sm">
+          <thead className="bg-[#fce7f3] text-left text-[11px] font-semibold uppercase tracking-wide text-[#9d2463]">
             <tr>
               <th className={TH}>Họ tên</th>
               <th className={TH}>Vai trò</th>
@@ -155,11 +155,11 @@ export default async function SettingsPage() {
               <th className={TH}>Thao tác</th>
             </tr>
           </thead>
-          <tbody className="divide-y divide-[#f4f4f5]">
+          <tbody className="divide-y divide-[#f6e0ec]">
             {rows.map((r) => (
               <tr
                 key={r.id}
-                className="transition-colors duration-150 hover:bg-[#f9fafb]"
+                className="transition-colors duration-150 hover:bg-[#fdf2f8]"
               >
                 <td className={`${TD} text-[#171717]`}>
                   {r.full_name}

@@ -1,4 +1,6 @@
-// Server component: one patient's admin info + their appointment history.
+// Server component: HỒ SƠ KHÁCH HÀNG — thông tin hành chính (mục I) ĐẦY ĐỦ như
+// CSKH vừa nhập + lịch sử lịch hẹn. (Khác "Hồ sơ bệnh nhân/TÓM TẮT KHÁM BỆNH" của
+// bác sĩ — cái đó ở board "Công việc của tôi".)
 // SECURITY: national_id_number (CCCD) is NOT selected — D-identity gate.
 
 import Link from "next/link";
@@ -11,7 +13,15 @@ interface PatientRow {
   patient_code: string;
   full_name: string;
   date_of_birth: string | null;
+  gender: string | null;
   phone_primary: string | null;
+  phone_secondary: string | null;
+  ethnicity: string | null;
+  nationality: string | null;
+  occupation: string | null;
+  patient_objection: string | null;
+  address: string | null;
+  guardian_name: string | null;
   created_at: string;
 }
 
@@ -25,7 +35,9 @@ interface AppointmentRow {
 }
 
 const PATIENT_COLUMNS =
-  "clinic_patient_id, patient_code, full_name, date_of_birth, phone_primary, created_at";
+  "clinic_patient_id, patient_code, full_name, date_of_birth, gender, " +
+  "phone_primary, phone_secondary, ethnicity, nationality, occupation, " +
+  "patient_objection, address, guardian_name, created_at";
 
 // doctor is a LEFT JOIN (doctor_id is nullable).
 const APPOINTMENT_COLUMNS = `
@@ -122,11 +134,24 @@ export default async function PatientDetail({ id }: { id: string }) {
         <dl className="grid grid-cols-2 gap-x-4 gap-y-4 p-4 sm:grid-cols-4 sm:gap-x-6 sm:p-6">
           <Field label="Ngày sinh" value={patient.date_of_birth ?? "—"} />
           <Field label="Tuổi" value={ageFromDob(patient.date_of_birth)} />
+          <Field label="Giới tính" value={patient.gender ?? "—"} />
           <Field label="SĐT" value={patient.phone_primary ?? "—"} />
+          <Field label="SĐT người nhà" value={patient.phone_secondary ?? "—"} />
+          <Field label="Dân tộc" value={patient.ethnicity ?? "—"} />
+          <Field label="Quốc tịch" value={patient.nationality ?? "—"} />
+          <Field label="Nghề nghiệp" value={patient.occupation ?? "—"} />
+          <Field label="Đối tượng" value={patient.patient_objection ?? "—"} />
+          <Field label="Người bảo lãnh" value={patient.guardian_name ?? "—"} />
           <Field
             label="Số lịch hẹn"
             value={appointments.length >= 20 ? "20+" : String(appointments.length)}
           />
+          <div className="col-span-2 sm:col-span-4">
+            <dt className="text-[12px] text-[#888888]">Địa chỉ</dt>
+            <dd className="mt-0.5 text-[14px] text-[#171717]">
+              {patient.address ?? "—"}
+            </dd>
+          </div>
         </dl>
       </section>
 
@@ -165,22 +190,22 @@ export default async function PatientDetail({ id }: { id: string }) {
         </div>
 
         {/* Desktop: table (≥md). */}
-        <div className="hidden overflow-x-auto rounded-lg border border-[#e4e4e7] bg-white shadow-[0_1px_3px_rgba(0,0,0,0.08)] md:block">
-          <table className="min-w-full divide-y divide-[#e4e4e7] text-sm">
-            <thead className="bg-[#fafafa] text-left text-[11px] uppercase tracking-wide text-[#71717a]">
+        <div className="hidden overflow-x-auto rounded-lg border border-[#f3cfe0] bg-white shadow-[0_1px_3px_rgba(236,72,153,0.08)] md:block">
+          <table className="min-w-full divide-y divide-[#f6e0ec] text-sm">
+            <thead className="bg-[#fce7f3] text-left text-[11px] uppercase tracking-wide text-[#9d2463]">
               <tr>
-                <th className="px-4 py-2.5 font-medium">Ngày giờ</th>
-                <th className="px-4 py-2.5 font-medium">Dịch vụ</th>
-                <th className="px-4 py-2.5 font-medium">Bác sĩ</th>
-                <th className="px-4 py-2.5 font-medium">Trạng thái</th>
-                <th className="px-4 py-2.5 font-medium">Kênh đặt</th>
+                <th className="px-4 py-2.5 font-semibold">Ngày giờ</th>
+                <th className="px-4 py-2.5 font-semibold">Dịch vụ</th>
+                <th className="px-4 py-2.5 font-semibold">Bác sĩ</th>
+                <th className="px-4 py-2.5 font-semibold">Trạng thái</th>
+                <th className="px-4 py-2.5 font-semibold">Kênh đặt</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-[#f4f4f5]">
+            <tbody className="divide-y divide-[#f6e0ec]">
               {appointments.map((a) => (
                 <tr
                   key={a.id}
-                  className="transition-colors duration-150 hover:bg-[#f9fafb]"
+                  className="transition-colors duration-150 hover:bg-[#fdf2f8]"
                 >
                   <td className="px-4 py-2.5 font-mono text-xs text-[#4d4d4d]">
                     {fmtDateTimeOrDate(a.slot_start)}

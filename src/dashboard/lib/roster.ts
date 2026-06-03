@@ -7,26 +7,55 @@ export const ROSTER_STAFF_COOKIE = "roster_staff_id";
 
 export interface Station {
   key: string;
-  label: string;
-  short: string;
-  group: string;
+  label: string; // tên đầy đủ (tooltip / editor)
+  short: string; // nhãn cột ngắn trên bảng
+  group: string; // nhóm MÀU (giữ cho schedule kanban + chip trang chủ)
+  floor: string; // nhãn TẦNG để gom header bảng "Lịch làm việc" (đúng file Excel)
 }
 
-// Thứ tự cột = thứ tự hiển thị trên bảng (giống Sheet: Lịch khám → các trạm).
+// Thứ tự cột = thứ tự cột trong file "BẢNG LÀM VIỆC" (sheet LLV): Lịch khám →
+// Thủ thuật ngoài giờ → HSS → Tầng 1 → Tầng 2 → Tầng 4 → Tầng 4 phòng trong.
+// `floor` rỗng = cột đứng riêng (Lịch khám), không thuộc tầng nào.
 export const STATIONS: Station[] = [
-  { key: "LICH_KHAM", label: "Lịch khám (Bác sĩ)", short: "Bác sĩ khám", group: "Bác sĩ" },
-  { key: "SB_CHIEU", label: "SB - Chiều", short: "SB chiều", group: "Ngoài giờ" },
-  { key: "THU_THUAT_NGOAI_GIO", label: "Thủ thuật ngoài giờ", short: "Thủ thuật NG", group: "Ngoài giờ" },
-  { key: "HSS_THU_THUAT", label: "HSS + Thủ thuật trong giờ", short: "HSS/Thủ thuật", group: "Ngoài giờ" },
-  { key: "LE_TAN", label: "Lễ tân (Tiếp đón + thu ngân)", short: "Lễ tân", group: "Tầng 1" },
-  { key: "LAY_MAU", label: "Lấy máu", short: "Lấy máu", group: "Tầng 1" },
-  { key: "PHU_BS_KHAM", label: "Phụ BS (khám + thuốc) / Chạy ngoài", short: "Phụ BS (T1)", group: "Tầng 1" },
-  { key: "TLYK", label: "TLYK (Đánh máy + Phụ khám)", short: "TLYK", group: "Tầng 1" },
-  { key: "PHU_BS_SA", label: "Phụ BS (khám + thuốc) + đánh SA", short: "Phụ BS/SA (T2)", group: "Tầng 2" },
-  { key: "PHONG_NGOAI_MOR", label: "Phòng ngoài + Phòng mor", short: "Phòng mổ/ngoài", group: "Tầng 2" },
-  { key: "MAY_TRONG", label: "Máy trong E10 + VLTL/thủ thuật", short: "Máy trong", group: "Tầng 4" },
-  { key: "MAY_NGOAI", label: "Máy ngoài", short: "Máy ngoài", group: "Tầng 4" },
+  { key: "LICH_KHAM", label: "Lịch khám (Bác sĩ)", short: "Lịch khám", group: "Bác sĩ", floor: "" },
+  { key: "SB_CHIEU", label: "SB - Chiều", short: "SB - Chiều", group: "Ngoài giờ", floor: "Thủ thuật ngoài giờ" },
+  { key: "THU_THUAT_NGOAI_GIO", label: "Thủ thuật ngoài giờ", short: "Thủ thuật NG", group: "Ngoài giờ", floor: "Thủ thuật ngoài giờ" },
+  { key: "HSS_THU_THUAT", label: "HSS + Thủ thuật trong giờ", short: "HSS / Thủ thuật", group: "Ngoài giờ", floor: "HSS + Thủ thuật trong giờ" },
+  { key: "LE_TAN", label: "Lễ tân (Tiếp đón + thu ngân)", short: "Lễ tân", group: "Tầng 1", floor: "Tầng 1 (ko SÂ)" },
+  { key: "LAY_MAU", label: "Lấy máu", short: "Lấy máu", group: "Tầng 1", floor: "Tầng 1 (ko SÂ)" },
+  { key: "PHU_BS_KHAM", label: "Phụ BS (khám + thuốc) / Chạy ngoài", short: "Phụ BS / Chạy ngoài", group: "Tầng 1", floor: "Tầng 1 (ko SÂ)" },
+  { key: "TLYK", label: "TLYK (Đánh máy + Phụ khám)", short: "TLYK", group: "Tầng 1", floor: "Tầng 1 (ko SÂ)" },
+  { key: "PHU_BS_SA", label: "Phụ BS (khám + thuốc) + đánh SÂ", short: "Phụ BS + đánh SÂ", group: "Tầng 2", floor: "Tầng 2 · Khám Sản E10 + Mor" },
+  { key: "PHONG_NGOAI_MOR", label: "Phòng ngoài + Phòng mor (MÁY 730)", short: "Phòng ngoài + mor", group: "Tầng 2", floor: "Tầng 4" },
+  { key: "MAY_TRONG", label: "Máy trong E10 + VLTL/thủ thuật", short: "Máy trong E10", group: "Tầng 4", floor: "Tầng 4 phòng trong" },
+  { key: "MAY_NGOAI", label: "Máy ngoài (N/A)", short: "Máy ngoài", group: "Tầng 4", floor: "Tầng 4 phòng trong" },
 ];
+
+// Gom STATIONS thành các đoạn cùng TẦNG (giữ thứ tự) để dựng header 2 hàng:
+// hàng trên = tên tầng (gộp cột), hàng dưới = tên trạm.
+export interface FloorSegment {
+  floor: string;
+  stations: Station[];
+}
+export const STATION_SEGMENTS: FloorSegment[] = STATIONS.reduce<FloorSegment[]>(
+  (segs, s) => {
+    const last = segs[segs.length - 1];
+    if (last && last.floor === s.floor) last.stations.push(s);
+    else segs.push({ floor: s.floor, stations: [s] });
+    return segs;
+  },
+  [],
+);
+
+// Màu nhấn theo TẦNG (viền trên header tầng cho dễ phân biệt khối).
+export const FLOOR_COLOR: Record<string, string> = {
+  "Thủ thuật ngoài giờ": "#7c3aed",
+  "HSS + Thủ thuật trong giờ": "#7c3aed",
+  "Tầng 1 (ko SÂ)": "#2563eb",
+  "Tầng 2 · Khám Sản E10 + Mor": "#16a34a",
+  "Tầng 4": "#d97706",
+  "Tầng 4 phòng trong": "#db2777",
+};
 
 export const STATION_LABEL: Record<string, string> = Object.fromEntries(
   STATIONS.map((s) => [s.key, s.label]),

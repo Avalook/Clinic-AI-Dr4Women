@@ -77,23 +77,23 @@ export default async function WorkSessionsPage() {
       </ul>
 
       {/* Desktop: table (≥md). */}
-      <div className="hidden overflow-x-auto rounded-lg border border-[#e4e4e7] bg-white shadow-[0_1px_3px_rgba(0,0,0,0.08)] md:block">
-        <table className="min-w-full divide-y divide-[#e4e4e7] text-sm">
-          <thead className="bg-[#fafafa] text-left text-[11px] uppercase tracking-wide text-[#71717a]">
+      <div className="hidden overflow-x-auto rounded-lg border border-[#f3cfe0] bg-white shadow-[0_1px_3px_rgba(236,72,153,0.08)] md:block">
+        <table className="min-w-full divide-y divide-[#f6e0ec] text-sm">
+          <thead className="bg-[#fce7f3] text-left text-[11px] font-semibold uppercase tracking-wide text-[#9d2463]">
             <tr>
-              <th className="px-4 py-2.5 font-medium">Ngày</th>
-              <th className="px-4 py-2.5 font-medium">Session</th>
-              <th className="px-4 py-2.5 font-medium">Giờ</th>
-              <th className="px-4 py-2.5 font-medium">Location</th>
-              <th className="px-4 py-2.5 font-medium">Số staff</th>
-              <th className="px-4 py-2.5 font-medium">Max BN</th>
+              <th className="px-4 py-2.5 font-semibold">Ngày</th>
+              <th className="px-4 py-2.5 font-semibold">Session</th>
+              <th className="px-4 py-2.5 font-semibold">Giờ</th>
+              <th className="px-4 py-2.5 font-semibold">Location</th>
+              <th className="px-4 py-2.5 font-semibold">Số staff</th>
+              <th className="px-4 py-2.5 font-semibold">Max BN</th>
             </tr>
           </thead>
-          <tbody className="divide-y divide-[#f4f4f5]">
+          <tbody className="divide-y divide-[#f6e0ec]">
             {(data as WorkSessionRow[] | null)?.map((s) => (
               <tr
                 key={s.id}
-                className="transition-colors duration-150 hover:bg-[#f9fafb]"
+                className="transition-colors duration-150 hover:bg-[#fdf2f8]"
               >
                 <td className="px-4 py-2.5 font-mono text-xs text-[#4d4d4d]">
                   {s.session_date}

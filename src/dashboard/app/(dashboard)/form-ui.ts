@@ -24,6 +24,18 @@ export const BTN_GHOST =
 export const CARD =
   "rounded-xl border border-[#e4e4e7] bg-white p-5 shadow-[0_1px_3px_rgba(0,0,0,0.06)] sm:p-6";
 
+// ===== Bảng — tông hồng nhẹ dùng CHUNG cho mọi bảng trong dashboard =====
+// (khớp gradient thẻ thông tin BN: nền hồng #fdf2f8, viền #f9d9e8, header #fce7f3).
+// TBL_WRAP: khung ngoài bảng · TBL_HEAD: hàng tiêu đề · TBL_ROW: hàng cuộn (zebra hồng)
+// · TBL_DIV: đường kẻ ngang giữa các hàng.
+export const TBL_WRAP =
+  "overflow-hidden rounded-xl border border-[#f3cfe0] bg-white shadow-[0_1px_3px_rgba(236,72,153,0.08)]";
+export const TBL_HEAD =
+  "bg-[#fce7f3] text-[11px] font-semibold uppercase tracking-wide text-[#9d2463]";
+export const TBL_ROW = "transition-colors hover:bg-[#fdf2f8]";
+export const TBL_ROW_ALT = "bg-white even:bg-[#fdf5f9]";
+export const TBL_DIV = "divide-y divide-[#f6e0ec]";
+
 // Booking option lists (single source of truth).
 export const CHANNELS = [
   { id: "WALK_IN", label: "Khách tới trực tiếp" },

@@ -463,11 +463,6 @@ export default function NewPatientForm({
         <Link href="/patients" className={BTN_GHOST + " text-center"}>
           Huỷ
         </Link>
-        {!wantsAppointment && (
-          <span className="text-xs text-[#888888]">
-            Chưa điền lịch — chỉ tạo hồ sơ, đặt lịch sau ở trang hồ sơ.
-          </span>
-        )}
       </div>
     </div>
   );

@@ -56,7 +56,7 @@ export default function WeekKanban({
                 "mb-2 rounded-lg px-3 py-2 text-center " +
                 (isToday
                   ? "bg-[#ec4899] text-white"
-                  : "bg-[#f4f4f5] text-[#52525b]")
+                  : "bg-[#fce7f3] text-[#9d2463]")
               }
             >
               <div className="text-xs font-semibold uppercase tracking-wide">

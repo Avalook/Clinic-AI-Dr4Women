@@ -320,8 +320,8 @@ export default async function PatientHistory({ id }: { id: string }) {
 
             {/* Desktop: table (≥md). */}
             <div className={`hidden overflow-x-auto md:block ${CARD}`}>
-              <table className="min-w-full divide-y divide-[#e4e4e7] text-sm">
-              <thead className="bg-[#fafafa] text-left text-[11px] uppercase tracking-wide text-[#71717a]">
+              <table className="min-w-full divide-y divide-[#f6e0ec] text-sm">
+              <thead className="bg-[#fce7f3] text-left text-[11px] font-semibold uppercase tracking-wide text-[#9d2463]">
                 <tr>
                   <th className={TH}>Ngày</th>
                   <th className={TH}>Xét nghiệm</th>
@@ -330,9 +330,9 @@ export default async function PatientHistory({ id }: { id: string }) {
                   <th className={TH}>Phân nhóm</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-[#f4f4f5]">
+              <tbody className="divide-y divide-[#f6e0ec]">
                 {labs.map((l) => (
-                  <tr key={l.lab_result_id} className="hover:bg-[#f9fafb]">
+                  <tr key={l.lab_result_id} className="hover:bg-[#fdf2f8]">
                     <td className={`${TD} font-mono text-xs text-[#4d4d4d]`}>
                       {fmtDate(l.result_received_at)}
                     </td>

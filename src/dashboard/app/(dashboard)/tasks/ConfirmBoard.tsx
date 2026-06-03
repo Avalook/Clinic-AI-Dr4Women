@@ -140,13 +140,13 @@ export default function ConfirmBoard({
   return (
     <div className="flex flex-col gap-4 lg:flex-row lg:items-start">
       {/* MỘT bảng — các cột trạng thái chung trong 1 khung */}
-      <div className="min-w-0 flex-1 overflow-hidden rounded-xl border border-[#e4e4e7] bg-white shadow-[0_1px_3px_rgba(0,0,0,0.06)]">
-        <div className="grid grid-cols-3 divide-x divide-[#e4e4e7]">
+      <div className="min-w-0 flex-1 overflow-hidden rounded-xl border border-[#f3cfe0] bg-white shadow-[0_1px_3px_rgba(236,72,153,0.08)]">
+        <div className="grid grid-cols-3 divide-x divide-[#f6e0ec]">
           {COLUMNS.map((col) => {
             const items = rows.filter((r) => col.statuses.includes(r.status));
             return (
               <div key={col.key} className="min-w-0">
-                <div className="flex items-center gap-2 border-b border-[#e4e4e7] bg-[#fafafa] px-3 py-2">
+                <div className="flex items-center gap-2 border-b border-[#f3cfe0] bg-[#fce7f3] px-3 py-2">
                   <span
                     className="h-2 w-2 rounded-full"
                     style={{ backgroundColor: col.dot }}

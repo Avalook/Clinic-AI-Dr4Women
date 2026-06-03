@@ -154,7 +154,7 @@ export default function AppointmentsKanban({
           return (
             <div
               key={col.key}
-              className="flex flex-col rounded-lg border border-[#e4e4e7] bg-[#fafafa]"
+              className="flex flex-col rounded-lg border border-[#f3cfe0] bg-[#fdf2f8]"
             >
               <div
                 className="flex items-center justify-between gap-2 rounded-t-lg border-b border-[#e4e4e7] px-3 py-2"

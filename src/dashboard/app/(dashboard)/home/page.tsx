@@ -79,7 +79,7 @@ export default async function HomePage() {
   ).toISOString();
   const WEEK_APPT_SELECT = `
     id, slot_start, queue_number,
-    patient:patient!clinic_patient_id ( full_name, patient_code, phone_primary ),
+    patient:patient!clinic_patient_id ( clinic_patient_id, full_name, patient_code, phone_primary ),
     doctor:staff!doctor_id ( full_name ),
     service:service_type!service_type_id ( name )
   `;
@@ -131,15 +131,54 @@ export default async function HomePage() {
 
   // Gom lịch hẹn theo ngày (tuần này) cho bảng "Lịch hẹn khám".
   const rosterRows = (rosterRes.data as RosterRow[] | null) ?? [];
-  const weekApptRows = (weekApptRes.data as WeekApptRow[] | null) ?? [];
+  type RawAppt = Omit<WeekApptRow, "phan_loai">;
+  const weekApptRows = (weekApptRes.data as RawAppt[] | null) ?? [];
+
+  // "Phân loại khám" (Tái khám / Khám lần đầu) — suy từ lịch hẹn: BN có lịch hẹn
+  // nào SỚM HƠN lịch này → Tái khám; nếu đây là lịch sớm nhất của BN → Khám lần
+  // đầu. (DB chưa có cột phân loại riêng; đây là suy luận, không phải bịa số.)
+  const patientIds = [
+    ...new Set(
+      weekApptRows
+        .map((a) => a.patient?.clinic_patient_id)
+        .filter((x): x is string => !!x),
+    ),
+  ];
+  const earliestByPatient = new Map<string, number>();
+  if (patientIds.length) {
+    const { data: prior } = await supabase
+      .from("appointment")
+      .select("clinic_patient_id, slot_start")
+      .in("clinic_patient_id", patientIds);
+    for (const r of (prior as
+      | { clinic_patient_id: string; slot_start: string }[]
+      | null) ?? []) {
+      const t = new Date(r.slot_start).getTime();
+      const cur = earliestByPatient.get(r.clinic_patient_id);
+      if (cur === undefined || t < cur)
+        earliestByPatient.set(r.clinic_patient_id, t);
+    }
+  }
+  const phanLoaiOf = (a: RawAppt): string => {
+    const pid = a.patient?.clinic_patient_id;
+    if (!pid) return "";
+    const earliest = earliestByPatient.get(pid);
+    if (earliest === undefined) return "";
+    return new Date(a.slot_start).getTime() > earliest
+      ? "Tái khám"
+      : "Khám lần đầu";
+  };
+
   const t0 = new Date(weekStartUtc).getTime();
   const apptDays: ApptDay[] = dates.map((date, i) => {
     const s = t0 + i * DAY_MS;
     const e = s + DAY_MS;
-    const items = weekApptRows.filter((a) => {
-      const t = new Date(a.slot_start).getTime();
-      return t >= s && t < e;
-    });
+    const items = weekApptRows
+      .filter((a) => {
+        const t = new Date(a.slot_start).getTime();
+        return t >= s && t < e;
+      })
+      .map((a) => ({ ...a, phan_loai: phanLoaiOf(a) }));
     return { date, items };
   });
 
