@@ -17,6 +17,16 @@ interface PatientRow {
 const SAFE_COLUMNS =
   "clinic_patient_id, patient_code, full_name, date_of_birth, phone_primary, created_at";
 
+// Bỏ dấu + thường (khớp cột patient.full_name_unaccent của migration 039).
+function unaccentVi(s: string): string {
+  return s
+    .normalize("NFD")
+    .replace(/[̀-ͯ]/g, "")
+    .replace(/đ/g, "d")
+    .replace(/Đ/g, "D")
+    .toLowerCase();
+}
+
 function ageFromDob(dob: string | null): string {
   if (!dob) return "—";
   const birth = new Date(dob);
@@ -72,19 +82,31 @@ export default async function PatientsList({
     total = list.length > 0 ? Number(list[0].total_count) : 0;
     error = rpcErr;
   } else {
-    let query = supabase
-      .from("patient")
-      .select(SAFE_COLUMNS, { count: "exact" })
-      .order("created_at", { ascending: false })
-      .range(from, from + PAGE_SIZE - 1);
-    if (term) {
-      query = query.or(
-        `patient_code.ilike.%${term}%,` +
-          `full_name.ilike.%${term}%,` +
+    // useUnaccent=true → thêm cột full_name_unaccent (migration 039). Nếu chưa có
+    // cột (chưa chạy migration) → query lỗi → fallback không bỏ dấu.
+    const run = (useUnaccent: boolean) => {
+      let query = supabase
+        .from("patient")
+        .select(SAFE_COLUMNS, { count: "exact" })
+        .order("created_at", { ascending: false })
+        .range(from, from + PAGE_SIZE - 1);
+      if (term) {
+        const ors = [
+          `patient_code.ilike.%${term}%`,
+          `full_name.ilike.%${term}%`,
           `phone_primary.ilike.%${term}%`,
-      );
+        ];
+        if (useUnaccent) {
+          ors.push(`full_name_unaccent.ilike.%${unaccentVi(term)}%`);
+        }
+        query = query.or(ors.join(","));
+      }
+      return query;
+    };
+    let { data, error: qErr, count } = await run(true);
+    if (qErr && /full_name_unaccent/.test(qErr.message ?? "")) {
+      ({ data, error: qErr, count } = await run(false));
     }
-    const { data, error: qErr, count } = await query;
     rows = (data as PatientRow[] | null) ?? [];
     total = count ?? 0;
     error = qErr;

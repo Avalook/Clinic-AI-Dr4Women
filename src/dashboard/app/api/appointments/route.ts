@@ -399,5 +399,24 @@ export async function PATCH(request: Request) {
     if (caErr) console.error("cskh_action upsert (confirm) lỗi:", caErr.message);
   }
 
+  // Bác sĩ "Khám xong" → ghi việc "CSKH sau khám" để CSKH chăm sóc sau khám
+  // (cột đó trước đây luôn rỗng vì chưa nối Zalo).
+  if (action === "complete") {
+    const { error: caErr } = await db.from("cskh_action").upsert(
+      {
+        source_ref: `dash-postvisit-${id}`,
+        clinic_patient_id: appt.clinic_patient_id,
+        category: "CSKH sau khám",
+        status: "Đã khám xong",
+        description: "Bệnh nhân đã khám xong — chăm sóc/nhắc tái khám.",
+        source_created_at: new Date().toISOString(),
+        created_by_text: "Bác sĩ · dashboard",
+        appointment_link_raw: id,
+      },
+      { onConflict: "source_ref" },
+    );
+    if (caErr) console.error("cskh_action upsert (complete) lỗi:", caErr.message);
+  }
+
   return NextResponse.json({ ok: true, status: newStatus });
 }

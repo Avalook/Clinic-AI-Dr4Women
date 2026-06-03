@@ -215,8 +215,34 @@ export async function POST(request: Request) {
       })
       .select("visit_id")
       .single();
-    if (vErr) return NextResponse.json({ error: vErr.message }, { status: 500 });
-    visitId = created.visit_id;
+    if (vErr) {
+      // RACE: 2 request (ĐD lưu sinh hiệu + bác sĩ lưu hồ sơ) cùng thấy "chưa có
+      // visit" → cùng INSERT. Khi có UNIQUE(appointment_id) (migration 039), cái
+      // sau dính 23505 → tìm lại visit của request kia thay vì tạo trùng.
+      if (vErr.code === "23505") {
+        const { data: again } = await db
+          .from("visit")
+          .select("visit_id, status")
+          .eq("appointment_id", appointmentId)
+          .order("created_at", { ascending: false })
+          .limit(1)
+          .maybeSingle();
+        if (!again) {
+          return NextResponse.json({ error: vErr.message }, { status: 500 });
+        }
+        if (again.status === "FINALIZED") {
+          return NextResponse.json(
+            { error: "Hồ sơ đã chốt (FINALIZED) — luật cấm sửa." },
+            { status: 409 },
+          );
+        }
+        visitId = again.visit_id;
+      } else {
+        return NextResponse.json({ error: vErr.message }, { status: 500 });
+      }
+    } else {
+      visitId = created.visit_id;
+    }
   }
 
   // Điều dưỡng: CHỈ merge Sinh hiệu vào soap_objective, không đụng các mục khác

@@ -2,8 +2,8 @@
 
 // Khu CHECK-IN trên trang chủ (thay cho mục sidebar cũ). Nút bấm → mở danh sách
 // check-in HÔM NAY ngay dưới nút; bấm TÊN bệnh nhân → hồ sơ lâm sàng hiện ở cột
-// PHẢI (SplitPane: kéo thanh giữa, bảng này dãn bảng kia co). Điều dưỡng sửa được
-// Sinh hiệu; Lễ tân/Quản lý chỉ xem. Cả khu kéo cao thấp được (resize-y).
+// PHẢI (SplitPane: kéo thanh giữa, bảng này dãn bảng kia co). Người đón khám
+// (ĐD/Lễ tân/Quản lý) ghi được Sinh hiệu, các mục khác read-only.
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";

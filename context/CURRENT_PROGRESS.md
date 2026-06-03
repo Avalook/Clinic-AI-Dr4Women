@@ -788,3 +788,25 @@ Ràng buộc: chỉ "Khám xong" được khi đã CONFIRMED/CHECKED_IN (không 
 **CÒN LẠI (Đợt C/D — chưa làm):**
 - C: UNIQUE(appointment_id) trên visit + upsert (chống double-visit) [migration]; merge sinh hiệu phía DB chống lost-update; trùng CCCD báo rõ; undo_checkin trả đúng trạng thái.
 - D: complete→tạo cskh_action "CSKH sau khám"; tìm kiếm unaccent [migration]; patient_code qua sequence; xóa /checkin orphan + readOnly dead prop; trigger FINALIZED backstop [migration]; nút "Chốt hồ sơ" FINALIZE + amend (để sau, đụng safety gate).
+
+## CẬP NHẬT 03/06 (tiếp) — Đợt C/D audit (data-consistency + migration 039)
+
+**Đã làm (build PASS):**
+- **complete → cskh_action "CSKH sau khám"**: bác sĩ "Khám xong" giờ ghi việc vào cột "CSKH sau khám" (trước rỗng). (source_ref dash-postvisit-<id>, upsert chống trùng.)
+- **CCCD trùng báo rõ**: POST /api/patients pre-check national_id_number → "CCCD này đã có hồ sơ (mã · tên)" thay vì "không tạo được mã BN". + phân biệt 23505 CCCD vs mã BN.
+- **patient_code chống trùng**: thêm random + lệch theo lần thử, retry 2→5.
+- **visit double-visit race**: clinical-record POST bắt 23505 (UNIQUE appointment_id) → tìm lại visit thay vì tạo trùng.
+- **Tìm kiếm BỎ DẤU**: PatientsList thêm `full_name_unaccent.ilike` (unaccent term phía JS) + FALLBACK an toàn nếu migration chưa chạy.
+- **Dọn**: xóa route `/checkin` orphan (page+CheckinList) + bỏ `/checkin` khỏi NAV_ROLES + bỏ `readOnly` dead prop khỏi ClinicalRecordForm.
+
+**MIGRATION 039 (BẠN CHẠY TAY trên Supabase — tôi không tự áp prod):**
+`src/migrations/20260603_039_visit_unique_and_unaccent_search.sql`
+1. `uq_visit_appointment_id` (partial UNIQUE) — ⚠️ chạy query kiểm visit trùng appointment_id TRƯỚC (kèm trong file); nếu có phải dedup.
+2. extension unaccent + pg_trgm + `f_unaccent()` IMMUTABLE + cột generated `patient.full_name_unaccent` + index gin_trgm.
+→ Code đã FALLBACK: chưa chạy migration thì tìm kiếm vẫn chạy (không bỏ dấu), không vỡ.
+
+**CÒN LẠI (cố ý chưa làm / cần quyết):**
+- Lost-update phía BÁC SĨ (bác sĩ lưu đè sinh hiệu ĐD nếu mở form trước khi ĐD nhập) — cần optimistic-lock/refetch, để sau.
+- undo_checkin walk-in SCHEDULED→CONFIRMED (cần lưu trạng thái trước) — minor.
+- Doctor RPC `doctor_patient_list` chưa unaccent (chỉ PatientsList) — minor.
+- Nút "Chốt hồ sơ" FINALIZE + amend + trigger backstop clinical_record — ĐỂ SAU (safety gate, user đã chốt).

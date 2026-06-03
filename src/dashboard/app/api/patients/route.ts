@@ -38,10 +38,14 @@ function nn(v: string | undefined): string | null {
   return t || null;
 }
 
-function patientCode(): string {
+// Mã BN tạm: BN-<năm>-<6 số>. Thêm thành phần ngẫu nhiên + lệch theo lần thử để
+// giảm đụng UNIQUE khi nhiều người tạo cùng lúc (loop retry ở dưới).
+function patientCode(attempt: number): string {
   const year = new Date().getFullYear();
-  const tail = String(Date.now() % 1_000_000).padStart(6, "0");
-  return `BN-${year}-${tail}`;
+  const n =
+    (Date.now() + attempt * 7919 + Math.floor(Math.random() * 100_000)) %
+    1_000_000;
+  return `BN-${year}-${String(n).padStart(6, "0")}`;
 }
 
 export async function POST(request: Request) {
@@ -82,6 +86,25 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Phải chọn cơ sở." }, { status: 400 });
   }
 
+  // CCCD là UNIQUE cứng (không bỏ qua được kể cả force) → kiểm TRƯỚC để báo lỗi
+  // rõ ràng thay vì rơi vào "không tạo được mã BN".
+  const national = (body.national_id_number ?? "").trim() || null;
+  if (national) {
+    const { data: cccdDup } = await db
+      .from("patient")
+      .select("patient_code, full_name")
+      .eq("national_id_number", national)
+      .limit(1);
+    if (cccdDup && cccdDup.length > 0) {
+      return NextResponse.json(
+        {
+          error: `CCCD này đã có hồ sơ (${cccdDup[0].patient_code} · ${cccdDup[0].full_name}).`,
+        },
+        { status: 409 },
+      );
+    }
+  }
+
   // Lightweight duplicate guard (not full MPI): same phone already on file.
   if (phone_primary && !body.force) {
     const { data: dupes } = await db
@@ -111,11 +134,11 @@ export async function POST(request: Request) {
     is_active: true,
   };
 
-  // Insert with a generated patient_code; retry once on the (rare) unique clash.
-  for (let attempt = 0; attempt < 2; attempt++) {
+  // Insert with a generated patient_code; retry on the (rare) unique clash.
+  for (let attempt = 0; attempt < 5; attempt++) {
     const { data, error } = await db
       .from("patient")
-      .insert({ ...row, patient_code: patientCode() })
+      .insert({ ...row, patient_code: patientCode(attempt) })
       .select("clinic_patient_id, full_name, patient_code")
       .single();
     if (!error) {
@@ -146,7 +169,14 @@ export async function POST(request: Request) {
     if (error.code !== "23505") {
       return NextResponse.json({ error: error.message }, { status: 500 });
     }
-    // 23505 = unique_violation on patient_code → loop to regenerate.
+    // 23505 = unique_violation. Nếu là CCCD (race hiếm sau pre-check) → báo rõ,
+    // KHÔNG retry (mã BN đổi cũng vô ích). Còn lại = clash patient_code → loop.
+    if (/national_id|cccd/i.test(`${error.message} ${error.details ?? ""}`)) {
+      return NextResponse.json(
+        { error: "CCCD này vừa được tạo cho hồ sơ khác." },
+        { status: 409 },
+      );
+    }
   }
   return NextResponse.json(
     { error: "Không tạo được mã BN, thử lại." },
