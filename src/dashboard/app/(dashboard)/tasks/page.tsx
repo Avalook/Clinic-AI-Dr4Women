@@ -4,13 +4,80 @@
 // CCCD KHÔNG select (D-identity).
 
 import { getSupabaseServer } from "../../../lib/supabase-server";
-import { vnTodayRangeUtc } from "../../../lib/datetime";
+import { vnTodayRangeUtc, fmtDate } from "../../../lib/datetime";
+import { getClinicRole, getClinicStaffId } from "../../../lib/clinic-session";
+import { isDoctorRole } from "../../../lib/roles";
 import ConfirmBoard, { type ApptRow, type Opt } from "./ConfirmBoard";
 import CskhActionBoard, { type CskhActionRow } from "./CskhActionBoard";
+import DoctorWorkBoard, {
+  type DoctorDay,
+  type DoctorApptRow,
+} from "./DoctorWorkBoard";
 
 export const dynamic = "force-dynamic";
 
 const DAY_MS = 24 * 60 * 60 * 1000;
+
+// Bác sĩ: lịch của MÌNH (đủ trường hành chính để dựng hồ sơ lâm sàng).
+const DOCTOR_SELECT = `
+  id, slot_start, status,
+  patient:patient!clinic_patient_id (
+    clinic_patient_id, patient_code, full_name, date_of_birth, national_id_number,
+    phone_primary, phone_secondary, gender, ethnicity, nationality, occupation,
+    patient_objection, address, guardian_name
+  ),
+  service:service_type!service_type_id ( name )
+`;
+
+async function DoctorTasks() {
+  const supabase = await getSupabaseServer();
+  const staffId = await getClinicStaffId();
+  const { startUtc } = vnTodayRangeUtc();
+  const N = 7;
+  const endUtc = new Date(new Date(startUtc).getTime() + N * DAY_MS).toISOString();
+
+  let q = supabase
+    .from("appointment")
+    .select(DOCTOR_SELECT)
+    .gte("slot_start", startUtc)
+    .lt("slot_start", endUtc)
+    .order("slot_start", { ascending: true })
+    .limit(400);
+  if (staffId) q = q.eq("doctor_id", staffId);
+  const { data, error } = await q;
+  const rows = (data as DoctorApptRow[] | null) ?? [];
+
+  // Gom theo ngày VN (startUtc đã là 00:00 giờ VN; VN không có DST nên +DAY_MS chuẩn).
+  const t0 = new Date(startUtc).getTime();
+  const days: DoctorDay[] = Array.from({ length: N }, (_, i) => {
+    const s = t0 + i * DAY_MS;
+    const e = s + DAY_MS;
+    const items = rows.filter((r) => {
+      const t = new Date(r.slot_start).getTime();
+      return t >= s && t < e;
+    });
+    const label = i === 0 ? "Hôm nay" : i === 1 ? "Ngày mai" : fmtDate(new Date(s));
+    return { label, items };
+  });
+
+  return (
+    <div className="space-y-4">
+      <header>
+        <h1 className="text-xl font-semibold text-[#171717]">Công việc của tôi</h1>
+        <p className="text-sm text-[#888888]">
+          Lịch khám của bạn theo ngày · bấm tên bệnh nhân để mở hồ sơ lâm sàng.
+        </p>
+      </header>
+      {error ? (
+        <div className="rounded-md bg-[#fee2e2] px-3 py-2 text-sm text-[#dc2626]">
+          {error.message}
+        </div>
+      ) : (
+        <DoctorWorkBoard days={days} staffId={staffId} />
+      )}
+    </div>
+  );
+}
 
 const SELECT = `
   id, slot_start, status, booking_channel, cancellation_reason, cancelled_at,
@@ -23,6 +90,10 @@ const SELECT = `
 `;
 
 export default async function TasksPage() {
+  // Bác sĩ thấy board lâm sàng riêng; CSKH/Quản lý thấy board lịch hẹn cũ.
+  const role = await getClinicRole();
+  if (isDoctorRole(role)) return DoctorTasks();
+
   const supabase = await getSupabaseServer();
   const { startUtc } = vnTodayRangeUtc();
   // Hàng đợi CSKH: từ hôm nay tới 7 ngày tới, các lịch chờ/đã xác nhận.

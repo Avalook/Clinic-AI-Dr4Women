@@ -51,7 +51,7 @@ export function canWriteIntake(role: ClinicRole | null): boolean {
 
 /** Landing path after a role is picked. */
 export function roleLanding(role: ClinicRole | null): string {
-  if (isDoctorRole(role)) return "/appointments?scope=me";
+  if (isDoctorRole(role)) return "/tasks";
   return "/home";
 }
 
@@ -70,28 +70,20 @@ export const ROLE_LABEL: Record<ClinicRole, string> = {
 // are scoped to everyone-except-reception.
 // Lịch làm việc: bác sĩ/điều dưỡng xem ca trực của mình + quản lý xem cả bảng.
 // CSKH & Lễ tân KHÔNG xem (sidebar gọn theo đầu việc của họ).
-const ROSTER_ROLES: ClinicRole[] = [
-  "DOCTOR",
-  "ULTRASOUND_DOCTOR",
-  "NURSE_ULTRASOUND",
-  "MANAGEMENT",
-];
-// Bệnh nhân + lịch hẹn: bác sĩ (giới hạn BN của mình) + quản lý. Điều dưỡng,
-// CSKH, Lễ tân KHÔNG vào danh sách BN/lịch hẹn — sidebar gọn theo việc của họ.
-const PATIENT_STAFF: ClinicRole[] = [
-  "DOCTOR",
-  "ULTRASOUND_DOCTOR",
-  "MANAGEMENT",
-];
+// Bác sĩ (DOCTOR + Bác sĩ siêu âm) sidebar CHỈ 2 mục: Trang chủ + Công việc của
+// tôi. Mọi việc của bác sĩ (xem lịch/BN, confirm/decline, hồ sơ lâm sàng) gom hết
+// vào "Công việc của tôi" (/tasks). Nên /appointments, /patients, /schedule
+// KHÔNG còn cho bác sĩ — chỉ Quản lý (và điều dưỡng giữ ca trực).
+const DOCTOR_ROLES_LIST: ClinicRole[] = ["DOCTOR", "ULTRASOUND_DOCTOR"];
 
 const NAV_ROLES: Record<string, "all" | ClinicRole[]> = {
   "/home": "all",
-  "/appointments": PATIENT_STAFF,
-  "/patients": PATIENT_STAFF,
+  "/appointments": ["MANAGEMENT"],
+  "/patients": ["MANAGEMENT"],
   "/patients/new": ["CSKH", "RECEPTION", "MANAGEMENT"],
   "/checkin": ["RECEPTION", "MANAGEMENT"],
-  "/tasks": ["CSKH", "MANAGEMENT"],
-  "/schedule": ROSTER_ROLES,
+  "/tasks": ["CSKH", "MANAGEMENT", ...DOCTOR_ROLES_LIST],
+  "/schedule": ["NURSE_ULTRASOUND", "MANAGEMENT"],
   "/work-sessions": ["MANAGEMENT"],
   "/reports": ["MANAGEMENT"],
   "/settings": ["MANAGEMENT"],
