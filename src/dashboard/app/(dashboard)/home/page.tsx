@@ -14,7 +14,7 @@ import {
   getActiveStaff,
   getClinicStaffId,
 } from "../../../lib/clinic-session";
-import { type ClinicRole, canCheckin, isNurseRole } from "../../../lib/roles";
+import { type ClinicRole, canCheckin } from "../../../lib/roles";
 import HomeCheckin, { type HomeCheckinRow } from "./HomeCheckin";
 import type { ActiveStaff } from "../../../lib/clinic-session";
 import { vnTodayRangeUtc, fmtDate, vnLocalToUtcISO } from "../../../lib/datetime";
@@ -270,11 +270,7 @@ export default async function HomePage() {
       {/* Check-in bệnh nhân — DƯỚI Ca trực, TRÊN Lịch hẹn khám (ĐD/Lễ tân/Quản lý).
           Bấm mở danh sách ngay dưới nút; Lịch hẹn khám tự đẩy xuống. */}
       {showCheckin && (
-        <HomeCheckin
-          rows={checkinRows}
-          canEditVitals={isNurseRole(role)}
-          staffId={staffId}
-        />
+        <HomeCheckin rows={checkinRows} staffId={staffId} />
       )}
 
       {/* Lịch hẹn khám tuần này — form theo file "Check đặt lịch" */}

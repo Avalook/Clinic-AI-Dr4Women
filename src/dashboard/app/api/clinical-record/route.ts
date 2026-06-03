@@ -10,7 +10,7 @@ import { NextResponse } from "next/server";
 import { getSupabaseServer } from "../../../lib/supabase-server";
 import { getSupabaseService } from "../../../lib/supabase-service";
 import { getClinicRole, getClinicStaffId } from "../../../lib/clinic-session";
-import { isDoctorRole, isNurseRole } from "../../../lib/roles";
+import { isDoctorRole, canCheckin } from "../../../lib/roles";
 
 interface ClinicalRecordRow {
   chief_complaint_at_visit: string | null;
@@ -141,13 +141,14 @@ export async function POST(request: Request) {
   const vitalsOnly = body.vitalsOnly === true;
 
   const role = await getClinicRole();
-  // Bác sĩ ghi full hồ sơ; điều dưỡng (vitalsOnly) CHỈ ghi Sinh hiệu.
-  const allowed = isDoctorRole(role) || (vitalsOnly && isNurseRole(role));
+  // Bác sĩ ghi full hồ sơ; ĐD/Lễ tân/Quản lý (vitalsOnly) CHỈ ghi Sinh hiệu lúc
+  // check-in.
+  const allowed = isDoctorRole(role) || (vitalsOnly && canCheckin(role));
   if (!allowed) {
     return NextResponse.json(
       {
         error: vitalsOnly
-          ? "Chỉ bác sĩ / điều dưỡng mới ghi sinh hiệu."
+          ? "Chỉ nhân sự đón khám mới ghi sinh hiệu."
           : "Chỉ bác sĩ mới ghi hồ sơ khám.",
       },
       { status: 403 },

@@ -282,7 +282,7 @@ export default function ClinicalRecordForm({
             Tóm tắt khám bệnh
             {vitalsOnly && (
               <span className="ml-2 rounded bg-[#fef9c3] px-1.5 py-0.5 text-[10px] font-medium normal-case text-[#a16207]">
-                Điều dưỡng · chỉ ghi Sinh hiệu
+                Chỉ ghi Sinh hiệu
               </span>
             )}
             {readOnly && (

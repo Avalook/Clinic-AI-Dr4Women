@@ -730,3 +730,19 @@ Chuỗi nguyên nhân (gỡ từng lớp):
 - /checkin page cũ còn (orphan, đã gỡ khỏi nav) — có thể xoá route sau.
 - Walk-in tạo appointment status SCHEDULED (chưa auto CHECKED_IN) → ĐD tự check-in từ danh sách. Có thể auto sau.
 - attending_doctor_id của visit ĐD tạo = doctor_id lịch hẹn (nullable nếu lịch chưa phân BS).
+
+## CẬP NHẬT 03/06 (tiếp) — Lễ tân ghi Sinh hiệu + pane lăn độc lập + đánh bóng scroll/drag (awesome-design-md)
+
+**Yêu cầu user (3):**
+1. LỄ TÂN cũng được điền Sinh hiệu trong hồ sơ check-in (không chỉ điều dưỡng).
+2. Khi lăn DANH SÁCH bên trái, PANEL tóm tắt bên phải phải GIỮ NGUYÊN (lăn độc lập).
+3. Đánh bóng cơ chế lăn + kéo cho chuyên nghiệp như brand lớn (gọi /awesome-design-md).
+
+**Đã làm (build PASS):**
+- `/api/clinical-record` POST: gate vitalsOnly đổi từ `isNurseRole` → `canCheckin` (ĐD + Lễ tân + Quản lý đều ghi được Sinh hiệu lúc check-in). HomeCheckin luôn `vitalsOnly` (bỏ readOnly). Badge đổi "Điều dưỡng · chỉ ghi Sinh hiệu" → "Chỉ ghi Sinh hiệu".
+- **Pane lăn ĐỘC LẬP:** HomeCheckin đổi khung ngoài từ `max-h + resize-y + overflow-auto` (lăn cả cụm) → `md:h-[78vh] overflow-hidden` (khung cố định); SplitPane `h-full`, mỗi cột tự `overflow-auto` → lăn trái KHÔNG động panel phải. Form thêm `fill` (lấp đầy pane, header/footer cố định, chỉ phần giữa cuộn) — đúng "khung tóm tắt giữ nguyên".
+- **Đánh bóng (Linear/Vercel style):**
+  - `globals.css`: scrollbar MẢNH overlay (width 11px, thumb bo tròn + border trong suốt 3px → trông ~5px thanh mảnh, đậm lên khi hover); resizer góc làm nhẹ tông hơn (#f7dbe8 + viền 2px).
+  - `SplitPane`: divider hit-area rộng 12px nhưng line chỉ 1px (mờ #f0d4e2) → hover/đang-kéo thì dày 3px + hồng đậm (#db2777), `transition-all 150ms`; thêm state `active` cho lúc kéo.
+
+**Verify:** tsc + eslint + next build PASS. Đã đọc reference Linear/Stripe/Vercel qua skill awesome-design-md (DESIGN.md thiên về màu/typography; cơ chế scroll/drag áp pattern chuẩn brand).

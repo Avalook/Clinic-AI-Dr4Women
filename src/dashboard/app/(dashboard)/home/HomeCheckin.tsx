@@ -19,12 +19,9 @@ export interface HomeCheckinRow extends DoctorApptRow {
 
 export default function HomeCheckin({
   rows,
-  canEditVitals,
   staffId,
 }: {
   rows: HomeCheckinRow[];
-  /** true = điều dưỡng (sửa Sinh hiệu); false = Lễ tân/Quản lý (chỉ xem). */
-  canEditVitals: boolean;
   staffId: string | null;
 }) {
   const router = useRouter();
@@ -177,9 +174,12 @@ export default function HomeCheckin({
         />
       </button>
 
-      {open && (
-        <div className="mt-3 max-h-[88vh] min-h-[220px] resize-y overflow-auto rounded-xl border border-[#f3cfe0] bg-[#fdf2f8] shadow-[0_1px_3px_rgba(236,72,153,0.08)]">
-          {sel ? (
+      {open &&
+        (sel ? (
+          // Tách đôi: danh sách (trái) + hồ sơ (phải). KHUNG CỐ ĐỊNH chiều cao,
+          // mỗi cột tự cuộn ĐỘC LẬP — lăn danh sách trái KHÔNG làm panel phải nhúc
+          // nhích (panel tóm tắt giữ nguyên).
+          <div className="mt-3 overflow-hidden rounded-xl border border-[#f3cfe0] bg-[#fdf2f8] shadow-[0_1px_3px_rgba(236,72,153,0.08)] md:h-[78vh]">
             <SplitPane
               className="h-full"
               left={list}
@@ -188,17 +188,18 @@ export default function HomeCheckin({
                   key={sel.id}
                   appt={sel}
                   staffId={staffId}
-                  vitalsOnly={canEditVitals}
-                  readOnly={!canEditVitals}
+                  vitalsOnly
+                  fill
                   onClose={() => setSelId(null)}
                 />
               }
             />
-          ) : (
-            list
-          )}
-        </div>
-      )}
+          </div>
+        ) : (
+          <div className="mt-3 overflow-auto rounded-xl border border-[#f3cfe0] bg-[#fdf2f8] shadow-[0_1px_3px_rgba(236,72,153,0.08)] md:h-[78vh]">
+            {list}
+          </div>
+        ))}
     </section>
   );
 }

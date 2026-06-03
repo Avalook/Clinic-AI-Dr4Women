@@ -29,6 +29,7 @@ export default function SplitPane({
   const dragging = useRef(false);
   const [leftPct, setLeftPct] = useState(initialLeftPct);
   const [isWide, setIsWide] = useState(false);
+  const [active, setActive] = useState(false); // đang kéo thanh giữa
 
   useEffect(() => {
     const mq = window.matchMedia("(min-width: 768px)");
@@ -53,6 +54,7 @@ export default function SplitPane({
     (e: React.PointerEvent) => {
       e.preventDefault();
       dragging.current = true;
+      setActive(true);
       document.body.style.userSelect = "none";
       document.body.style.cursor = "col-resize";
       const move = (ev: PointerEvent) => {
@@ -60,6 +62,7 @@ export default function SplitPane({
       };
       const up = () => {
         dragging.current = false;
+        setActive(false);
         document.body.style.userSelect = "";
         document.body.style.cursor = "";
         window.removeEventListener("pointermove", move);
@@ -80,15 +83,23 @@ export default function SplitPane({
         {left}
       </div>
 
-      {/* Thanh kéo giữa — chỉ desktop (md+). Mobile xếp dọc nên ẩn. */}
+      {/* Thanh kéo giữa — hit-area rộng (12px), line mảnh 1px, sáng + dày lên khi
+          hover/kéo (kiểu Linear). Chỉ desktop; mobile xếp dọc nên ẩn. */}
       <div
         onPointerDown={startDrag}
         role="separator"
         aria-orientation="vertical"
         aria-label="Kéo để chia lại độ rộng 2 bảng"
-        className="group relative my-1 hidden w-2 shrink-0 cursor-col-resize touch-none items-center justify-center md:flex"
+        className="group relative hidden w-3 shrink-0 cursor-col-resize touch-none items-stretch justify-center md:flex"
       >
-        <span className="h-10 w-1 rounded-full bg-[#f3cfe0] transition-colors group-hover:bg-[#db2777]" />
+        <span
+          className={
+            "my-2 rounded-full transition-all duration-150 " +
+            (active
+              ? "w-[3px] bg-[#db2777]"
+              : "w-px bg-[#f0d4e2] group-hover:w-[3px] group-hover:bg-[#ec4899]")
+          }
+        />
       </div>
 
       <div className="mt-3 min-w-0 md:mt-0 md:flex-1 md:overflow-auto">
