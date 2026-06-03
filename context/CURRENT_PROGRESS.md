@@ -702,3 +702,31 @@ Chuỗi nguyên nhân (gỡ từng lớp):
 - 3 cột trạm trống data (SB_CHIEU/THU_THUAT_NGOAI_GIO/HSS) vẫn hiện cột rỗng — giữ cho khớp form, có data sẽ tự đầy.
 
 **COMMITS:** chưa commit (chờ lệnh). 12 file dashboard + 2 file context modified.
+
+## CẬP NHẬT 03/06 (tiếp) — ĐIỀU DƯỠNG khách vãng lai + CHECK-IN lên trang chủ (split-pane)
+
+**Yêu cầu user (2 khối):**
+1. Vai trò ĐIỀU DƯỠNG (NURSE_ULTRASOUND): đổi "Nhập thông tin khách hàng mới" → "khách vãng lai"; bỏ ô Lịch hẹn khám; gộp Dịch vụ + Bác sĩ vào ô Thông tin khách. Chỉ áp cho điều dưỡng.
+2. Dời nút Check-in từ sidebar → TRANG CHỦ (giữa Ca trực và Lịch hẹn khám); bấm → danh sách check-in hiện ngay dưới; bấm TÊN BN → hồ sơ lâm sàng hiện cột PHẢI; split-pane kéo thanh giữa (bảng này dãn bảng kia co — cùng 1 mặt phẳng).
+
+**Quyết định đã CHỐT với user:**
+- Khu check-in trang chủ hiện cho: **Điều dưỡng + Lễ tân + Quản lý**.
+- Hồ sơ lâm sàng khi điều dưỡng bấm: **CHỈ sửa Sinh hiệu** (mạch/nhiệt độ/huyết áp/nhịp thở/SpO2/cân nặng/chiều cao/BMI); mọi mục khác read-only. Lễ tân/Quản lý: chỉ XEM.
+- Form vãng lai khi Lưu: **tạo hồ sơ BN + lượt khám vãng lai HÔM NAY** (giờ hiện tại, kênh WALK_IN) với Dịch vụ+Bác sĩ đã chọn.
+
+**Đã làm (build PASS):**
+- `roles.ts`: thêm `isNurseRole`, `canCheckin`; `canWriteIntake` thêm NURSE (để ĐD tạo BN + appointment + check-in — cả 3 đều gate qua canWriteIntake). NAV_ROLES: /patients/new thêm NURSE; /checkin giữ gate cho trang trực tiếp.
+- `nav-items.ts`: GỠ mục /checkin khỏi sidebar; thêm `navLabelFor` (ĐD thấy nhãn "khách vãng lai"). `Nav.tsx` + `BottomNav.tsx` dùng nhãn theo vai trò.
+- `patients/new/page.tsx` + `NewPatientForm.tsx`: prop `variant="walkin"` cho ĐD — tiêu đề "khách vãng lai", bỏ card Lịch hẹn, gộp Dịch vụ+Bác sĩ vào card khách, Lưu = tạo BN + appointment WALK_IN giờ hiện tại.
+- `SplitPane.tsx` (MỚI): 2 cột kéo thanh giữa, width áp bằng INLINE style flex-basis% (Tailwind KHÔNG sinh class `[flex-basis:var()]` động — đã verify), gate desktop bằng matchMedia; mobile xếp dọc.
+- `HomeCheckin.tsx` (MỚI): nút check-in + danh sách hôm nay + SplitPane[danh sách | hồ sơ]. Bấm tên → hồ sơ cột phải. Cả khu resize-y.
+- `ClinicalRecordForm.tsx`: thêm prop `vitalsOnly` (ĐD chỉ sửa Sinh hiệu) + `readOnly` (Lễ tân/QL chỉ xem, ẩn nút Lưu). `roRest` khoá mọi mục trừ Sinh hiệu.
+- `/api/clinical-record` POST: thêm `vitalsOnly` — cho NURSE ghi, MERGE vitals vào soap_objective (không đụng chẩn đoán/lời dặn/tiền sử của bác sĩ); visit nháp tạo bởi ĐD lấy attending = bác sĩ của lịch hẹn.
+- `home/page.tsx`: query check-in hôm nay (đủ trường hành chính) khi canCheckin; render HomeCheckin giữa Ca trực và Lịch hẹn khám.
+
+**Verify:** tsc + eslint + next build (Next 16.2.6) PASS. Verify Tailwind sinh đúng width split-pane (đã đổi sang inline style sau khi phát hiện class arbitrary bị bỏ).
+
+**NỢ/lưu ý:**
+- /checkin page cũ còn (orphan, đã gỡ khỏi nav) — có thể xoá route sau.
+- Walk-in tạo appointment status SCHEDULED (chưa auto CHECKED_IN) → ĐD tự check-in từ danh sách. Có thể auto sau.
+- attending_doctor_id của visit ĐD tạo = doctor_id lịch hẹn (nullable nếu lịch chưa phân BS).

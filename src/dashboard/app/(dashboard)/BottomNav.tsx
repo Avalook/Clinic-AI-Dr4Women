@@ -9,7 +9,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { Menu } from "lucide-react";
 import { canSeeNav, type ClinicRole } from "../../lib/roles";
-import { NAV, isActiveNav } from "./nav-items";
+import { NAV, isActiveNav, navLabelFor } from "./nav-items";
 
 // How many destinations to surface as tabs before the rest collapse into Menu.
 const MAX_TABS = 4;
@@ -37,12 +37,13 @@ export default function BottomNav({
       aria-label="Điều hướng"
       className="fixed inset-x-0 bottom-0 z-30 flex border-t border-[#e4e4e7] bg-white pb-[env(safe-area-inset-bottom)] shadow-[0_-1px_3px_rgba(0,0,0,0.06)] md:hidden"
     >
-      {tabs.map(({ href, label, shortLabel, icon: Icon }) => {
+      {tabs.map((item) => {
+        const { href, icon: Icon } = item;
         const active = isActiveNav(href, pathname, allHrefs);
         return (
           <Link key={href} href={href} className={tabClass(active)}>
             <Icon size={20} strokeWidth={active ? 2.4 : 2} />
-            <span className="leading-none">{shortLabel ?? label}</span>
+            <span className="leading-none">{navLabelFor(item, role, true)}</span>
           </Link>
         );
       })}

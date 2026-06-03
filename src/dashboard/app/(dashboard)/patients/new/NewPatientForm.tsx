@@ -60,11 +60,16 @@ export default function NewPatientForm({
   locations,
   services,
   doctors,
+  variant = "full",
 }: {
   locations: Option[];
   services: Option[];
   doctors: Option[];
+  /** "walkin" = điều dưỡng ghi khách vãng lai: bỏ lịch hẹn, gộp dịch vụ/bác sĩ
+   *  vào ô thông tin, lưu xong tạo luôn lượt khám HÔM NAY (giờ hiện tại). */
+  variant?: "full" | "walkin";
 }) {
+  const walkin = variant === "walkin";
   const router = useRouter();
 
   // Patient
@@ -95,12 +100,18 @@ export default function NewPatientForm({
   const [submitting, setSubmitting] = useState(false);
   const [dupes, setDupes] = useState<DupMatch[] | null>(null);
 
-  const wantsAppointment = !!(serviceId && apptDate && apptTime);
+  // Walk-in: chỉ cần chọn dịch vụ là tạo lượt khám (giờ = bây giờ). Full: cần đủ
+  // dịch vụ + ngày + giờ.
+  const wantsAppointment = walkin
+    ? !!serviceId
+    : !!(serviceId && apptDate && apptTime);
   const canSubmit = fullName.trim() && locationId && !submitting;
 
   async function bookFor(clinicPatientId: string): Promise<boolean> {
     if (!wantsAppointment) return true;
-    const start = new Date(vnLocalToUtcISO(apptDate, apptTime));
+    const start = walkin
+      ? new Date()
+      : new Date(vnLocalToUtcISO(apptDate, apptTime));
     const end = new Date(start.getTime() + duration * 60_000);
     const res = await fetch("/api/appointments", {
       method: "POST",
@@ -112,7 +123,7 @@ export default function NewPatientForm({
         location_id: locationId,
         slot_start: start.toISOString(),
         slot_end: end.toISOString(),
-        booking_channel: channel,
+        booking_channel: walkin ? "WALK_IN" : channel,
       }),
     });
     if (!res.ok) {
@@ -183,8 +194,12 @@ export default function NewPatientForm({
       <section className={CARD}>
         <SectionHeader
           icon={<UserRound size={16} />}
-          title="Thông tin khách hàng"
-          hint="Họ tên là bắt buộc; còn lại điền nếu có."
+          title={walkin ? "Thông tin khách vãng lai" : "Thông tin khách hàng"}
+          hint={
+            walkin
+              ? "Họ tên bắt buộc · chọn dịch vụ + bác sĩ để tạo lượt khám hôm nay."
+              : "Họ tên là bắt buộc; còn lại điền nếu có."
+          }
         />
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
           <div>
@@ -313,9 +328,46 @@ export default function NewPatientForm({
               placeholder="Số nhà, đường, phường/xã, tỉnh/thành"
             />
           </div>
+
+          {/* Walk-in: Dịch vụ + Bác sĩ nằm CÙNG ô thông tin (không có lịch hẹn). */}
+          {walkin && (
+            <>
+              <div>
+                <label className={LABEL}>Dịch vụ khám</label>
+                <select
+                  value={serviceId}
+                  onChange={(e) => setServiceId(e.target.value)}
+                  className={INPUT}
+                >
+                  <option value="">— Chọn dịch vụ —</option>
+                  {services.map((s) => (
+                    <option key={s.id} value={s.id}>
+                      {s.label}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label className={LABEL}>Bác sĩ</label>
+                <select
+                  value={doctorId}
+                  onChange={(e) => setDoctorId(e.target.value)}
+                  className={INPUT}
+                >
+                  <option value="">— Chưa phân bác sĩ —</option>
+                  {doctors.map((d) => (
+                    <option key={d.id} value={d.id}>
+                      {d.label}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </>
+          )}
         </div>
       </section>
 
+      {!walkin && (
       <section className={CARD}>
         <SectionHeader
           icon={<CalendarClock size={16} />}
@@ -401,6 +453,7 @@ export default function NewPatientForm({
           </div>
         </div>
       </section>
+      )}
 
       {/* Duplicate-phone warning */}
       {dupes && dupes.length > 0 && (
@@ -456,9 +509,13 @@ export default function NewPatientForm({
         <button onClick={() => save(false)} disabled={!canSubmit} className={BTN}>
           {submitting
             ? "Đang lưu..."
-            : wantsAppointment
-              ? "Tạo hồ sơ & đặt lịch"
-              : "Tạo hồ sơ khách hàng"}
+            : walkin
+              ? wantsAppointment
+                ? "Tạo khách vãng lai & lượt khám"
+                : "Tạo khách vãng lai"
+              : wantsAppointment
+                ? "Tạo hồ sơ & đặt lịch"
+                : "Tạo hồ sơ khách hàng"}
         </button>
         <Link href="/patients" className={BTN_GHOST + " text-center"}>
           Huỷ

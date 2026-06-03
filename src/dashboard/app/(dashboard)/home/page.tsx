@@ -14,7 +14,8 @@ import {
   getActiveStaff,
   getClinicStaffId,
 } from "../../../lib/clinic-session";
-import { type ClinicRole } from "../../../lib/roles";
+import { type ClinicRole, canCheckin, isNurseRole } from "../../../lib/roles";
+import HomeCheckin, { type HomeCheckinRow } from "./HomeCheckin";
 import type { ActiveStaff } from "../../../lib/clinic-session";
 import { vnTodayRangeUtc, fmtDate, vnLocalToUtcISO } from "../../../lib/datetime";
 import {
@@ -68,6 +69,7 @@ export default async function HomePage() {
   const role = await getClinicRole();
   const staff = await getActiveStaff();
   const staffId = await getClinicStaffId();
+  const showCheckin = canCheckin(role); // ĐD/Lễ tân/Quản lý: khu check-in ở đây
   const { startUtc: dayStart, endUtc: dayEnd } = vnTodayRangeUtc();
 
   // Tuần này (T2..CN) cho 2 bảng dưới trang chủ.
@@ -84,9 +86,27 @@ export default async function HomePage() {
     service:service_type!service_type_id ( name )
   `;
 
-  // 3 ô số + ca trực hôm nay + roster tuần + lịch hẹn tuần.
-  const [taskRes, newPatientRes, pendingApptRes, shiftRes, rosterRes, weekApptRes] =
-    await Promise.all([
+  // Check-in hôm nay (đủ trường hành chính để mở hồ sơ lâm sàng ở cột phải).
+  const CHECKIN_SELECT = `
+    id, slot_start, status, queue_number,
+    patient:patient!clinic_patient_id (
+      clinic_patient_id, patient_code, full_name, date_of_birth, national_id_number,
+      phone_primary, phone_secondary, gender, ethnicity, nationality, occupation,
+      patient_objection, address, guardian_name
+    ),
+    service:service_type!service_type_id ( name )
+  `;
+
+  // 3 ô số + ca trực hôm nay + roster tuần + lịch hẹn tuần + check-in hôm nay.
+  const [
+    taskRes,
+    newPatientRes,
+    pendingApptRes,
+    shiftRes,
+    rosterRes,
+    weekApptRes,
+    checkinRes,
+  ] = await Promise.all([
     supabase
       .from("staff_task")
       .select("*", { count: "exact", head: true })
@@ -120,7 +140,18 @@ export default async function HomePage() {
       .lt("slot_start", weekEndUtc)
       .order("slot_start", { ascending: true })
       .limit(500),
+    showCheckin
+      ? supabase
+          .from("appointment")
+          .select(CHECKIN_SELECT)
+          .gte("slot_start", dayStart)
+          .lt("slot_start", dayEnd)
+          .in("status", ["SCHEDULED", "CONFIRMED", "CHECKED_IN"])
+          .order("slot_start", { ascending: true })
+          .limit(300)
+      : Promise.resolve({ data: [] }),
   ]);
+  const checkinRows = (checkinRes.data as HomeCheckinRow[] | null) ?? [];
 
   const cards = [
     { label: "Việc đang chờ làm", value: taskRes.count ?? 0 },
@@ -234,6 +265,16 @@ export default async function HomePage() {
             </div>
           )}
         </section>
+      )}
+
+      {/* Check-in bệnh nhân — DƯỚI Ca trực, TRÊN Lịch hẹn khám (ĐD/Lễ tân/Quản lý).
+          Bấm mở danh sách ngay dưới nút; Lịch hẹn khám tự đẩy xuống. */}
+      {showCheckin && (
+        <HomeCheckin
+          rows={checkinRows}
+          canEditVitals={isNurseRole(role)}
+          staffId={staffId}
+        />
       )}
 
       {/* Lịch hẹn khám tuần này — form theo file "Check đặt lịch" */}

@@ -44,9 +44,30 @@ export function isAdminRole(role: ClinicRole | null): boolean {
   return role === "MANAGEMENT";
 }
 
-/** Roles allowed to create patients / appointments (data entry). */
+/** Điều dưỡng / phụ siêu âm. */
+export function isNurseRole(role: ClinicRole | null): boolean {
+  return role === "NURSE_ULTRASOUND";
+}
+
+/** Roles allowed to create patients / appointments (data entry).
+ *  Điều dưỡng (NURSE) thêm vào để nhập "khách vãng lai" + check-in. */
 export function canWriteIntake(role: ClinicRole | null): boolean {
-  return role === "CSKH" || role === "RECEPTION" || role === "MANAGEMENT";
+  return (
+    role === "CSKH" ||
+    role === "RECEPTION" ||
+    role === "MANAGEMENT" ||
+    role === "NURSE_ULTRASOUND"
+  );
+}
+
+/** Roles lo check-in (đón khách đã đến). Khu check-in giờ nằm ở TRANG CHỦ
+ *  (không còn ở sidebar) cho Điều dưỡng + Lễ tân + Quản lý. */
+export function canCheckin(role: ClinicRole | null): boolean {
+  return (
+    role === "NURSE_ULTRASOUND" ||
+    role === "RECEPTION" ||
+    role === "MANAGEMENT"
+  );
 }
 
 /** Landing path after a role is picked. */
@@ -80,8 +101,10 @@ const NAV_ROLES: Record<string, "all" | ClinicRole[]> = {
   "/home": "all",
   "/appointments": ["MANAGEMENT"],
   "/patients": ["MANAGEMENT"],
-  "/patients/new": ["CSKH", "RECEPTION", "MANAGEMENT"],
-  "/checkin": ["RECEPTION", "MANAGEMENT"],
+  // Điều dưỡng cũng nhập được (khách vãng lai).
+  "/patients/new": ["CSKH", "RECEPTION", "MANAGEMENT", "NURSE_ULTRASOUND"],
+  // /checkin đã GỠ khỏi sidebar (xem nav-items). Giữ gate cho trang trực tiếp.
+  "/checkin": ["RECEPTION", "MANAGEMENT", "NURSE_ULTRASOUND"],
   "/tasks": ["CSKH", "MANAGEMENT", ...DOCTOR_ROLES_LIST],
   "/schedule": ["NURSE_ULTRASOUND", "MANAGEMENT"],
   "/work-sessions": ["MANAGEMENT"],

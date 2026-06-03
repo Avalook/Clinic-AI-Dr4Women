@@ -6,13 +6,13 @@ import {
   ClipboardList,
   Users,
   UserPlus,
-  UserCheck,
   CheckSquare,
   Calendar,
   BarChart3,
   Settings,
   type LucideIcon,
 } from "lucide-react";
+import { type ClinicRole, isNurseRole } from "../../lib/roles";
 
 export interface NavItem {
   href: string;
@@ -39,12 +39,7 @@ export const NAV: NavItem[] = [
     shortLabel: "Nhập KH",
     icon: UserPlus,
   },
-  {
-    href: "/checkin",
-    label: "Check-in bệnh nhân",
-    shortLabel: "Check-in",
-    icon: UserCheck,
-  },
+  // Check-in ĐÃ chuyển lên TRANG CHỦ (HomeCheckin) — không còn ở sidebar.
   {
     href: "/tasks",
     label: "Công việc của tôi",
@@ -55,6 +50,18 @@ export const NAV: NavItem[] = [
   { href: "/reports", label: "Báo cáo", icon: BarChart3 },
   { href: "/settings", label: "Cài đặt", icon: Settings },
 ];
+
+// Nhãn theo vai trò: điều dưỡng thấy "khách vãng lai" thay cho "khách hàng mới".
+export function navLabelFor(
+  item: NavItem,
+  role: ClinicRole | null,
+  short = false,
+): string {
+  if (item.href === "/patients/new" && isNurseRole(role)) {
+    return short ? "Vãng lai" : "Nhập thông tin khách vãng lai";
+  }
+  return short ? (item.shortLabel ?? item.label) : item.label;
+}
 
 // Active = exact match, or a nested path with no more-specific nav item also
 // matching (so /patients/new highlights itself, not /patients).

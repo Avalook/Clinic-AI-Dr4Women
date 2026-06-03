@@ -125,10 +125,16 @@ function Section({ no, title, synced, children }: {
 export default function ClinicalRecordForm({
   appt,
   onClose,
+  vitalsOnly = false,
+  readOnly = false,
 }: {
   appt: DoctorApptRow;
   staffId: string | null;
   onClose: () => void;
+  /** Điều dưỡng: CHỉ sửa được Sinh hiệu; mọi mục khác read-only. */
+  vitalsOnly?: boolean;
+  /** Lễ tân / Quản lý: chỉ XEM toàn bộ, không nút lưu. */
+  readOnly?: boolean;
 }) {
   const router = useRouter();
   const p = appt.patient;
@@ -173,7 +179,43 @@ export default function ClinicalRecordForm({
 
   const locked = data?.visit?.status === "FINALIZED";
 
+  // Sinh hiệu (Sinh hiệu) gói riêng để dùng cho cả 2 luồng lưu.
+  const vitalsPayload = () => ({
+    mach: f.mach,
+    nhiet_do: f.nhiet_do,
+    huyet_ap: f.huyet_ap,
+    nhip_tho: f.nhip_tho,
+    spo2: f.spo2,
+    can_nang: f.can_nang,
+    chieu_cao: f.chieu_cao,
+    bmi: f.bmi,
+  });
+
+  // Điều dưỡng: chỉ ghi Sinh hiệu (merge vào objective, KHÔNG đụng mục khác).
+  async function saveVitals() {
+    setSaving(true);
+    setMsg(null);
+    const res = await fetch("/api/clinical-record", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        appointmentId: appt.id,
+        clinicPatientId: p?.clinic_patient_id,
+        vitalsOnly: true,
+        objective: { vitals: vitalsPayload() },
+      }),
+    });
+    setSaving(false);
+    if (!res.ok) {
+      setMsg((await res.json()).error ?? "Lỗi lưu sinh hiệu.");
+      return;
+    }
+    setMsg("Đã lưu sinh hiệu.");
+    router.refresh();
+  }
+
   async function save() {
+    if (vitalsOnly) return saveVitals();
     setSaving(true);
     setMsg(null);
     const res = await fetch("/api/clinical-record", {
@@ -219,13 +261,26 @@ export default function ClinicalRecordForm({
 
   const preg = data?.pregnancy;
   const labs = data?.labs ?? [];
-  const ro = locked || saving;
+  const ro = locked || saving || readOnly; // khoá Sinh hiệu (lưu/đã chốt/chỉ xem)
+  const roRest = ro || vitalsOnly; // ĐD (vitalsOnly) + chỉ-xem: mọi mục khác read
 
   return (
     <div className="flex max-h-[calc(100vh-2rem)] flex-col rounded-xl border border-[#e4e4e7] bg-white shadow-[0_1px_3px_rgba(0,0,0,0.06)]">
       <div className="flex items-center justify-between border-b border-[#e4e4e7] px-4 py-3">
         <div>
-          <h3 className="text-sm font-bold uppercase text-[#171717]">Tóm tắt khám bệnh</h3>
+          <h3 className="text-sm font-bold uppercase text-[#171717]">
+            Tóm tắt khám bệnh
+            {vitalsOnly && (
+              <span className="ml-2 rounded bg-[#fef9c3] px-1.5 py-0.5 text-[10px] font-medium normal-case text-[#a16207]">
+                Điều dưỡng · chỉ ghi Sinh hiệu
+              </span>
+            )}
+            {readOnly && (
+              <span className="ml-2 rounded bg-[#e4e4e7] px-1.5 py-0.5 text-[10px] font-medium normal-case text-[#52525b]">
+                Chỉ xem
+              </span>
+            )}
+          </h3>
           <p className="text-xs text-[#888888]">
             {p?.full_name} · {p?.patient_code} · {fmtDateTimeOrDate(appt.slot_start)}
           </p>
@@ -274,14 +329,14 @@ export default function ClinicalRecordForm({
         </Section>
 
         <Section no="II" title="Lý do vào khám">
-          <input className={INPUT} value={f.ly_do} disabled={ro} onChange={(e) => set("ly_do", e.target.value)} placeholder="VD: Khám thai" />
+          <input className={INPUT} value={f.ly_do} disabled={roRest} onChange={(e) => set("ly_do", e.target.value)} placeholder="VD: Khám thai" />
         </Section>
 
         <Section no="III" title="Tiền sử dị ứng">
           <input
             className={INPUT}
             value={pm.allergies}
-            disabled={ro}
+            disabled={roRest}
             onChange={(e) => setP("allergies", e.target.value)}
             placeholder="Cách nhau dấu phẩy, vd: Penicillin, Hải sản"
           />
@@ -291,7 +346,7 @@ export default function ClinicalRecordForm({
           <div className="space-y-2">
             <div>
               <label className={LABEL}>Nhóm máu</label>
-              <select className={INPUT} value={pm.blood_type} disabled={ro} onChange={(e) => setP("blood_type", e.target.value)}>
+              <select className={INPUT} value={pm.blood_type} disabled={roRest} onChange={(e) => setP("blood_type", e.target.value)}>
                 {BLOOD_TYPES.map((b) => (
                   <option key={b} value={b}>{b || "—"}</option>
                 ))}
@@ -299,29 +354,29 @@ export default function ClinicalRecordForm({
             </div>
             <div>
               <label className={LABEL}>Bệnh mạn tính</label>
-              <input className={INPUT} value={pm.chronic} disabled={ro} onChange={(e) => setP("chronic", e.target.value)} placeholder="Cách nhau dấu phẩy" />
+              <input className={INPUT} value={pm.chronic} disabled={roRest} onChange={(e) => setP("chronic", e.target.value)} placeholder="Cách nhau dấu phẩy" />
             </div>
             <div>
               <label className={LABEL}>Tiền sử phẫu thuật</label>
-              <input className={INPUT} value={pm.surgical} disabled={ro} onChange={(e) => setP("surgical", e.target.value)} placeholder="Cách nhau dấu phẩy" />
+              <input className={INPUT} value={pm.surgical} disabled={roRest} onChange={(e) => setP("surgical", e.target.value)} placeholder="Cách nhau dấu phẩy" />
             </div>
             <div>
               <label className={LABEL}>Thuốc đang dùng</label>
-              <input className={INPUT} value={pm.medications} disabled={ro} onChange={(e) => setP("medications", e.target.value)} placeholder="Cách nhau dấu phẩy" />
+              <input className={INPUT} value={pm.medications} disabled={roRest} onChange={(e) => setP("medications", e.target.value)} placeholder="Cách nhau dấu phẩy" />
             </div>
             <div>
               <label className={LABEL}>Tiền sử gia đình</label>
-              <input className={INPUT} value={pm.family} disabled={ro} onChange={(e) => setP("family", e.target.value)} />
+              <input className={INPUT} value={pm.family} disabled={roRest} onChange={(e) => setP("family", e.target.value)} />
             </div>
             <div>
               <label className={LABEL}>Ghi chú tiền sử</label>
-              <textarea className={INPUT} rows={2} value={pm.notes} disabled={ro} onChange={(e) => setP("notes", e.target.value)} />
+              <textarea className={INPUT} rows={2} value={pm.notes} disabled={roRest} onChange={(e) => setP("notes", e.target.value)} />
             </div>
           </div>
         </Section>
 
         <Section no="V" title="Bệnh sử & khám thai">
-          <textarea className={INPUT} rows={2} value={f.benh_su} disabled={ro} onChange={(e) => set("benh_su", e.target.value)} placeholder="Quá trình bệnh lý…" />
+          <textarea className={INPUT} rows={2} value={f.benh_su} disabled={roRest} onChange={(e) => set("benh_su", e.target.value)} placeholder="Quá trình bệnh lý…" />
           {!loading && preg && (
             <dl className="mt-2 space-y-1.5">
               <AdminRow label="Dự kiến sinh (HS)" value={preg.edd_date ? fmtDate(preg.edd_date) : null} />
@@ -336,7 +391,7 @@ export default function ClinicalRecordForm({
             ] as [keyof Fields, string][]).map(([k, lbl]) => (
               <div key={k}>
                 <label className={LABEL}>{lbl}</label>
-                <input type={k === "du_kien_sinh" ? "date" : "text"} className={INPUT} value={f[k]} disabled={ro} onChange={(e) => set(k, e.target.value)} />
+                <input type={k === "du_kien_sinh" ? "date" : "text"} className={INPUT} value={f[k]} disabled={roRest} onChange={(e) => set(k, e.target.value)} />
               </div>
             ))}
           </div>
@@ -365,11 +420,11 @@ export default function ClinicalRecordForm({
         </Section>
 
         <Section no="VII" title="Chẩn đoán">
-          <textarea className={INPUT} rows={2} value={f.chan_doan} disabled={ro} onChange={(e) => set("chan_doan", e.target.value)} placeholder="VD: Z34 - Theo dõi thai…" />
+          <textarea className={INPUT} rows={2} value={f.chan_doan} disabled={roRest} onChange={(e) => set("chan_doan", e.target.value)} placeholder="VD: Z34 - Theo dõi thai…" />
         </Section>
 
         <Section no="VIII" title="Hướng xử lý & lời dặn">
-          <textarea className={INPUT} rows={3} value={f.loi_dan} disabled={ro} onChange={(e) => set("loi_dan", e.target.value)} />
+          <textarea className={INPUT} rows={3} value={f.loi_dan} disabled={roRest} onChange={(e) => set("loi_dan", e.target.value)} />
         </Section>
       </div>
 
@@ -378,13 +433,15 @@ export default function ClinicalRecordForm({
           {msg ?? ""}
         </span>
         <div className="flex gap-2">
-          <button
-            onClick={save}
-            disabled={ro}
-            className="min-h-10 rounded-lg bg-[#ec4899] px-4 text-sm font-semibold text-white hover:bg-[#db2777] disabled:opacity-50"
-          >
-            {saving ? "Đang lưu…" : "Lưu hồ sơ"}
-          </button>
+          {!readOnly && (
+            <button
+              onClick={save}
+              disabled={ro}
+              className="min-h-10 rounded-lg bg-[#ec4899] px-4 text-sm font-semibold text-white hover:bg-[#db2777] disabled:opacity-50"
+            >
+              {saving ? "Đang lưu…" : vitalsOnly ? "Lưu sinh hiệu" : "Lưu hồ sơ"}
+            </button>
+          )}
           <button onClick={onClose} className="min-h-10 rounded-lg border border-[#e4e4e7] bg-white px-4 text-sm text-[#52525b] hover:bg-[#f4f4f5]">
             Đóng
           </button>

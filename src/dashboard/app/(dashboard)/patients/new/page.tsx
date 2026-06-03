@@ -5,7 +5,7 @@
 import { redirect } from "next/navigation";
 import { getSupabaseServer } from "../../../../lib/supabase-server";
 import { getClinicRole } from "../../../../lib/clinic-session";
-import { canWriteIntake } from "../../../../lib/roles";
+import { canWriteIntake, isNurseRole } from "../../../../lib/roles";
 import NewPatientForm, { type Option } from "./NewPatientForm";
 
 export const dynamic = "force-dynamic";
@@ -13,6 +13,7 @@ export const dynamic = "force-dynamic";
 export default async function NewPatientPage() {
   const role = await getClinicRole();
   if (!canWriteIntake(role)) redirect("/home");
+  const nurse = isNurseRole(role);
 
   const supabase = await getSupabaseServer();
   const [locRes, svcRes, docRes] = await Promise.all([
@@ -43,16 +44,19 @@ export default async function NewPatientPage() {
     <div className="mx-auto max-w-3xl space-y-4">
       <header>
         <h1 className="text-xl font-semibold text-[#171717]">
-          Nhập thông tin khách hàng
+          {nurse ? "Nhập thông tin khách vãng lai" : "Nhập thông tin khách hàng"}
         </h1>
         <p className="text-sm text-[#888888]">
-          Tạo hồ sơ và đặt lịch hẹn trong một bước.
+          {nurse
+            ? "Ghi khách vãng lai + dịch vụ/bác sĩ → tạo lượt khám hôm nay."
+            : "Tạo hồ sơ và đặt lịch hẹn trong một bước."}
         </p>
       </header>
       <NewPatientForm
         locations={locations}
         services={services}
         doctors={doctors}
+        variant={nurse ? "walkin" : "full"}
       />
     </div>
   );

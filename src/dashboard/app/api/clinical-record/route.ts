@@ -10,7 +10,7 @@ import { NextResponse } from "next/server";
 import { getSupabaseServer } from "../../../lib/supabase-server";
 import { getSupabaseService } from "../../../lib/supabase-service";
 import { getClinicRole, getClinicStaffId } from "../../../lib/clinic-session";
-import { isDoctorRole } from "../../../lib/roles";
+import { isDoctorRole, isNurseRole } from "../../../lib/roles";
 
 interface ClinicalRecordRow {
   chief_complaint_at_visit: string | null;
@@ -115,6 +115,14 @@ interface PostBody {
     family_history?: unknown;
     notes?: string | null;
   };
+  // Điều dưỡng: chỉ ghi Sinh hiệu (objective.vitals), KHÔNG đụng mục khác.
+  vitalsOnly?: boolean;
+}
+
+function asObj(x: unknown): Record<string, unknown> {
+  return x && typeof x === "object" && !Array.isArray(x)
+    ? (x as Record<string, unknown>)
+    : {};
 }
 
 export async function POST(request: Request) {
@@ -124,10 +132,24 @@ export async function POST(request: Request) {
   } = await caller.auth.getUser();
   if (!user) return NextResponse.json({ error: "Unauthorised" }, { status: 401 });
 
+  let body: PostBody;
+  try {
+    body = (await request.json()) as PostBody;
+  } catch {
+    return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
+  }
+  const vitalsOnly = body.vitalsOnly === true;
+
   const role = await getClinicRole();
-  if (!isDoctorRole(role)) {
+  // Bác sĩ ghi full hồ sơ; điều dưỡng (vitalsOnly) CHỈ ghi Sinh hiệu.
+  const allowed = isDoctorRole(role) || (vitalsOnly && isNurseRole(role));
+  if (!allowed) {
     return NextResponse.json(
-      { error: "Chỉ bác sĩ mới ghi hồ sơ khám." },
+      {
+        error: vitalsOnly
+          ? "Chỉ bác sĩ / điều dưỡng mới ghi sinh hiệu."
+          : "Chỉ bác sĩ mới ghi hồ sơ khám.",
+      },
       { status: 403 },
     );
   }
@@ -141,12 +163,6 @@ export async function POST(request: Request) {
     );
   }
 
-  let body: PostBody;
-  try {
-    body = (await request.json()) as PostBody;
-  } catch {
-    return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
-  }
   const appointmentId = (body.appointmentId ?? "").trim();
   const clinicPatientId = (body.clinicPatientId ?? "").trim();
   if (!appointmentId || !clinicPatientId) {
@@ -178,18 +194,52 @@ export async function POST(request: Request) {
 
   // Chưa có lượt khám → tạo NHÁP (IN_PROGRESS), KHÔNG chốt.
   if (!visitId) {
+    // Điều dưỡng tạo nháp: bác sĩ phụ trách = bác sĩ của LỊCH HẸN (không phải ĐD).
+    let attendingId: string | null = staffId;
+    if (vitalsOnly) {
+      const { data: ap } = await db
+        .from("appointment")
+        .select("doctor_id")
+        .eq("id", appointmentId)
+        .maybeSingle();
+      attendingId = (ap?.doctor_id as string | null) ?? null;
+    }
     const { data: created, error: vErr } = await db
       .from("visit")
       .insert({
         clinic_patient_id: clinicPatientId,
         appointment_id: appointmentId,
-        attending_doctor_id: staffId,
+        attending_doctor_id: attendingId,
         status: "IN_PROGRESS",
       })
       .select("visit_id")
       .single();
     if (vErr) return NextResponse.json({ error: vErr.message }, { status: 500 });
     visitId = created.visit_id;
+  }
+
+  // Điều dưỡng: CHỈ merge Sinh hiệu vào soap_objective, không đụng các mục khác
+  // (chẩn đoán/lời dặn/tiền sử của bác sĩ giữ nguyên).
+  if (vitalsOnly) {
+    const { data: cr } = await db
+      .from("clinical_record")
+      .select("soap_objective")
+      .eq("visit_id", visitId)
+      .maybeSingle();
+    const merged = {
+      ...asObj(cr?.soap_objective),
+      vitals: asObj(body.objective).vitals ?? {},
+    };
+    const { error } = cr
+      ? await db
+          .from("clinical_record")
+          .update({ soap_objective: merged })
+          .eq("visit_id", visitId)
+      : await db
+          .from("clinical_record")
+          .insert({ visit_id: visitId, soap_objective: merged });
+    if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+    return NextResponse.json({ ok: true, visit_id: visitId, vitalsOnly: true });
   }
 
   // Upsert nội dung khám (clinical_record.visit_id UNIQUE).

@@ -6,7 +6,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { canSeeNav, type ClinicRole } from "../../lib/roles";
-import { NAV, isActiveNav } from "./nav-items";
+import { NAV, isActiveNav, navLabelFor } from "./nav-items";
 
 export default function Nav({
   role,
@@ -22,7 +22,8 @@ export default function Nav({
 
   return (
     <nav className="space-y-0.5">
-      {visible.map(({ href, label, badge, icon: Icon }) => {
+      {visible.map((item) => {
+        const { href, badge, icon: Icon } = item;
         const active = isActiveNav(href, pathname, hrefs);
         return (
           <Link
@@ -36,7 +37,7 @@ export default function Nav({
             }
           >
             <Icon size={16} strokeWidth={2} className="shrink-0" />
-            <span className="min-w-0 flex-1">{label}</span>
+            <span className="min-w-0 flex-1">{navLabelFor(item, role)}</span>
             {badge && (
               <span className="shrink-0 rounded-full bg-[#3f3f46] px-1.5 py-0.5 text-[10px] font-medium text-[#d4d4d8]">
                 {badge}
