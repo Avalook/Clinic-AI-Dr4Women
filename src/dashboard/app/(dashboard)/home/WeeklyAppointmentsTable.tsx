@@ -6,7 +6,7 @@
 
 import { fmtTimeOrNone } from "../../../lib/datetime";
 import { dayLabel, fmtDayMonth } from "../../../lib/roster";
-import { TBL_WRAP, TBL_HEAD, TBL_DIV } from "../form-ui";
+import { TBL_WRAP, TBL_HEAD, TBL_DIV, TBL_RESIZE, TBL_RESIZE_HINT } from "../form-ui";
 
 export interface WeekApptRow {
   id: string;
@@ -57,7 +57,8 @@ function PhanLoai({ value }: { value: string }) {
 
 export default function WeeklyAppointmentsTable({ days }: { days: ApptDay[] }) {
   return (
-    <div className="max-h-[480px] space-y-3 overflow-y-auto rounded-xl border border-[#f3cfe0] bg-[#fdf2f8] p-2">
+    <>
+    <div className={`${TBL_RESIZE} h-[480px] space-y-3 rounded-xl border border-[#f3cfe0] bg-[#fdf2f8] p-2`}>
       {days.map((day) => {
         // Gom theo bác sĩ (giữ thứ tự xuất hiện; cụm "chưa phân" để cuối).
         const groups = new Map<string, WeekApptRow[]>();
@@ -138,5 +139,7 @@ export default function WeeklyAppointmentsTable({ days }: { days: ApptDay[] }) {
         );
       })}
     </div>
+    <p className="mt-1 text-[11px] text-[#c084a8]">{TBL_RESIZE_HINT}</p>
+    </>
   );
 }

@@ -319,7 +319,7 @@ export default async function PatientHistory({ id }: { id: string }) {
             </div>
 
             {/* Desktop: table (≥md). */}
-            <div className={`hidden overflow-x-auto md:block ${CARD}`}>
+            <div className={`hidden resize overflow-auto max-h-[88vh] min-h-[180px] md:block ${CARD}`}>
               <table className="min-w-full divide-y divide-[#f6e0ec] text-sm">
               <thead className="bg-[#fce7f3] text-left text-[11px] font-semibold uppercase tracking-wide text-[#9d2463]">
                 <tr>

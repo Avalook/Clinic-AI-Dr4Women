@@ -13,6 +13,7 @@ import {
   SHIFT_LABEL,
   type Shift,
 } from "../../../lib/roster";
+import { TBL_RESIZE, TBL_RESIZE_HINT } from "../form-ui";
 
 export interface RosterRow {
   work_date: string;
@@ -47,7 +48,8 @@ export default function WorkRosterTable({
   }
 
   return (
-    <div className="max-h-[480px] overflow-auto rounded-xl border border-[#f3cfe0] bg-white shadow-[0_1px_3px_rgba(236,72,153,0.08)]">
+    <>
+    <div className={`${TBL_RESIZE} h-[480px] rounded-xl border border-[#f3cfe0] bg-white shadow-[0_1px_3px_rgba(236,72,153,0.08)]`}>
       <table className="min-w-max border-collapse text-xs">
         <thead>
           {/* Hàng 1: TẦNG (gộp cột) */}
@@ -128,5 +130,7 @@ export default function WorkRosterTable({
         </tbody>
       </table>
     </div>
+    <p className="mt-1 text-[11px] text-[#c084a8]">{TBL_RESIZE_HINT}</p>
+    </>
   );
 }
