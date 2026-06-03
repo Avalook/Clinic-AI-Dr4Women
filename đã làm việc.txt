@@ -1,0 +1,121 @@
+tôi tính thêm 1 bảng nữa bên dưới bảng bảng tình trạng lịch hẹn là bảng: theo dõi tình trạng lịch hẹn, nhưng tôi có 1 băn khoăn là PM bảo tôi cho các cái như đặt hẹn, hủy hẹn,.... vào đầu cột của bảng nhưng tôi không rõ có bao nhiêu cái như vậy, bạn nói cho tôi biết đi
+Tôi sẽ khảo sát code thật để tìm các trạng thái lịch hẹn (appointment status) hiện có, thay vì đoán. Để tôi tìm trong codebase.
+Ran 2 commands
+Để tôi đọc định nghĩa trạng thái lịch hẹn từ migration và schema — nguồn sự thật.
+Read 3 files
+Có thêm bảng CSKH action/log liên quan đến hành động (đặt/hủy hẹn). Để tôi đọc thêm board hiện tại và các migration CSKH.
+Read 3 files
+Tôi đã khảo sát code thật (không tin doc). Đây là câu trả lời:
+Trạng thái lịch hẹn — nguồn sự thật là DB
+Theo CHECK constraint mới nhất trong appointment.status (migration 20260601_034), lịch hẹn có đúng 7 trạng thái:
+#	Mã (DB)	Nhãn tiếng Việt	"Hành động" tương ứng (kiểu PM nói)
+1	SCHEDULED	Chờ xác nhận (mới đặt)	Đặt hẹn
+2	CONFIRMED	Đã xác nhận	Xác nhận hẹn
+3	CHECKED_IN	Đã đến / Check-in	Khách đến
+4	COMPLETED	Đã khám xong	Hoàn tất khám
+5	NO_SHOW	Không đến	Đánh vắng
+6	CANCELLED	Đã hủy	Hủy hẹn
+7	DOCTOR_DECLINED	Bác sĩ từ chối	Bác sĩ từ chối (chờ phân lại)
+Luồng chuyển trạng thái (state machine, từ schema):
+SCHEDULED → CONFIRMED → CHECKED_IN → COMPLETED
+SCHEDULED → CANCELLED          (hủy)
+SCHEDULED → NO_SHOW            (không đến)
+SCHEDULED → DOCTOR_DECLINED    (bác sĩ từ chối)
+Lưu ý: board hiện tại (ConfirmBoard.tsx) mới dùng 2 cột — "Chờ xác nhận" (SCHEDULED) và "Đã xác nhận" (CONFIRMED+CHECKED_IN). 5 trạng thái còn lại chưa hiển thị ở đâu cả — bảng "theo dõi" mới của bạn chính là chỗ để show đủ.
+⚠️ Nhưng "đặt hẹn / hủy hẹn" có thể là thứ KHÁC
+Trong code còn một danh sách nữa rất dễ nhầm: Phân loại hành động CSKH (cskh_action.category, migration 029) — đây là việc CSKH làm, không phải trạng thái lịch hẹn. Có 6 nhóm:
+1.	Đặt lịch khám 2. Tư vấn sau khám 3. Trả KQ xét nghiệm 4. Xử lý thắc mắc 5. Nhắc tái khám 6. CSKH thường quy
+"Đặt hẹn" xuất hiện ở cả hai → cần chốt PM ý cái nào trước khi tôi giúp bạn dựng cột.
+AskedTập cột
+Bảng "theo dõi tình trạng lịch hẹn" mới — đầu cột (các cái như đặt hẹn/hủy hẹn) PM muốn là tập nào?
+vì không rõ đó, nhưng tôi đang làm ở cskh, nghĩa là công việc của cskh, vậy thì là bảng nào
+Rõ rồi — câu trả lời dứt khoát: dùng 7 trạng thái lịch hẹn, không phải 6 nhóm hành động CSKH.
+Vì sao "đang làm ở CSKH" vẫn là bảng 7 trạng thái
+Bạn đang nhầm 2 thứ khác cấp nhau. Tách ra cho rõ:
+•	"Công việc của CSKH" (6 nhóm: đặt lịch, tư vấn, trả KQ, nhắc tái khám…) = việc người CSKH làm. Đây là chủ ngữ (ai làm gì).
+•	"Tình trạng lịch hẹn" (7 trạng thái) = cái lịch hẹn đang ở đâu trong vòng đời. Đây là tân ngữ (thứ bị theo dõi).
+Bảng bạn định thêm tên là "theo dõi tình trạng lịch hẹn" → chủ thể bị theo dõi là cái lịch hẹn, nên cột phải là trạng thái lịch hẹn. CSKH chỉ là người ngồi theo dõi cái bảng đó.
+Bằng chứng quyết định: PM lấy ví dụ "hủy hẹn". "Hủy hẹn" = CANCELLED — chỉ tồn tại trong appointment.status. Trong 6 nhóm CSKH không hề có "hủy hẹn". Vậy ví dụ của PM đang nói về trạng thái lịch hẹn, không phải nhóm việc CSKH.
+Cột cho bảng mới (kanban-style, "đầu cột" = tiêu đề mỗi cột)
+Cột	Mã DB	Ý nghĩa với CSKH
+Chờ xác nhận	SCHEDULED	Mới đặt hẹn, CSKH cần gọi xác nhận
+Đã xác nhận	CONFIRMED	Đã gọi OK
+Đã đến	CHECKED_IN	Khách đã tới (lễ tân check-in)
+Đã khám xong	COMPLETED	Để CSKH biết chuyển sang trả KQ / nhắc tái khám
+Không đến	NO_SHOW	CSKH cần gọi lại đặt hẹn mới
+Đã hủy	CANCELLED	Khách hủy hẹn
+Bác sĩ từ chối	DOCTOR_DECLINED	Chờ CSKH/lễ tân phân lại bác sĩ
+Đây là đủ 7 — không có cái thứ 8. Board hiện tại của bạn mới hiện 2 cột đầu; bảng "theo dõi" mới chính là chỗ hiện đủ 5 cột còn lại.
+________________________________________
+Một gợi ý nhỏ trước khi bạn dựng: 7 cột ngang sẽ chật. Hai cách thường dùng:
+1.	Giữ kanban 7 cột nhưng cho cuộn ngang (overflow-x).
+2.	Bảng dòng: mỗi dòng = 1 lịch hẹn, có 1 cột "Tình trạng" hiển thị badge màu (giống dot màu trong code hiện tại) + lọc/nhóm theo trạng thái.
+Bạn muốn tôi giúp dựng theo kiểu nào (kanban 7 cột hay bảng dòng có badge)? Hay giờ bạn chỉ cần danh sách trạng thái thôi là đủ?
+tức là xem từ cái bảng CSKH action ở notion ấy
+Để tôi mở bảng CSKH Action thật trên Notion để lấy đúng các giá trị cột (Phân loại / Tình trạng), thay vì đoán từ comment trong migration.
+Used ToolSearch
+Để tôi tìm bảng "CSKH - Action" trên Notion.
+Ran a command, used a tool
+Tìm thấy bảng CSKH - Action. Để tôi mở schema thật để lấy đúng các giá trị của cột "Phân loại" và "Tình trạng".
+Used 2 tools
+Phát hiện quan trọng: Trong bảng CSKH - Action trên Notion, cả "Phân loại" lẫn "Tình trạng" đều là cột công thức (formula), KHÔNG phải select cố định → không có danh sách option đọc thẳng từ schema được. Giá trị là do công thức tính ra, dựa trên cấu trúc cha–con (//parent item / //sub-item) và quan hệ Kết quả thực hiện/Step.
+Các page tìm được ("1. Đặt hẹn - Yêu cầu từ @CSKH lúc tư vấn", "1. Đặt hẹn - Khách đổi lịch") cho thấy có một cây phân loại đánh số ("1. ...", "2. ..."). Để tôi lấy đúng các giá trị thật bằng cách query data và xem cây taxonomy.
+Used 2 tools
+Notion connector không có tool query rows, và "Phân loại"/"Tình trạng" là formula nên không có option cố định. Nguồn chuẩn xác nhất là dữ liệu CSKH Action ~31k dòng team đã import + doc onboard. Để tôi tra các giá trị "Phân loại" thật trong repo.
+Ran 2 commands
+Tìm thấy nguồn vàng: context/notion_schema_report.md (báo cáo khảo sát Notion thật). Để tôi đọc đúng đoạn về bảng CSKH Action và cột Tình trạng.
+Readnotion_schema_report.md
+Đây là "lib 1 - kịch bản cskh" — bảng thư viện định nghĩa cột "Phân loại" (chính là nguồn của formula trong CSKH-Action). Để tôi đọc thêm phần "Tình trạng" của bảng lịch hẹn (nơi có "Hủy lịch") để bao trọn cả 2 chiều.
+Readnotion_schema_report.md
+Cột "Tình trạng CSKH" trên bảng LỊCH HẸN là formula có chứa "Danh sách tình trạng phiếu hẹn". Đây chính xác là cái PM muốn. Để tôi đọc nội dung formula đó.
+Readnotion_schema_report.md
+Formula bị cắt trong report. Để tôi lấy nội dung đầy đủ "Danh sách tình trạng phiếu hẹn" từ data source LỊCH HẸN trực tiếp trên Notion.
+Used 8c15c00d-ea54-4c44-b5e0-5c73f344542a: notion-fetch
+Formula không expand qua MCP được. Để tôi tra xem team đã liệt kê đầy đủ danh sách "tình trạng phiếu hẹn" ở đâu trong repo chưa (grep các giá trị đã biết).
+RanFind full appointment status value list in repo
+Có dict mapping VN→canon trong load_to_staging.py. Đây là nơi team đã chuẩn hóa giá trị thật. Để tôi đọc.
+Readload_to_staging.py
+Đã tra xong nguồn thật (Notion + code import). Câu trả lời quan trọng: bảng CSKH Action trên Notion KHÔNG có một cột "đặt hẹn / hủy hẹn" duy nhất — hai cái đó nằm ở hai cột khác nhau. Đây là lý do bạn thấy mơ hồ.
+Trên Notion có 3 cột phân nhóm (không phải 1)
+Cột 1 — Phân loại (loại VIỆC CSKH làm) → 7 giá trị
+Nguồn: bảng lib 1 - kịch bản cskh (chính là cái nuôi công thức "Phân loại" trong CSKH-Action):
+Đặt hẹn · Tư vấn · Trả xét nghiệm · CSKH sau khám · Mổ và thủ thuật · Xử lí sự cố · Ghi chú
+Có thêm cột song song Phân loại tính tiền (5): Tạo hẹn khám · Nhắc hẹn khám · Chăm sóc sau khám · Tư vấn · Trả xét nghiệm.
+Cột 2 — Tình trạng CSKH (trạng thái phiếu hẹn, phía CSKH) → đây là nơi "hủy hẹn" sống
+Cột này là formula (Danh sách tình trạng phiếu hẹn). Các giá trị tôi xác nhận được từ mô tả DB LỊCH HẸN:
+Chờ xác nhận lịch hẹn · Đã xác nhận lịch hẹn · Chờ nhắc lịch lần cuối/Đã nhắc · Hủy lịch
+Cột 3 — Tình trạng khách đến (khách có đến không) → 4 giá trị thật
+Lấy từ code import _STATUS_MAP (team đã chuẩn hóa từ data thật):
+Giá trị Notion	Map sang canon
+Đã đến	COMPLETED
+Không đến	NO_SHOW
+Chưa đến / Chưa đến ngày hẹn khám	SCHEDULED
+Vậy "đặt hẹn, hủy hẹn" PM nói là cái nào?
+•	"đặt hẹn" → khớp Phân loại = Đặt hẹn (cột 1) hoặc trạng thái Đã xác nhận lịch hẹn (cột 2)
+•	"hủy hẹn" → chỉ tồn tại ở cột 2 (Tình trạng CSKH) = Hủy lịch, KHÔNG có trong Phân loại
+→ Vì "hủy hẹn" nằm ở Tình trạng CSKH, và bảng bạn định làm tên là "theo dõi tình trạng lịch hẹn", nên gần như chắc PM muốn cột 2 — tức vòng đời phiếu hẹn theo CSKH:
+Chờ xác nhận → Đã xác nhận → Đã nhắc → [ Đã đến / Không đến / Hủy lịch ]
+Đây cũng chính là thứ dashboard của bạn đã quy về 7 canon status (SCHEDULED…CANCELLED).
+Một điểm tôi CHƯA chắc 100%
+Danh sách đầy đủ của cột Tình trạng CSKH nằm trong một công thức Notion mà MCP không expand ra được (chỉ thấy /* Danh sách tình trạng phiếu hẹn ... */ rồi bị cắt). 4 giá trị trên là cái tôi xác nhận chắc, nhưng có thể còn 1–2 trạng thái nữa (vd "Đã hẹn lại", "Chờ nhắc lần 2"…).
+Tôi có thể lấy chính xác đủ danh sách bằng 1 trong 2 cách:
+1.	Tôi mở Notion qua trình duyệt (Claude in Chrome) đọc thẳng công thức cột Tình trạng CSKH — cần bạn đang mở Chrome có đăng nhập Notion.
+2.	Bạn screenshot/copy nội dung công thức cột đó dán vào đây.
+Bạn muốn tôi chốt theo cột 2 (Tình trạng phiếu hẹn) để dựng cột bảng mới, và lấy nốt danh sách đầy đủ theo cách nào?
+vậy nó là tôi chụp lại cho bạn ở trang CSKH-action à
+Gần đúng, nhưng chụp nhầm bảng thì sẽ ra sai danh sách — để tôi chỉ rõ chỗ.
+Danh sách "đặt hẹn / hủy hẹn / …" nằm ở bảng LỊCH HẸN, không phải CSKH-Action
+•	CSKH-Action, cột Tình trạng = trạng thái công việc CSKH đã xong chưa (vd "Kết thúc / Đã nhắc") — KHÔNG phải vòng đời lịch hẹn.
+•	LỊCH HẸN, cột Tình trạng CSKH = đúng cái bạn cần (chờ xác nhận → đã xác nhận → nhắc → hủy lịch). Danh sách đầy đủ nằm trong comment /* Danh sách tình trạng phiếu hẹn */ ở đầu công thức cột này.
+Cách chụp cho chuẩn (chọn 1 trong 2)
+Cách dễ nhất — xem giá trị thật đang dùng:
+1.	Mở bảng LỊCH HẸN.
+2.	Đổi/ thêm view kiểu Board, Group by → Tình trạng CSKH.
+3.	Chụp dải tiêu đề các cột Board → đó chính là toàn bộ trạng thái thật. ✅ (cái này tôi đọc 100% chắc)
+Cách lấy đúng định nghĩa gốc:
+1.	Bảng LỊCH HẸN → bấm tiêu đề cột Tình trạng CSKH → Edit property.
+2.	Công thức hiện ra, phần đầu có khối /* Danh sách tình trạng phiếu hẹn ... */.
+3.	Chụp/copy khối đó.
+Chụp được cái nào trong 2 cái trên là tôi chốt được danh sách cột cho bảng "theo dõi tình trạng lịch hẹn" của bạn.
+________________________________________
+Hoặc nếu bạn ngại thao tác: tôi tự mở Notion qua Chrome đọc thẳng — chỉ cần bạn đang mở cửa sổ Chrome có đăng nhập Notion, rồi nhắn "mở giúp" là tôi làm. Bạn muốn cách nào?
