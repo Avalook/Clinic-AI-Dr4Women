@@ -11,7 +11,7 @@ import { Check, X, FileText } from "lucide-react";
 import { fmtTimeOrNone } from "../../../lib/datetime";
 import StatusBadge from "../StatusBadge";
 import ClinicalRecordForm from "./ClinicalRecordForm";
-import { TBL_RESIZE_HINT } from "../form-ui";
+import SplitPane from "../SplitPane";
 
 export interface DoctorApptRow {
   id: string;
@@ -71,25 +71,16 @@ export default function DoctorWorkBoard({
     router.refresh();
   }
 
-  return (
-    <>
-      {error && (
-        <div className="rounded-md bg-[#fee2e2] px-3 py-2 text-sm text-[#dc2626]">
-          {error}
+  const boardEl = (
+    <div className="h-full max-h-[78vh] overflow-auto rounded-xl border border-[#f3cfe0] bg-white shadow-[0_1px_3px_rgba(236,72,153,0.08)]">
+      <div className="sticky top-0 z-10 grid grid-cols-[7rem_1fr] border-b border-[#f3cfe0] bg-[#fce7f3] text-xs font-semibold uppercase tracking-wide text-[#9d2463]">
+        <div className="px-3 py-2">Ngày</div>
+        <div className="border-l border-[#f3cfe0] px-3 py-2">
+          Thông tin bệnh nhân
         </div>
-      )}
+      </div>
 
-      <p className="text-[11px] text-[#c084a8]">{TBL_RESIZE_HINT}</p>
-      <div className="flex flex-col gap-4 lg:flex-row lg:items-start">
-      <div className="min-w-0 flex-1 h-[560px] min-h-[240px] max-h-[88vh] resize-y overflow-auto rounded-xl border border-[#f3cfe0] bg-white shadow-[0_1px_3px_rgba(236,72,153,0.08)]">
-        <div className="grid grid-cols-[7rem_1fr] border-b border-[#f3cfe0] bg-[#fce7f3] text-xs font-semibold uppercase tracking-wide text-[#9d2463]">
-          <div className="px-3 py-2">Ngày</div>
-          <div className="border-l border-[#f3cfe0] px-3 py-2">
-            Thông tin bệnh nhân
-          </div>
-        </div>
-
-        {days.map((day) => (
+      {days.map((day) => (
           <div
             key={day.label}
             className="grid grid-cols-[7rem_1fr] border-b border-[#e4e4e7] last:border-b-0"
@@ -158,18 +149,40 @@ export default function DoctorWorkBoard({
           </div>
         ))}
       </div>
+  );
 
-        {open && (
-          <aside className="w-full shrink-0 overflow-x-auto lg:sticky lg:top-4 lg:max-w-[760px] lg:min-w-[360px] lg:w-[440px] lg:resize-x">
-            <ClinicalRecordForm
-              key={open.id}
-              appt={open}
-              staffId={staffId}
-              onClose={() => setOpenId(null)}
-            />
-          </aside>
-        )}
-      </div>
+  return (
+    <>
+      {error && (
+        <div className="rounded-md bg-[#fee2e2] px-3 py-2 text-sm text-[#dc2626]">
+          {error}
+        </div>
+      )}
+
+      {open ? (
+        <>
+          <p className="mb-2 text-[11px] text-[#c084a8]">
+            ↔ Kéo thanh hồng ở GIỮA 2 bảng để chỉnh độ rộng (kéo trái: bảng trái
+            co, hồ sơ rộng ra).
+          </p>
+          <SplitPane
+            className="md:h-[78vh]"
+            initialLeftPct={52}
+            left={boardEl}
+            right={
+              <ClinicalRecordForm
+                key={open.id}
+                appt={open}
+                staffId={staffId}
+                fill
+                onClose={() => setOpenId(null)}
+              />
+            }
+          />
+        </>
+      ) : (
+        boardEl
+      )}
     </>
   );
 }

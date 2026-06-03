@@ -127,6 +127,7 @@ export default function ClinicalRecordForm({
   onClose,
   vitalsOnly = false,
   readOnly = false,
+  fill = false,
 }: {
   appt: DoctorApptRow;
   staffId: string | null;
@@ -135,6 +136,8 @@ export default function ClinicalRecordForm({
   vitalsOnly?: boolean;
   /** Lễ tân / Quản lý: chỉ XEM toàn bộ, không nút lưu. */
   readOnly?: boolean;
+  /** Lấp đầy CHIỀU CAO của khung cha (md+) — dùng khi đặt trong SplitPane. */
+  fill?: boolean;
 }) {
   const router = useRouter();
   const p = appt.patient;
@@ -265,7 +268,14 @@ export default function ClinicalRecordForm({
   const roRest = ro || vitalsOnly; // ĐD (vitalsOnly) + chỉ-xem: mọi mục khác read
 
   return (
-    <div className="flex max-h-[calc(100vh-2rem)] flex-col rounded-xl border border-[#e4e4e7] bg-white shadow-[0_1px_3px_rgba(0,0,0,0.06)]">
+    <div
+      className={
+        "flex flex-col rounded-xl border border-[#e4e4e7] bg-white shadow-[0_1px_3px_rgba(0,0,0,0.06)] " +
+        (fill
+          ? "max-h-[calc(100vh-2rem)] md:max-h-none md:h-full"
+          : "max-h-[calc(100vh-2rem)]")
+      }
+    >
       <div className="flex items-center justify-between border-b border-[#e4e4e7] px-4 py-3">
         <div>
           <h3 className="text-sm font-bold uppercase text-[#171717]">
