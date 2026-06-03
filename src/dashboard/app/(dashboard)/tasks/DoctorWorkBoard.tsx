@@ -22,7 +22,6 @@ export interface DoctorApptRow {
     patient_code: string;
     full_name: string;
     date_of_birth: string | null;
-    national_id_number: string | null;
     phone_primary: string | null;
     phone_secondary: string | null;
     gender: string | null;

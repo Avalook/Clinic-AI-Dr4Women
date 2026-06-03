@@ -90,7 +90,7 @@ export default async function HomePage() {
   const CHECKIN_SELECT = `
     id, slot_start, status, queue_number,
     patient:patient!clinic_patient_id (
-      clinic_patient_id, patient_code, full_name, date_of_birth, national_id_number,
+      clinic_patient_id, patient_code, full_name, date_of_birth,
       phone_primary, phone_secondary, gender, ethnicity, nationality, occupation,
       patient_objection, address, guardian_name
     ),

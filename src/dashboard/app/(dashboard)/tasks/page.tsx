@@ -6,7 +6,7 @@
 import { getSupabaseServer } from "../../../lib/supabase-server";
 import { vnTodayRangeUtc, fmtDate } from "../../../lib/datetime";
 import { getClinicRole, getClinicStaffId } from "../../../lib/clinic-session";
-import { isDoctorRole } from "../../../lib/roles";
+import { isDoctorRole, canManageAppt } from "../../../lib/roles";
 import ConfirmBoard, { type ApptRow, type Opt } from "./ConfirmBoard";
 import CskhActionBoard, { type CskhActionRow } from "./CskhActionBoard";
 import DoctorWorkBoard, {
@@ -22,7 +22,7 @@ const DAY_MS = 24 * 60 * 60 * 1000;
 const DOCTOR_SELECT = `
   id, slot_start, status,
   patient:patient!clinic_patient_id (
-    clinic_patient_id, patient_code, full_name, date_of_birth, national_id_number,
+    clinic_patient_id, patient_code, full_name, date_of_birth,
     phone_primary, phone_secondary, gender, ethnicity, nationality, occupation,
     patient_objection, address, guardian_name
   ),
@@ -107,12 +107,12 @@ export default async function TasksPage() {
     )
   `;
 
-  const [apptRes, locRes, cskhRes] = await Promise.all([
+  const [apptRes, locRes, cskhRes, docRes] = await Promise.all([
     supabase
       .from("appointment")
       .select(SELECT)
-      // Đủ 7 trạng thái: board trên dùng SCHEDULED/CONFIRMED, board "theo dõi"
-      // dùng phần còn lại (đã đến / không đến / hủy / bác sĩ từ chối).
+      // Đủ 7 trạng thái — board phân về 4 cột (gồm "Ngoài luồng": hủy/không đến/
+      // bác sĩ từ chối).
       .in("status", [
         "SCHEDULED",
         "CONFIRMED",
@@ -133,6 +133,13 @@ export default async function TasksPage() {
       .select(CSKH_SELECT)
       .order("source_created_at", { ascending: false, nullsFirst: false })
       .limit(200),
+    // Bác sĩ để PHÂN LẠI lịch bị từ chối.
+    supabase
+      .from("staff")
+      .select("id, full_name")
+      .in("primary_department", ["DOCTOR", "ULTRASOUND_DOCTOR"])
+      .eq("is_active", true)
+      .order("full_name"),
   ]);
 
   const rows = (apptRes.data as ApptRow[] | null) ?? [];
@@ -140,6 +147,10 @@ export default async function TasksPage() {
   const locations: Opt[] = (locRes.data ?? []).map((r) => ({
     id: r.id as string,
     label: r.name as string,
+  }));
+  const doctors: Opt[] = (docRes.data ?? []).map((r) => ({
+    id: r.id as string,
+    label: r.full_name as string,
   }));
 
   return (
@@ -159,7 +170,12 @@ export default async function TasksPage() {
         </div>
       ) : (
         <>
-          <ConfirmBoard rows={rows} locations={locations} />
+          <ConfirmBoard
+            rows={rows}
+            locations={locations}
+            doctors={doctors}
+            canManage={canManageAppt(role)}
+          />
 
           {/* Ý nghĩa từng trạng thái — để phòng khám đọc hiểu (PM yêu cầu) */}
           <dl className="grid gap-2.5 rounded-lg border border-[#e4e4e7] bg-[#fafafa] px-4 py-3 text-xs text-[#52525b] sm:grid-cols-3">

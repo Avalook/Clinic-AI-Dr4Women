@@ -18,7 +18,12 @@ import { NextResponse } from "next/server";
 import { getSupabaseServer } from "../../../lib/supabase-server";
 import { getSupabaseService } from "../../../lib/supabase-service";
 import { getClinicRole, getClinicStaffId } from "../../../lib/clinic-session";
-import { canWriteIntake, isDoctorRole } from "../../../lib/roles";
+import {
+  canWriteIntake,
+  isDoctorRole,
+  canManageAppt,
+  canCheckin,
+} from "../../../lib/roles";
 import { logEvent } from "../../../lib/event-log";
 
 interface Body {
@@ -141,11 +146,16 @@ type PatchAction =
   | "complete"
   | "checkin"
   | "undo_checkin"
-  | "cskh_confirm";
+  | "cskh_confirm"
+  | "cancel"
+  | "no_show"
+  | "reassign";
 
 interface PatchBody {
   id?: string;
   action?: PatchAction;
+  cancellation_reason?: string; // cho action "cancel"
+  doctor_id?: string; // cho action "reassign" (bác sĩ mới); rỗng = bỏ phân
 }
 
 // "complete" = bác sĩ chốt KHÁM XONG (lịch → COMPLETED). KHÔNG đụng visit
@@ -156,6 +166,15 @@ const CHECKIN_ACTIONS = new Set<PatchAction>([
   "checkin",
   "undo_checkin",
   "cskh_confirm",
+]);
+// Quản trị vòng đời lịch: hủy + phân lại bác sĩ (CSKH/Quản lý).
+const MANAGE_ACTIONS = new Set<PatchAction>(["cancel", "reassign"]);
+// no_show: front-desk đánh "không đến" (canCheckin).
+const ALL_ACTIONS = new Set<PatchAction>([
+  ...DOCTOR_ACTIONS,
+  ...CHECKIN_ACTIONS,
+  ...MANAGE_ACTIONS,
+  "no_show",
 ]);
 
 export async function PATCH(request: Request) {
@@ -173,7 +192,7 @@ export async function PATCH(request: Request) {
   }
   const id = (body.id ?? "").trim();
   const action = body.action;
-  if (!id || !action || (!DOCTOR_ACTIONS.has(action) && !CHECKIN_ACTIONS.has(action))) {
+  if (!id || !action || !ALL_ACTIONS.has(action)) {
     return NextResponse.json(
       { error: "Thiếu id lịch hẹn hoặc action không hợp lệ." },
       { status: 400 },
@@ -183,17 +202,32 @@ export async function PATCH(request: Request) {
   const role = await getClinicRole();
   const staffId = await getClinicStaffId();
 
-  // Confirm / decline: DOCTOR, own appt. Check-in: front-desk (Lễ tân/CSKH/QL).
+  // Gate theo nhóm: bác sĩ (own appt) · hủy/phân-lại (CSKH/QL) · không-đến
+  // (front-desk) · check-in/cskh_confirm (intake).
   if (DOCTOR_ACTIONS.has(action)) {
     if (!isDoctorRole(role)) {
       return NextResponse.json(
-        { error: "Chỉ bác sĩ mới xác nhận/từ chối lịch hẹn." },
+        { error: "Chỉ bác sĩ mới xác nhận/từ chối/khám-xong lịch hẹn." },
         { status: 403 },
       );
     }
     if (!staffId) {
       return NextResponse.json(
         { error: "Chưa chọn danh tính bác sĩ." },
+        { status: 403 },
+      );
+    }
+  } else if (MANAGE_ACTIONS.has(action)) {
+    if (!canManageAppt(role)) {
+      return NextResponse.json(
+        { error: "Chỉ CSKH / Quản lý mới hủy hoặc phân lại bác sĩ." },
+        { status: 403 },
+      );
+    }
+  } else if (action === "no_show") {
+    if (!canCheckin(role)) {
+      return NextResponse.json(
+        { error: "Chỉ Lễ tân / Điều dưỡng / Quản lý mới đánh không đến." },
         { status: 403 },
       );
     }
@@ -252,7 +286,20 @@ export async function PATCH(request: Request) {
     // CSKH gọi xác nhận lịch với khách → SCHEDULED → CONFIRMED.
     newStatus = "CONFIRMED";
     fromStatuses = ["SCHEDULED"];
+  } else if (action === "cancel") {
+    // Hủy lịch (CSKH/QL) — từ mọi trạng thái còn "sống".
+    newStatus = "CANCELLED";
+    fromStatuses = ["SCHEDULED", "CONFIRMED", "CHECKED_IN"];
+  } else if (action === "no_show") {
+    // Khách không đến (front-desk) — chỉ khi chưa check-in.
+    newStatus = "NO_SHOW";
+    fromStatuses = ["SCHEDULED", "CONFIRMED"];
+  } else if (action === "reassign") {
+    // Bác sĩ từ chối → CSKH/QL phân lại → về SCHEDULED (gán bác sĩ mới ở dưới).
+    newStatus = "SCHEDULED";
+    fromStatuses = ["DOCTOR_DECLINED"];
   } else {
+    // undo_checkin
     newStatus = "CONFIRMED";
     fromStatuses = ["CHECKED_IN"];
   }
@@ -264,13 +311,30 @@ export async function PATCH(request: Request) {
     );
   }
 
-  const { error: updErr } = await db
+  // Trường phụ theo action: hủy (ghi lý do + thời điểm), phân lại (gán bác sĩ mới).
+  const patch: Record<string, unknown> = { status: newStatus };
+  if (action === "cancel") {
+    patch.cancelled_at = new Date().toISOString();
+    patch.cancellation_reason = (body.cancellation_reason ?? "").trim() || null;
+  } else if (action === "reassign") {
+    patch.doctor_id = (body.doctor_id ?? "").trim() || null;
+  }
+
+  const { data: updated, error: updErr } = await db
     .from("appointment")
-    .update({ status: newStatus })
+    .update(patch)
     .eq("id", id)
-    .in("status", fromStatuses);
+    .in("status", fromStatuses)
+    .select("id");
   if (updErr) {
     return NextResponse.json({ error: updErr.message }, { status: 500 });
+  }
+  // Race: trạng thái đã bị người khác đổi giữa lúc đọc và ghi → 0 row khớp.
+  if (!updated || updated.length === 0) {
+    return NextResponse.json(
+      { error: "Lịch hẹn vừa được người khác cập nhật, hãy tải lại." },
+      { status: 409 },
+    );
   }
 
   const eventType: Record<PatchAction, string> = {
@@ -280,6 +344,9 @@ export async function PATCH(request: Request) {
     checkin: "appointment.checked_in",
     undo_checkin: "appointment.checkin_undone",
     cskh_confirm: "appointment.cskh_confirmed",
+    cancel: "appointment.cancelled",
+    no_show: "appointment.no_show",
+    reassign: "appointment.reassigned",
   };
 
   await logEvent(db, {
@@ -316,7 +383,7 @@ export async function PATCH(request: Request) {
           minute: "2-digit",
         })
       : "";
-    await db.from("cskh_action").upsert(
+    const { error: caErr } = await db.from("cskh_action").upsert(
       {
         source_ref: `dash-confirm-${id}`,
         clinic_patient_id: appt.clinic_patient_id,
@@ -329,6 +396,7 @@ export async function PATCH(request: Request) {
       },
       { onConflict: "source_ref" },
     );
+    if (caErr) console.error("cskh_action upsert (confirm) lỗi:", caErr.message);
   }
 
   return NextResponse.json({ ok: true, status: newStatus });

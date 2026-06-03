@@ -70,6 +70,11 @@ export function canCheckin(role: ClinicRole | null): boolean {
   );
 }
 
+/** Roles quản trị vòng đời lịch hẹn: HỦY lịch + PHÂN LẠI bác sĩ (CSKH + Quản lý). */
+export function canManageAppt(role: ClinicRole | null): boolean {
+  return role === "CSKH" || role === "MANAGEMENT";
+}
+
 /** Landing path after a role is picked. */
 export function roleLanding(role: ClinicRole | null): string {
   if (isDoctorRole(role)) return "/tasks";

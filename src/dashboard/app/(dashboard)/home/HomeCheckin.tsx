@@ -45,7 +45,7 @@ export default function HomeCheckin({
     : rows;
   const sel = rows.find((r) => r.id === selId) ?? null;
 
-  async function act(id: string, action: "checkin" | "undo_checkin") {
+  async function act(id: string, action: "checkin" | "undo_checkin" | "no_show") {
     setBusyId(id);
     setError(null);
     const res = await fetch("/api/appointments", {
@@ -141,13 +141,22 @@ export default function HomeCheckin({
                     Hoàn tác
                   </button>
                 ) : (
-                  <button
-                    onClick={() => act(r.id, "checkin")}
-                    disabled={busyId === r.id}
-                    className="min-h-9 shrink-0 rounded-lg bg-[#ec4899] px-3 text-xs font-semibold text-white hover:bg-[#db2777] disabled:opacity-50"
-                  >
-                    {busyId === r.id ? "..." : "Check-in"}
-                  </button>
+                  <div className="flex shrink-0 flex-col items-end gap-1">
+                    <button
+                      onClick={() => act(r.id, "checkin")}
+                      disabled={busyId === r.id}
+                      className="min-h-9 rounded-lg bg-[#ec4899] px-3 text-xs font-semibold text-white hover:bg-[#db2777] disabled:opacity-50"
+                    >
+                      {busyId === r.id ? "..." : "Check-in"}
+                    </button>
+                    <button
+                      onClick={() => act(r.id, "no_show")}
+                      disabled={busyId === r.id}
+                      className="text-[11px] text-[#a1a1aa] hover:text-[#dc2626] disabled:opacity-50"
+                    >
+                      Không đến
+                    </button>
+                  </div>
                 )}
               </li>
             );

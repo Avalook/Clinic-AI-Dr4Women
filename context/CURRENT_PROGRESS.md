@@ -768,3 +768,23 @@ CONFIRMED/CHECKED_IN ─complete(bác sĩ)→ COMPLETED   ← MỚI
 Ràng buộc: chỉ "Khám xong" được khi đã CONFIRMED/CHECKED_IN (không nhảy thẳng từ SCHEDULED). fromStatuses guard race-safe.
 
 **NỢ:** "Khám xong" mới chuyển trạng thái LỊCH; chốt hồ sơ (visit FINALIZED, khóa TT13) + amend vẫn để riêng, chưa làm (cố ý).
+
+## CẬP NHẬT 03/06 (tiếp) — AUDIT logic toàn dashboard + vá Đợt A/B
+
+**Audit 4 agent song song** (phân quyền · state machine · intake · clinical). Phát hiện chính:
+- 🔴 Phân quyền ĐỌC hở: /patients, /patients/[id], /appointments, /work-sessions vào được bằng URL dù ẩn menu; `/` redirect cứng /work-sessions → bác sĩ rơi vào ca trực.
+- 🔴 CCCD rò xuống client (CHECKIN_SELECT + DOCTOR_SELECT).
+- 🔴 GET /api/clinical-record không gate role + RLS USING(true) → ai cũng đọc full bệnh án.
+- 🔴 State machine thiếu: KHÔNG có Hủy / Không đến / Phân lại bác sĩ; 3 status CANCELLED/NO_SHOW/DOCTOR_DECLINED tàng hình mọi board.
+- 🟡 lost-update sinh hiệu↔hồ sơ; double-visit race (thiếu UNIQUE appointment_id); undo_checkin sai; complete≠FINALIZE; trùng CCCD báo lỗi sai; tìm kiếm không bỏ dấu; patient_code timestamp.
+
+**Quyết định user:** (1) MỌI nhân viên xem bệnh án OK → không siết RBAC bệnh án; (2) CSKH+QL hủy/phân lại, Lễ tân đánh không đến; (3) FINALIZE để sau.
+
+**Đã vá (Đợt A+B, build PASS):**
+- A: `app/page.tsx` redirect `/` → roleLanding(role) (bác sĩ → /tasks). Bỏ `national_id_number` khỏi CHECKIN_SELECT + DOCTOR_SELECT + interface DoctorApptRow.
+- B (state machine): `/api/appointments` thêm action **cancel** (→CANCELLED, CSKH/QL, ghi lý do+thời điểm), **no_show** (→NO_SHOW, front-desk), **reassign** (DOCTOR_DECLINED→SCHEDULED + bác sĩ mới, CSKH/QL). +guard RACE (update .select() rỗng → 409). +log lỗi cskh_action. `roles.ts` thêm `canManageAppt`.
+- B (UI): ConfirmBoard thêm **cột "Ngoài luồng"** (CANCELLED/NO_SHOW/DOCTOR_DECLINED hết tàng hình) + nút **Hủy lịch** (lý do) + **Phân lại bác sĩ** (dropdown) + Trạng thái dùng StatusBadge. HomeCheckin thêm nút **Không đến**. tasks/page.tsx fetch doctors + truyền canManage.
+
+**CÒN LẠI (Đợt C/D — chưa làm):**
+- C: UNIQUE(appointment_id) trên visit + upsert (chống double-visit) [migration]; merge sinh hiệu phía DB chống lost-update; trùng CCCD báo rõ; undo_checkin trả đúng trạng thái.
+- D: complete→tạo cskh_action "CSKH sau khám"; tìm kiếm unaccent [migration]; patient_code qua sequence; xóa /checkin orphan + readOnly dead prop; trigger FINALIZED backstop [migration]; nút "Chốt hồ sơ" FINALIZE + amend (để sau, đụng safety gate).

@@ -7,9 +7,10 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { Check, Pencil, X } from "lucide-react";
+import { Check, Pencil, X, Ban, RotateCcw } from "lucide-react";
 import { fmtTimeOrNone } from "../../../lib/datetime";
 import { INPUT, LABEL, TBL_RESIZE_HINT } from "../form-ui";
+import StatusBadge from "../StatusBadge";
 
 export interface Opt {
   id: string;
@@ -43,10 +44,9 @@ export interface ApptRow {
   service: { name: string } | null;
 }
 
-// Board "Tình trạng lịch hẹn" = TIẾN TRÌNH khám: Chờ xác nhận → Đã xác nhận →
-// Đã khám xong (giống board bác sĩ /appointments). Các kết cục NGOÀI luồng (Hủy /
-// Không đến / Bác sĩ từ chối) ở TrackBoard ("Theo dõi tình trạng lịch hẹn") —
-// partition theo appointment.status, 1 lịch hẹn chỉ ở 1 board.
+// Board "Tình trạng lịch hẹn" — 4 cột theo appointment.status, 1 lịch ở 1 cột.
+// Cột "Ngoài luồng" gom Hủy / Không đến / Bác sĩ từ chối (trước đây 3 status này
+// bị fetch về rồi tàng hình — không cột nào hiện).
 const COLUMNS = [
   { key: "pending", label: "Chờ xác nhận", statuses: ["SCHEDULED"], dot: "#2563eb" },
   {
@@ -56,6 +56,12 @@ const COLUMNS = [
     dot: "#16a34a",
   },
   { key: "done", label: "Đã khám xong", statuses: ["COMPLETED"], dot: "#71717a" },
+  {
+    key: "off",
+    label: "Ngoài luồng",
+    statuses: ["CANCELLED", "NO_SHOW", "DOCTOR_DECLINED"],
+    dot: "#dc2626",
+  },
 ];
 
 interface Form {
@@ -76,9 +82,15 @@ interface Form {
 export default function ConfirmBoard({
   rows,
   locations,
+  doctors = [],
+  canManage = false,
 }: {
   rows: ApptRow[];
   locations: Opt[];
+  /** Bác sĩ để PHÂN LẠI lịch bị từ chối (chỉ cần khi canManage). */
+  doctors?: Opt[];
+  /** CSKH/Quản lý: được Hủy lịch + Phân lại bác sĩ. */
+  canManage?: boolean;
 }) {
   const router = useRouter();
   const [selId, setSelId] = useState<string | null>(null);
@@ -86,20 +98,28 @@ export default function ConfirmBoard({
   const [form, setForm] = useState<Form | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [showCancel, setShowCancel] = useState(false);
+  const [cancelReason, setCancelReason] = useState("");
+  const [reassignDoc, setReassignDoc] = useState("");
 
   const sel = rows.find((r) => r.id === selId) ?? null;
   const locName = (id: string | null) =>
     locations.find((l) => l.id === id)?.label ?? "—";
+  const LIVE = ["SCHEDULED", "CONFIRMED", "CHECKED_IN"]; // còn "sống" → hủy được
 
   function select(a: ApptRow) {
     setSelId(a.id);
     setEditing(false);
     setError(null);
+    setShowCancel(false);
+    setCancelReason("");
+    setReassignDoc("");
   }
   function close() {
     setSelId(null);
     setEditing(false);
     setError(null);
+    setShowCancel(false);
   }
 
   function startEdit() {
@@ -123,18 +143,38 @@ export default function ConfirmBoard({
     setError(null);
   }
 
-  async function confirm() {
+  async function patchAppt(payload: Record<string, unknown>, errMsg: string) {
     if (!sel) return;
     setBusy(true);
     setError(null);
     const res = await fetch("/api/appointments", {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ id: sel.id, action: "cskh_confirm" }),
+      body: JSON.stringify({ id: sel.id, ...payload }),
     });
     setBusy(false);
-    if (!res.ok) return setError((await res.json()).error ?? "Lỗi xác nhận.");
+    if (!res.ok) {
+      setError((await res.json()).error ?? errMsg);
+      return;
+    }
+    setShowCancel(false);
     router.refresh();
+  }
+
+  async function confirm() {
+    await patchAppt({ action: "cskh_confirm" }, "Lỗi xác nhận.");
+  }
+  async function cancelAppt() {
+    await patchAppt(
+      { action: "cancel", cancellation_reason: cancelReason },
+      "Lỗi hủy lịch.",
+    );
+  }
+  async function reassign() {
+    await patchAppt(
+      { action: "reassign", doctor_id: reassignDoc },
+      "Lỗi phân lại bác sĩ.",
+    );
   }
 
   async function save() {
@@ -164,7 +204,7 @@ export default function ConfirmBoard({
     <div className="flex flex-col gap-4 lg:flex-row lg:items-start">
       {/* MỘT bảng — các cột trạng thái chung trong 1 khung */}
       <div className="flex h-[520px] min-h-0 min-w-0 max-h-[88vh] flex-1 resize-y flex-col overflow-hidden rounded-xl border border-[#f3cfe0] bg-white shadow-[0_1px_3px_rgba(236,72,153,0.08)]">
-        <div className="grid min-h-0 flex-1 grid-cols-3 divide-x divide-[#f6e0ec]">
+        <div className="grid min-h-0 flex-1 grid-cols-2 divide-x divide-[#f6e0ec] lg:grid-cols-4">
           {COLUMNS.map((col) => {
             const items = rows.filter((r) => col.statuses.includes(r.status));
             return (
@@ -256,16 +296,15 @@ export default function ConfirmBoard({
                   value={`${fmtTimeOrNone(sel.slot_start)} · ${sel.service?.name ?? "—"}`}
                 />
                 <Row label="Bác sĩ" value={sel.doctor?.full_name} />
-                <Row
-                  label="Trạng thái"
-                  value={
-                    sel.status === "SCHEDULED"
-                      ? "Chờ xác nhận"
-                      : sel.status === "COMPLETED"
-                        ? "Đã khám xong"
-                        : "Đã xác nhận"
-                  }
-                />
+                {sel.status === "CANCELLED" && sel.cancellation_reason && (
+                  <Row label="Lý do hủy" value={sel.cancellation_reason} />
+                )}
+                <div className="flex gap-2 pt-0.5">
+                  <dt className="w-28 shrink-0 text-[#888888]">Trạng thái</dt>
+                  <dd>
+                    <StatusBadge status={sel.status} />
+                  </dd>
+                </div>
               </dl>
 
               {error && <p className="mt-2 text-xs text-[#dc2626]">{error}</p>}
@@ -288,7 +327,72 @@ export default function ConfirmBoard({
                   <Pencil size={14} />
                   {sel.status === "SCHEDULED" ? "Không xác nhận / Sửa" : "Sửa"}
                 </button>
+
+                {/* Hủy lịch (CSKH/QL) — lịch còn "sống" */}
+                {canManage && LIVE.includes(sel.status) && (
+                  <button
+                    onClick={() => setShowCancel((v) => !v)}
+                    disabled={busy}
+                    className="inline-flex min-h-10 items-center gap-1 rounded-lg border border-[#fecaca] bg-white px-4 text-sm font-medium text-[#dc2626] hover:bg-[#fef2f2] disabled:opacity-50"
+                  >
+                    <Ban size={14} /> Hủy lịch
+                  </button>
+                )}
               </div>
+
+              {/* Form lý do hủy (ẩn/hiện) */}
+              {canManage && showCancel && LIVE.includes(sel.status) && (
+                <div className="mt-3 space-y-2 rounded-lg border border-[#fecaca] bg-white p-3">
+                  <label className={LABEL}>Lý do hủy (tuỳ chọn)</label>
+                  <input
+                    className={INPUT}
+                    value={cancelReason}
+                    onChange={(e) => setCancelReason(e.target.value)}
+                    placeholder="VD: khách bận, đổi lịch…"
+                  />
+                  <div className="flex gap-2">
+                    <button
+                      onClick={cancelAppt}
+                      disabled={busy}
+                      className="min-h-10 rounded-lg bg-[#dc2626] px-4 text-sm font-semibold text-white hover:bg-[#b91c1c] disabled:opacity-50"
+                    >
+                      {busy ? "Đang hủy…" : "Xác nhận hủy"}
+                    </button>
+                    <button
+                      onClick={() => setShowCancel(false)}
+                      className="min-h-10 rounded-lg border border-[#e4e4e7] bg-white px-4 text-sm text-[#52525b] hover:bg-[#f4f4f5]"
+                    >
+                      Thôi
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {/* Phân lại bác sĩ (CSKH/QL) — lịch bị bác sĩ từ chối */}
+              {canManage && sel.status === "DOCTOR_DECLINED" && (
+                <div className="mt-3 space-y-2 rounded-lg border border-[#fed7aa] bg-white p-3">
+                  <label className={LABEL}>Phân lại cho bác sĩ</label>
+                  <select
+                    className={INPUT}
+                    value={reassignDoc}
+                    onChange={(e) => setReassignDoc(e.target.value)}
+                  >
+                    <option value="">— Chưa phân (về Chờ xác nhận) —</option>
+                    {doctors.map((d) => (
+                      <option key={d.id} value={d.id}>
+                        {d.label}
+                      </option>
+                    ))}
+                  </select>
+                  <button
+                    onClick={reassign}
+                    disabled={busy}
+                    className="inline-flex min-h-10 items-center gap-1 rounded-lg bg-[#ea580c] px-4 text-sm font-semibold text-white hover:bg-[#c2410c] disabled:opacity-50"
+                  >
+                    <RotateCcw size={14} /> {busy ? "Đang phân lại…" : "Phân lại"}
+                  </button>
+                </div>
+              )}
             </>
           ) : (
             form && (
