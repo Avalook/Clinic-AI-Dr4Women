@@ -16,17 +16,26 @@ import {
 } from "../../../lib/clinic-session";
 import { type ClinicRole } from "../../../lib/roles";
 import type { ActiveStaff } from "../../../lib/clinic-session";
-import { vnTodayRangeUtc, fmtDate } from "../../../lib/datetime";
+import { vnTodayRangeUtc, fmtDate, vnLocalToUtcISO } from "../../../lib/datetime";
 import {
   STATION_SHORT,
   STATION_GROUP,
   GROUP_COLOR,
   SHIFT_LABEL,
   todayVn,
+  currentWeekStartVn,
+  weekDates,
   type Shift,
 } from "../../../lib/roster";
+import WeeklyAppointmentsTable, {
+  type ApptDay,
+  type WeekApptRow,
+} from "./WeeklyAppointmentsTable";
+import WorkRosterTable, { type RosterRow } from "./WorkRosterTable";
 
 export const dynamic = "force-dynamic";
+
+const DAY_MS = 24 * 60 * 60 * 1000;
 
 // Chức danh ngắn dùng trong lời chào (vd "Chào bác sĩ Thành").
 const GREET_LABEL: Record<ClinicRole, string> = {
@@ -61,8 +70,23 @@ export default async function HomePage() {
   const staffId = await getClinicStaffId();
   const { startUtc: dayStart, endUtc: dayEnd } = vnTodayRangeUtc();
 
-  // 3 ô số — chung cho mọi vai trò.
-  const [taskRes, newPatientRes, pendingApptRes, shiftRes] = await Promise.all([
+  // Tuần này (T2..CN) cho 2 bảng dưới trang chủ.
+  const week = currentWeekStartVn();
+  const dates = weekDates(week);
+  const weekStartUtc = vnLocalToUtcISO(week, "00:00");
+  const weekEndUtc = new Date(
+    new Date(weekStartUtc).getTime() + 7 * DAY_MS,
+  ).toISOString();
+  const WEEK_APPT_SELECT = `
+    id, slot_start, queue_number,
+    patient:patient!clinic_patient_id ( full_name, patient_code, phone_primary ),
+    doctor:staff!doctor_id ( full_name ),
+    service:service_type!service_type_id ( name )
+  `;
+
+  // 3 ô số + ca trực hôm nay + roster tuần + lịch hẹn tuần.
+  const [taskRes, newPatientRes, pendingApptRes, shiftRes, rosterRes, weekApptRes] =
+    await Promise.all([
     supabase
       .from("staff_task")
       .select("*", { count: "exact", head: true })
@@ -85,6 +109,17 @@ export default async function HomePage() {
           .eq("staff_id", staffId)
           .eq("work_date", todayVn())
       : Promise.resolve({ data: [] }),
+    supabase
+      .from("work_roster")
+      .select("work_date, station, staff_name, shift")
+      .eq("week_start", week),
+    supabase
+      .from("appointment")
+      .select(WEEK_APPT_SELECT)
+      .gte("slot_start", weekStartUtc)
+      .lt("slot_start", weekEndUtc)
+      .order("slot_start", { ascending: true })
+      .limit(500),
   ]);
 
   const cards = [
@@ -93,6 +128,20 @@ export default async function HomePage() {
     { label: "Lịch chờ xác nhận", value: pendingApptRes.count ?? 0 },
   ];
   const todayShifts = (shiftRes.data as TodayShift[] | null) ?? [];
+
+  // Gom lịch hẹn theo ngày (tuần này) cho bảng "Lịch hẹn khám".
+  const rosterRows = (rosterRes.data as RosterRow[] | null) ?? [];
+  const weekApptRows = (weekApptRes.data as WeekApptRow[] | null) ?? [];
+  const t0 = new Date(weekStartUtc).getTime();
+  const apptDays: ApptDay[] = dates.map((date, i) => {
+    const s = t0 + i * DAY_MS;
+    const e = s + DAY_MS;
+    const items = weekApptRows.filter((a) => {
+      const t = new Date(a.slot_start).getTime();
+      return t >= s && t < e;
+    });
+    return { date, items };
+  });
 
   return (
     <div className="space-y-6">
@@ -147,6 +196,24 @@ export default async function HomePage() {
           )}
         </section>
       )}
+
+      {/* Lịch hẹn khám tuần này — form theo file "Check đặt lịch" */}
+      <section>
+        <h2 className="mb-2 text-sm font-semibold text-[#171717]">
+          Lịch hẹn khám (check đặt lịch){" "}
+          <span className="text-xs font-normal text-[#888888]">· tuần này</span>
+        </h2>
+        <WeeklyAppointmentsTable days={apptDays} />
+      </section>
+
+      {/* Lịch làm việc tuần này — form theo file "BẢNG LÀM VIỆC" */}
+      <section>
+        <h2 className="mb-2 text-sm font-semibold text-[#171717]">
+          Lịch làm việc{" "}
+          <span className="text-xs font-normal text-[#888888]">· tuần này</span>
+        </h2>
+        <WorkRosterTable dates={dates} rows={rosterRows} />
+      </section>
 
       {/*
         ===== TẠM ẨN: "Lối tắt" cũ (giữ lại để dùng sau, đừng xoá) =====
