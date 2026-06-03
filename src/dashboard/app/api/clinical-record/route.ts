@@ -105,6 +105,16 @@ interface PostBody {
   objective?: unknown;
   assessment?: unknown;
   plan?: unknown;
+  // Tiền sử (mục III/IV) — patient-level, bác sĩ xác nhận/cập nhật.
+  profile?: {
+    allergies?: string[];
+    blood_type?: string | null;
+    chronic_diseases?: string[];
+    surgical_history?: string[];
+    current_medications?: string[];
+    family_history?: unknown;
+    notes?: string | null;
+  };
 }
 
 export async function POST(request: Request) {
@@ -195,6 +205,15 @@ export async function POST(request: Request) {
     { onConflict: "visit_id" },
   );
   if (crErr) return NextResponse.json({ error: crErr.message }, { status: 500 });
+
+  // Tiền sử (patient-level) — upsert theo clinic_patient_id (UNIQUE). Không gate.
+  if (body.profile) {
+    const { error: pErr } = await db.from("patient_medical_profile").upsert(
+      { clinic_patient_id: clinicPatientId, ...body.profile },
+      { onConflict: "clinic_patient_id" },
+    );
+    if (pErr) return NextResponse.json({ error: pErr.message }, { status: 500 });
+  }
 
   return NextResponse.json({ ok: true, visit_id: visitId });
 }

@@ -58,6 +58,16 @@ const EMPTY = {
 };
 type Fields = typeof EMPTY;
 
+// Tiền sử (III/IV) — bác sĩ sửa, lưu patient_medical_profile.
+const EMPTY_PM = {
+  allergies: "", blood_type: "", chronic: "", surgical: "",
+  medications: "", family: "", notes: "",
+};
+type PmFields = typeof EMPTY_PM;
+const BLOOD_TYPES = ["", "A", "B", "AB", "O", "A+", "A-", "B+", "B-", "AB+", "AB-", "O+", "O-"];
+const splitComma = (s: string): string[] =>
+  s.split(",").map((x) => x.trim()).filter(Boolean);
+
 const objOf = (x: unknown): Record<string, unknown> =>
   x && typeof x === "object" ? (x as Record<string, unknown>) : {};
 const str = (x: unknown): string => (x == null ? "" : String(x));
@@ -125,6 +135,7 @@ export default function ClinicalRecordForm({
   const [data, setData] = useState<Data | null>(null);
   const [loading, setLoading] = useState(true);
   const [f, setF] = useState<Fields>(EMPTY);
+  const [pm, setPm] = useState<PmFields>(EMPTY_PM);
   const [saving, setSaving] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
 
@@ -137,6 +148,20 @@ export default function ClinicalRecordForm({
         if (!on) return;
         setData(d);
         setF(readDraft(d.draft));
+        const pr = d.profile;
+        setPm(
+          pr
+            ? {
+                allergies: arr(pr.allergies),
+                blood_type: pr.blood_type ?? "",
+                chronic: arr(pr.chronic_diseases),
+                surgical: arr(pr.surgical_history),
+                medications: arr(pr.current_medications),
+                family: famText(pr.family_history),
+                notes: pr.notes ?? "",
+              }
+            : EMPTY_PM,
+        );
       })
       .catch(() => on && setData(null))
       .finally(() => on && setLoading(false));
@@ -144,6 +169,7 @@ export default function ClinicalRecordForm({
   }, [p?.clinic_patient_id, appt.id]);
 
   const set = (k: keyof Fields, v: string) => setF((s) => ({ ...s, [k]: v }));
+  const setP = (k: keyof PmFields, v: string) => setPm((s) => ({ ...s, [k]: v }));
 
   const locked = data?.visit?.status === "FINALIZED";
 
@@ -171,6 +197,15 @@ export default function ClinicalRecordForm({
         },
         assessment: { chan_doan: f.chan_doan },
         plan: { loi_dan: f.loi_dan },
+        profile: {
+          allergies: splitComma(pm.allergies),
+          blood_type: pm.blood_type || null,
+          chronic_diseases: splitComma(pm.chronic),
+          surgical_history: splitComma(pm.surgical),
+          current_medications: splitComma(pm.medications),
+          family_history: pm.family || null,
+          notes: pm.notes || null,
+        },
       }),
     });
     setSaving(false);
@@ -182,7 +217,6 @@ export default function ClinicalRecordForm({
     router.refresh();
   }
 
-  const prof = data?.profile;
   const preg = data?.pregnancy;
   const labs = data?.labs ?? [];
   const ro = locked || saving;
@@ -243,20 +277,47 @@ export default function ClinicalRecordForm({
           <input className={INPUT} value={f.ly_do} disabled={ro} onChange={(e) => set("ly_do", e.target.value)} placeholder="VD: Khám thai" />
         </Section>
 
-        <Section no="III" title="Tiền sử dị ứng" synced>
-          {loading ? <Loading /> : <ReadText value={arr(prof?.allergies)} />}
+        <Section no="III" title="Tiền sử dị ứng">
+          <input
+            className={INPUT}
+            value={pm.allergies}
+            disabled={ro}
+            onChange={(e) => setP("allergies", e.target.value)}
+            placeholder="Cách nhau dấu phẩy, vd: Penicillin, Hải sản"
+          />
         </Section>
 
-        <Section no="IV" title="Tiền sử (mạn tính / PT / thuốc / gia đình)" synced>
-          {loading ? <Loading /> : (
-            <dl className="space-y-1.5">
-              <AdminRow label="Nhóm máu" value={prof?.blood_type} />
-              <AdminRow label="Mạn tính" value={arr(prof?.chronic_diseases)} />
-              <AdminRow label="Tiền sử PT" value={arr(prof?.surgical_history)} />
-              <AdminRow label="Thuốc dùng" value={arr(prof?.current_medications)} />
-              <AdminRow label="Gia đình" value={famText(prof?.family_history)} />
-            </dl>
-          )}
+        <Section no="IV" title="Tiền sử (mạn tính / PT / thuốc / gia đình)">
+          <div className="space-y-2">
+            <div>
+              <label className={LABEL}>Nhóm máu</label>
+              <select className={INPUT} value={pm.blood_type} disabled={ro} onChange={(e) => setP("blood_type", e.target.value)}>
+                {BLOOD_TYPES.map((b) => (
+                  <option key={b} value={b}>{b || "—"}</option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label className={LABEL}>Bệnh mạn tính</label>
+              <input className={INPUT} value={pm.chronic} disabled={ro} onChange={(e) => setP("chronic", e.target.value)} placeholder="Cách nhau dấu phẩy" />
+            </div>
+            <div>
+              <label className={LABEL}>Tiền sử phẫu thuật</label>
+              <input className={INPUT} value={pm.surgical} disabled={ro} onChange={(e) => setP("surgical", e.target.value)} placeholder="Cách nhau dấu phẩy" />
+            </div>
+            <div>
+              <label className={LABEL}>Thuốc đang dùng</label>
+              <input className={INPUT} value={pm.medications} disabled={ro} onChange={(e) => setP("medications", e.target.value)} placeholder="Cách nhau dấu phẩy" />
+            </div>
+            <div>
+              <label className={LABEL}>Tiền sử gia đình</label>
+              <input className={INPUT} value={pm.family} disabled={ro} onChange={(e) => setP("family", e.target.value)} />
+            </div>
+            <div>
+              <label className={LABEL}>Ghi chú tiền sử</label>
+              <textarea className={INPUT} rows={2} value={pm.notes} disabled={ro} onChange={(e) => setP("notes", e.target.value)} />
+            </div>
+          </div>
         </Section>
 
         <Section no="V" title="Bệnh sử & khám thai">
@@ -335,11 +396,4 @@ export default function ClinicalRecordForm({
 
 function Loading() {
   return <p className="text-sm text-[#a1a1aa]">Đang tải…</p>;
-}
-function ReadText({ value }: { value: string }) {
-  return value ? (
-    <p className="whitespace-pre-wrap text-sm text-[#171717]">{value}</p>
-  ) : (
-    <p className="text-sm text-[#a1a1aa]">— chưa có —</p>
-  );
 }
