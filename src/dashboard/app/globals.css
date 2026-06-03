@@ -73,3 +73,12 @@ body {
     animation: none;
   }
 }
+
+/* ===== Tay nắm KÉO CO DÃN bảng (góc dưới-phải) =====
+ * Resizer mặc định của trình duyệt rất nhỏ & mờ → người dùng hay không thấy.
+ * Tô HỒNG + to hơn cho dễ nhận ra và dễ nắm kéo. Chỉ WebKit/Chrome/Safari. */
+::-webkit-resizer {
+  background-color: #f9a8d4;
+  border-right: 3px solid #db2777;
+  border-bottom: 3px solid #db2777;
+}

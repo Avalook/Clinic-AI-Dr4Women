@@ -9,7 +9,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Check, Pencil, X } from "lucide-react";
 import { fmtTimeOrNone } from "../../../lib/datetime";
-import { INPUT, LABEL } from "../form-ui";
+import { INPUT, LABEL, TBL_RESIZE_HINT } from "../form-ui";
 
 export interface Opt {
   id: string;
@@ -159,14 +159,16 @@ export default function ConfirmBoard({
     setForm((f) => (f ? { ...f, [k]: v } : f));
 
   return (
+    <>
+    <p className="mb-2 text-[11px] text-[#c084a8]">{TBL_RESIZE_HINT}</p>
     <div className="flex flex-col gap-4 lg:flex-row lg:items-start">
       {/* MỘT bảng — các cột trạng thái chung trong 1 khung */}
-      <div className="min-w-0 flex-1 overflow-hidden rounded-xl border border-[#f3cfe0] bg-white shadow-[0_1px_3px_rgba(236,72,153,0.08)]">
-        <div className="grid grid-cols-3 divide-x divide-[#f6e0ec]">
+      <div className="flex h-[520px] min-h-0 min-w-0 max-h-[88vh] flex-1 resize-y flex-col overflow-hidden rounded-xl border border-[#f3cfe0] bg-white shadow-[0_1px_3px_rgba(236,72,153,0.08)]">
+        <div className="grid min-h-0 flex-1 grid-cols-3 divide-x divide-[#f6e0ec]">
           {COLUMNS.map((col) => {
             const items = rows.filter((r) => col.statuses.includes(r.status));
             return (
-              <div key={col.key} className="min-w-0">
+              <div key={col.key} className="flex min-h-0 min-w-0 flex-col">
                 <div className="flex items-center gap-2 border-b border-[#f3cfe0] bg-[#fce7f3] px-3 py-2">
                   <span
                     className="h-2 w-2 rounded-full"
@@ -179,7 +181,7 @@ export default function ConfirmBoard({
                     {items.length}
                   </span>
                 </div>
-                <div className="max-h-[460px] space-y-2 overflow-y-auto p-2">
+                <div className="min-h-0 flex-1 space-y-2 overflow-y-auto p-2">
                   {items.length === 0 && (
                     <p className="py-6 text-center text-xs text-[#a1a1aa]">
                       Trống
@@ -425,6 +427,7 @@ export default function ConfirmBoard({
         </aside>
       )}
     </div>
+    </>
   );
 }
 

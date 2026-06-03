@@ -10,6 +10,7 @@ import { useState } from "react";
 import Link from "next/link";
 import { ExternalLink, X } from "lucide-react";
 import { fmtDateTimeOrDate } from "../../../lib/datetime";
+import { TBL_RESIZE_HINT } from "../form-ui";
 
 export interface CskhActionRow {
   id: string;
@@ -63,13 +64,15 @@ export default function CskhActionBoard({ rows }: { rows: CskhActionRow[] }) {
     (r.description || r.action_data || "").trim();
 
   return (
+    <>
+    <p className="mb-2 text-[11px] text-[#c084a8]">{TBL_RESIZE_HINT}</p>
     <div className="flex flex-col gap-4 lg:flex-row lg:items-start">
-      <div className="min-w-0 flex-1 overflow-x-auto rounded-xl border border-[#f3cfe0] bg-white shadow-[0_1px_3px_rgba(236,72,153,0.08)]">
-        <div className="flex divide-x divide-[#f6e0ec]">
+      <div className="min-w-0 flex-1 h-[520px] min-h-[260px] max-h-[88vh] resize-y overflow-x-auto overflow-y-hidden rounded-xl border border-[#f3cfe0] bg-white shadow-[0_1px_3px_rgba(236,72,153,0.08)]">
+        <div className="flex h-full divide-x divide-[#f6e0ec]">
           {cols.map((col) => {
             const items = byKey.get(col.key) ?? [];
             return (
-              <div key={col.key} className="min-w-[200px] flex-1">
+              <div key={col.key} className="flex min-w-[200px] flex-1 flex-col">
                 <div className="flex items-center gap-2 border-b border-[#f3cfe0] bg-[#fce7f3] px-3 py-2">
                   <span
                     className="h-2 w-2 rounded-full"
@@ -82,7 +85,7 @@ export default function CskhActionBoard({ rows }: { rows: CskhActionRow[] }) {
                     {items.length}
                   </span>
                 </div>
-                <div className="max-h-[460px] space-y-2 overflow-y-auto p-2">
+                <div className="min-h-0 flex-1 space-y-2 overflow-y-auto p-2">
                   {items.length === 0 && (
                     <p className="py-6 text-center text-xs text-[#a1a1aa]">
                       Trống
@@ -154,6 +157,7 @@ export default function CskhActionBoard({ rows }: { rows: CskhActionRow[] }) {
         </aside>
       )}
     </div>
+    </>
   );
 }
 
