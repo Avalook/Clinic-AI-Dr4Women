@@ -74,6 +74,14 @@ export default function NewPatientForm({
   const [phone2, setPhone2] = useState("");
   const [cccd, setCccd] = useState("");
   const [locationId, setLocationId] = useState(locations[0]?.id ?? "");
+  // Hành chính (mục I form khám) — đồng bộ sang hồ sơ lâm sàng.
+  const [gender, setGender] = useState("");
+  const [ethnicity, setEthnicity] = useState("Kinh");
+  const [nationality, setNationality] = useState("Việt Nam");
+  const [occupation, setOccupation] = useState("");
+  const [objection, setObjection] = useState("");
+  const [address, setAddress] = useState("");
+  const [guardian, setGuardian] = useState("");
 
   // Appointment (optional)
   const [serviceId, setServiceId] = useState("");
@@ -146,6 +154,13 @@ export default function NewPatientForm({
         phone_secondary: phone2,
         national_id_number: cccd,
         location_id: locationId,
+        gender,
+        ethnicity,
+        nationality,
+        occupation,
+        patient_objection: objection,
+        address,
+        guardian_name: guardian,
         force,
       }),
     });
@@ -235,6 +250,68 @@ export default function NewPatientForm({
                 </option>
               ))}
             </select>
+          </div>
+          <div>
+            <label className={LABEL}>Giới tính</label>
+            <select
+              value={gender}
+              onChange={(e) => setGender(e.target.value)}
+              className={INPUT}
+            >
+              <option value="">— Chọn —</option>
+              <option value="Nữ">Nữ</option>
+              <option value="Nam">Nam</option>
+            </select>
+          </div>
+          <div>
+            <label className={LABEL}>Dân tộc</label>
+            <input
+              value={ethnicity}
+              onChange={(e) => setEthnicity(e.target.value)}
+              className={INPUT}
+            />
+          </div>
+          <div>
+            <label className={LABEL}>Quốc tịch</label>
+            <input
+              value={nationality}
+              onChange={(e) => setNationality(e.target.value)}
+              className={INPUT}
+            />
+          </div>
+          <div>
+            <label className={LABEL}>Nghề nghiệp</label>
+            <input
+              value={occupation}
+              onChange={(e) => setOccupation(e.target.value)}
+              className={INPUT}
+            />
+          </div>
+          <div>
+            <label className={LABEL}>Đối tượng</label>
+            <input
+              value={objection}
+              onChange={(e) => setObjection(e.target.value)}
+              className={INPUT}
+              placeholder="DV / BHYT / ..."
+            />
+          </div>
+          <div>
+            <label className={LABEL}>Người bảo lãnh</label>
+            <input
+              value={guardian}
+              onChange={(e) => setGuardian(e.target.value)}
+              className={INPUT}
+            />
+          </div>
+          <div className="sm:col-span-2">
+            <label className={LABEL}>Địa chỉ</label>
+            <input
+              value={address}
+              onChange={(e) => setAddress(e.target.value)}
+              className={INPUT}
+              placeholder="Số nhà, đường, phường/xã, tỉnh/thành"
+            />
           </div>
         </div>
       </section>

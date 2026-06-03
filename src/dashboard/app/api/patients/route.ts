@@ -21,7 +21,21 @@ interface Body {
   phone_secondary?: string;
   national_id_number?: string;
   location_id?: string;
+  // Hành chính (mục I form khám) — đồng bộ sang hồ sơ lâm sàng.
+  gender?: string;
+  ethnicity?: string;
+  nationality?: string;
+  occupation?: string;
+  patient_objection?: string;
+  address?: string;
+  guardian_name?: string;
   force?: boolean;
+}
+
+/** Trim → null nếu rỗng. */
+function nn(v: string | undefined): string | null {
+  const t = (v ?? "").trim();
+  return t || null;
 }
 
 function patientCode(): string {
@@ -87,6 +101,13 @@ export async function POST(request: Request) {
     phone_secondary: (body.phone_secondary ?? "").trim() || null,
     national_id_number: (body.national_id_number ?? "").trim() || null,
     location_id,
+    gender: nn(body.gender),
+    ethnicity: nn(body.ethnicity),
+    nationality: nn(body.nationality),
+    occupation: nn(body.occupation),
+    patient_objection: nn(body.patient_objection),
+    address: nn(body.address),
+    guardian_name: nn(body.guardian_name),
     is_active: true,
   };
 
@@ -143,6 +164,13 @@ interface PatchBody {
   phone_primary?: string;
   phone_secondary?: string;
   location_id?: string;
+  gender?: string;
+  ethnicity?: string;
+  nationality?: string;
+  occupation?: string;
+  patient_objection?: string;
+  address?: string;
+  guardian_name?: string;
 }
 
 export async function PATCH(request: Request) {
@@ -183,6 +211,13 @@ export async function PATCH(request: Request) {
     date_of_birth: (body.date_of_birth ?? "").trim() || null,
     phone_primary: (body.phone_primary ?? "").trim() || null,
     phone_secondary: (body.phone_secondary ?? "").trim() || null,
+    gender: nn(body.gender),
+    ethnicity: nn(body.ethnicity),
+    nationality: nn(body.nationality),
+    occupation: nn(body.occupation),
+    patient_objection: nn(body.patient_objection),
+    address: nn(body.address),
+    guardian_name: nn(body.guardian_name),
   };
   const loc = (body.location_id ?? "").trim();
   if (loc) patch.location_id = loc;
@@ -191,7 +226,9 @@ export async function PATCH(request: Request) {
     .from("patient")
     .update(patch)
     .eq("clinic_patient_id", id)
-    .select("clinic_patient_id, full_name, date_of_birth, phone_primary, phone_secondary, location_id")
+    .select(
+      "clinic_patient_id, full_name, date_of_birth, phone_primary, phone_secondary, location_id, gender, ethnicity, nationality, occupation, patient_objection, address, guardian_name",
+    )
     .maybeSingle();
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
