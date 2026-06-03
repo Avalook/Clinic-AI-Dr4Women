@@ -10,9 +10,14 @@ const STATUS_STYLE: Record<string, string> = {
   DOCTOR_DECLINED: "bg-[#ffedd5] text-[#c2410c]",
 };
 
-// Friendlier label for statuses that read poorly as raw codes; others fall
-// through to the raw status string (existing behaviour).
+// Nhãn tiếng Việt cho mọi trạng thái (chuyên nghiệp hơn mã code trần).
 const STATUS_LABEL: Record<string, string> = {
+  SCHEDULED: "Chờ xác nhận",
+  CONFIRMED: "Đã xác nhận",
+  CHECKED_IN: "Đã đến",
+  COMPLETED: "Đã khám xong",
+  CANCELLED: "Đã hủy",
+  NO_SHOW: "Không đến",
   DOCTOR_DECLINED: "Đã từ chối",
 };
 

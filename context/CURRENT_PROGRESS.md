@@ -746,3 +746,25 @@ Chuỗi nguyên nhân (gỡ từng lớp):
   - `SplitPane`: divider hit-area rộng 12px nhưng line chỉ 1px (mờ #f0d4e2) → hover/đang-kéo thì dày 3px + hồng đậm (#db2777), `transition-all 150ms`; thêm state `active` cho lúc kéo.
 
 **Verify:** tsc + eslint + next build PASS. Đã đọc reference Linear/Stripe/Vercel qua skill awesome-design-md (DESIGN.md thiên về màu/typography; cơ chế scroll/drag áp pattern chuẩn brand).
+
+## CẬP NHẬT 03/06 (tiếp) — Vá luồng: thêm "Khám xong" (→ COMPLETED) + badge tiếng Việt
+
+**User soi đúng:** state machine THIẾU đường → COMPLETED → cột "Đã khám xong" của CSKH luôn rỗng (chỉ data import). Grep xác nhận: COMPLETED chỉ được ĐỌC, không nơi nào SET.
+
+**Đã chốt với user:** BÁC SĨ bấm "Khám xong".
+
+**Đã làm (build PASS):**
+- `/api/appointments` PATCH: thêm action `complete` (gộp vào DOCTOR_ACTIONS, đúng-lịch-của-mình). Transition **CONFIRMED/CHECKED_IN → COMPLETED**. KHÔNG đụng visit (FINALIZED là khóa pháp lý TT13 riêng — không tự quyết). +eventType appointment.completed.
+- `DoctorWorkBoard`: thêm nút **"Khám xong"** (tím) cho lịch CONFIRMED/CHECKED_IN → COMPLETED. (SCHEDULED vẫn Xác nhận/Từ chối.)
+- `StatusBadge`: đổi mã code trần → nhãn tiếng Việt (Chờ xác nhận/Đã xác nhận/Đã đến/Đã khám xong/Đã hủy/Không đến/Đã từ chối).
+
+**State machine SAU khi vá:**
+```
+SCHEDULED ─confirm/cskh_confirm→ CONFIRMED ─checkin→ CHECKED_IN
+SCHEDULED ─decline→ DOCTOR_DECLINED
+SCHEDULED/CONFIRMED ─checkin→ CHECKED_IN ─undo→ CONFIRMED
+CONFIRMED/CHECKED_IN ─complete(bác sĩ)→ COMPLETED   ← MỚI
+```
+Ràng buộc: chỉ "Khám xong" được khi đã CONFIRMED/CHECKED_IN (không nhảy thẳng từ SCHEDULED). fromStatuses guard race-safe.
+
+**NỢ:** "Khám xong" mới chuyển trạng thái LỊCH; chốt hồ sơ (visit FINALIZED, khóa TT13) + amend vẫn để riêng, chưa làm (cố ý).

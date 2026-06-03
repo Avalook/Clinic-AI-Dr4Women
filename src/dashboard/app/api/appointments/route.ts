@@ -138,6 +138,7 @@ export async function POST(request: Request) {
 type PatchAction =
   | "confirm"
   | "decline"
+  | "complete"
   | "checkin"
   | "undo_checkin"
   | "cskh_confirm";
@@ -147,7 +148,9 @@ interface PatchBody {
   action?: PatchAction;
 }
 
-const DOCTOR_ACTIONS = new Set<PatchAction>(["confirm", "decline"]);
+// "complete" = bác sĩ chốt KHÁM XONG (lịch → COMPLETED). KHÔNG đụng visit
+// (FINALIZED là khóa pháp lý riêng, không tự quyết ở đây).
+const DOCTOR_ACTIONS = new Set<PatchAction>(["confirm", "decline", "complete"]);
 // Front-desk (Lễ tân/CSKH/Quản lý) actions.
 const CHECKIN_ACTIONS = new Set<PatchAction>([
   "checkin",
@@ -224,15 +227,24 @@ export async function PATCH(request: Request) {
   // Resolve the transition + the status it must currently be in (race guard).
   let newStatus: string;
   let fromStatuses: string[];
-  if (action === "confirm" || action === "decline") {
+  if (action === "confirm" || action === "decline" || action === "complete") {
     if (appt.doctor_id !== staffId) {
       return NextResponse.json(
         { error: "Lịch hẹn này không thuộc bác sĩ." },
         { status: 403 },
       );
     }
-    newStatus = action === "confirm" ? "CONFIRMED" : "DOCTOR_DECLINED";
-    fromStatuses = ["SCHEDULED"];
+    if (action === "confirm") {
+      newStatus = "CONFIRMED";
+      fromStatuses = ["SCHEDULED"];
+    } else if (action === "decline") {
+      newStatus = "DOCTOR_DECLINED";
+      fromStatuses = ["SCHEDULED"];
+    } else {
+      // Khám xong: đã xác nhận / đã đến → COMPLETED.
+      newStatus = "COMPLETED";
+      fromStatuses = ["CONFIRMED", "CHECKED_IN"];
+    }
   } else if (action === "checkin") {
     newStatus = "CHECKED_IN";
     fromStatuses = ["SCHEDULED", "CONFIRMED"];
@@ -264,6 +276,7 @@ export async function PATCH(request: Request) {
   const eventType: Record<PatchAction, string> = {
     confirm: "appointment.confirmed",
     decline: "appointment.declined",
+    complete: "appointment.completed",
     checkin: "appointment.checked_in",
     undo_checkin: "appointment.checkin_undone",
     cskh_confirm: "appointment.cskh_confirmed",

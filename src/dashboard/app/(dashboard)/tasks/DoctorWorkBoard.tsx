@@ -7,7 +7,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { Check, X, FileText } from "lucide-react";
+import { Check, CheckCheck, X, FileText } from "lucide-react";
 import { fmtTimeOrNone } from "../../../lib/datetime";
 import StatusBadge from "../StatusBadge";
 import ClinicalRecordForm from "./ClinicalRecordForm";
@@ -55,7 +55,7 @@ export default function DoctorWorkBoard({
 
   const open = days.flatMap((d) => d.items).find((a) => a.id === openId) ?? null;
 
-  async function act(id: string, action: "confirm" | "decline") {
+  async function act(id: string, action: "confirm" | "decline" | "complete") {
     setBusyId(id);
     setError(null);
     const res = await fetch("/api/appointments", {
@@ -140,6 +140,18 @@ export default function DoctorWorkBoard({
                         className="inline-flex min-h-8 items-center gap-1 rounded-md border border-[#e4e4e7] bg-white px-3 text-xs font-medium text-[#dc2626] hover:bg-[#fef2f2] disabled:opacity-50"
                       >
                         <X size={13} /> Từ chối
+                      </button>
+                    </div>
+                  )}
+
+                  {(a.status === "CONFIRMED" || a.status === "CHECKED_IN") && (
+                    <div className="mt-2 flex gap-2 border-t border-[#f4f4f5] pt-2">
+                      <button
+                        onClick={() => act(a.id, "complete")}
+                        disabled={busyId === a.id}
+                        className="inline-flex min-h-8 items-center gap-1 rounded-md bg-[#7c3aed] px-3 text-xs font-semibold text-white hover:bg-[#6d28d9] disabled:opacity-50"
+                      >
+                        <CheckCheck size={13} /> Khám xong
                       </button>
                     </div>
                   )}
