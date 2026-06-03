@@ -203,7 +203,7 @@ export default async function TasksPage() {
                 thao tác với khách.
               </p>
               <p className="mt-1 inline-flex rounded-md bg-[#eff6ff] px-2 py-0.5 text-xs text-[#1d4ed8]">
-                🤖 Phần này sẽ tự ghi khi nối Zalo / Pancake — CSKH không phải nhập tay.
+                🤖 Tự ghi khi CSKH thao tác (xác nhận lịch → vào “Đặt hẹn” ngay) + về sau khi nối Zalo / Pancake.
               </p>
             </div>
             {cskhRes.error ? (

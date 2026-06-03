@@ -288,5 +288,35 @@ export async function PATCH(request: Request) {
     },
   });
 
+  // CSKH xác nhận lịch → GHI THẬT 1 việc "Đặt hẹn" vào cskh_action ngay (không
+  // chờ Zalo/Pancake). Hiện luôn ở board "Theo dõi tình trạng lịch hẹn" cột Đặt
+  // hẹn. Upsert theo source_ref để không trùng khi xác nhận lại. Best-effort:
+  // lỗi ghi log này KHÔNG làm hỏng việc xác nhận lịch (đã thành công ở trên).
+  if (action === "cskh_confirm") {
+    const slot = appt.slot_start ? new Date(appt.slot_start as string) : null;
+    const slotStr = slot
+      ? slot.toLocaleString("vi-VN", {
+          timeZone: "Asia/Ho_Chi_Minh",
+          day: "2-digit",
+          month: "2-digit",
+          hour: "2-digit",
+          minute: "2-digit",
+        })
+      : "";
+    await db.from("cskh_action").upsert(
+      {
+        source_ref: `dash-confirm-${id}`,
+        clinic_patient_id: appt.clinic_patient_id,
+        category: "Đặt hẹn",
+        status: "Đã xác nhận lịch hẹn",
+        description: `CSKH xác nhận lịch hẹn${slotStr ? ` · ${slotStr}` : ""}`,
+        source_created_at: new Date().toISOString(),
+        created_by_text: "CSKH · dashboard",
+        appointment_link_raw: id,
+      },
+      { onConflict: "source_ref" },
+    );
+  }
+
   return NextResponse.json({ ok: true, status: newStatus });
 }
