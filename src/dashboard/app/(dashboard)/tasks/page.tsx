@@ -83,7 +83,8 @@ const SELECT = `
   id, slot_start, status, booking_channel, cancellation_reason, cancelled_at,
   patient:patient!clinic_patient_id (
     clinic_patient_id, full_name, patient_code, phone_primary,
-    phone_secondary, date_of_birth, location_id
+    phone_secondary, date_of_birth, location_id, gender, ethnicity,
+    nationality, occupation, patient_objection, address, guardian_name
   ),
   doctor:staff!doctor_id ( full_name ),
   service:service_type!service_type_id ( name )

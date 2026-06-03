@@ -621,8 +621,8 @@ Chuỗi nguyên nhân (gỡ từng lớp):
 ### NỢ / TIẾP THEO (cập nhật 03/06 cuối phiên)
 - ~~Tầng 2 wiring LƯU hồ sơ~~ → **XONG** (lưu nháp, tôn trọng gate FINALIZED). ~~Sinh hiệu bảng đích~~ → lưu `clinical_record.soap_objective` JSONB.
 - **Nút "Chốt hồ sơ" (FINALIZE)** CHƯA có (cố ý — chốt = khóa vĩnh viễn theo TT13, cần quyết riêng). Cơ chế **amend** (sửa hồ sơ đã chốt + lý do, ghi visit_amendment) cũng chưa.
-- **Popup sửa CSKH (ConfirmBoard)** + 7 trường admin — chưa làm (migration 038 đã áp → làm được).
-- **"Phân loại khám" (Tái khám/Khám lần đầu)** ở bảng lịch hẹn — DB chưa lưu, tạm dùng Dịch vụ. Cần thêm field hoặc suy từ lịch sử visit.
+- ~~**Popup sửa CSKH (ConfirmBoard)** + 7 trường admin~~ → **XONG 03/06** (panel xem + form sửa giờ đủ giới tính/dân tộc/quốc tịch/nghề nghiệp/đối tượng/bảo lãnh/địa chỉ; nối PATCH /api/patients vốn đã nhận đủ field; SELECT board fetch thêm 7 cột; panel thêm cuộn trong khung).
+- ~~**"Phân loại khám" (Tái khám/Khám lần đầu)** ở bảng lịch hẹn — DB chưa lưu~~ → **XONG 03/06** (suy từ lịch sử hẹn: BN có lịch sớm hơn → Tái khám; lịch sớm nhất → Khám lần đầu). Vẫn nên thêm cột thật về sau.
 - **Bảng lịch hẹn: ngày-dọc (giờ) vs ngày-ngang đúng Excel** — chờ user chốt.
 - **3 ô số trang chủ** đang đếm TOÀN phòng khám — chưa lọc theo vai trò (bác sĩ chỉ thấy việc/lịch của mình…).
 - **Cap scroll** chưa áp cho /appointments (kanban QL), /patients (đã phân trang 50), /schedule — chờ user.

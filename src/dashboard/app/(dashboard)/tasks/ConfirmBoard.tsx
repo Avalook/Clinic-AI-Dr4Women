@@ -31,6 +31,13 @@ export interface ApptRow {
     phone_secondary: string | null;
     date_of_birth: string | null;
     location_id: string | null;
+    gender: string | null;
+    ethnicity: string | null;
+    nationality: string | null;
+    occupation: string | null;
+    patient_objection: string | null;
+    address: string | null;
+    guardian_name: string | null;
   } | null;
   doctor: { full_name: string } | null;
   service: { name: string } | null;
@@ -57,6 +64,13 @@ interface Form {
   phone_primary: string;
   phone_secondary: string;
   location_id: string;
+  gender: string;
+  ethnicity: string;
+  nationality: string;
+  occupation: string;
+  patient_objection: string;
+  address: string;
+  guardian_name: string;
 }
 
 export default function ConfirmBoard({
@@ -97,6 +111,13 @@ export default function ConfirmBoard({
       phone_primary: p.phone_primary ?? "",
       phone_secondary: p.phone_secondary ?? "",
       location_id: p.location_id ?? locations[0]?.id ?? "",
+      gender: p.gender ?? "",
+      ethnicity: p.ethnicity ?? "",
+      nationality: p.nationality ?? "",
+      occupation: p.occupation ?? "",
+      patient_objection: p.patient_objection ?? "",
+      address: p.address ?? "",
+      guardian_name: p.guardian_name ?? "",
     });
     setEditing(true);
     setError(null);
@@ -199,7 +220,7 @@ export default function ConfirmBoard({
 
       {/* Panel chi tiết — BÊN CẠNH bảng (ngang); mobile thì xuống dưới */}
       {sel && (
-        <aside className="w-full shrink-0 rounded-xl border border-[#f9a8d4] bg-[#fdf2f8] p-4 shadow-[0_1px_3px_rgba(0,0,0,0.06)] lg:sticky lg:top-4 lg:w-[360px]">
+        <aside className="w-full shrink-0 overflow-y-auto rounded-xl border border-[#f9a8d4] bg-[#fdf2f8] p-4 shadow-[0_1px_3px_rgba(0,0,0,0.06)] lg:sticky lg:top-4 lg:max-h-[calc(100vh-2rem)] lg:w-[360px]">
           <div className="mb-3 flex items-center justify-between">
             <h3 className="text-sm font-semibold text-[#9d174d]">
               Thông tin khách hàng
@@ -218,8 +239,15 @@ export default function ConfirmBoard({
               <dl className="space-y-1.5 text-sm">
                 <Row label="Họ tên" value={sel.patient?.full_name} />
                 <Row label="Ngày sinh" value={sel.patient?.date_of_birth} />
+                <Row label="Giới tính" value={sel.patient?.gender} />
                 <Row label="SĐT chính" value={sel.patient?.phone_primary} />
                 <Row label="SĐT người nhà" value={sel.patient?.phone_secondary} />
+                <Row label="Dân tộc" value={sel.patient?.ethnicity} />
+                <Row label="Quốc tịch" value={sel.patient?.nationality} />
+                <Row label="Nghề nghiệp" value={sel.patient?.occupation} />
+                <Row label="Đối tượng" value={sel.patient?.patient_objection} />
+                <Row label="Người bảo lãnh" value={sel.patient?.guardian_name} />
+                <Row label="Địa chỉ" value={sel.patient?.address} />
                 <Row label="Cơ sở" value={locName(sel.patient?.location_id ?? null)} />
                 <Row
                   label="Lịch hẹn"
@@ -311,6 +339,68 @@ export default function ConfirmBoard({
                       </option>
                     ))}
                   </select>
+                </div>
+                <div>
+                  <label className={LABEL}>Giới tính</label>
+                  <select
+                    className={INPUT}
+                    value={form.gender}
+                    onChange={(e) => set("gender", e.target.value)}
+                  >
+                    <option value="">— Chọn —</option>
+                    <option value="Nữ">Nữ</option>
+                    <option value="Nam">Nam</option>
+                  </select>
+                </div>
+                <div>
+                  <label className={LABEL}>Dân tộc</label>
+                  <input
+                    className={INPUT}
+                    value={form.ethnicity}
+                    onChange={(e) => set("ethnicity", e.target.value)}
+                  />
+                </div>
+                <div>
+                  <label className={LABEL}>Quốc tịch</label>
+                  <input
+                    className={INPUT}
+                    value={form.nationality}
+                    onChange={(e) => set("nationality", e.target.value)}
+                  />
+                </div>
+                <div>
+                  <label className={LABEL}>Nghề nghiệp</label>
+                  <input
+                    className={INPUT}
+                    value={form.occupation}
+                    onChange={(e) => set("occupation", e.target.value)}
+                  />
+                </div>
+                <div>
+                  <label className={LABEL}>Đối tượng</label>
+                  <input
+                    className={INPUT}
+                    value={form.patient_objection}
+                    onChange={(e) => set("patient_objection", e.target.value)}
+                    placeholder="DV / BHYT / ..."
+                  />
+                </div>
+                <div>
+                  <label className={LABEL}>Người bảo lãnh</label>
+                  <input
+                    className={INPUT}
+                    value={form.guardian_name}
+                    onChange={(e) => set("guardian_name", e.target.value)}
+                  />
+                </div>
+                <div>
+                  <label className={LABEL}>Địa chỉ</label>
+                  <input
+                    className={INPUT}
+                    value={form.address}
+                    onChange={(e) => set("address", e.target.value)}
+                    placeholder="Số nhà, đường, phường/xã, tỉnh/thành"
+                  />
                 </div>
                 {error && <p className="text-xs text-[#dc2626]">{error}</p>}
                 <div className="flex gap-2 pt-1">
