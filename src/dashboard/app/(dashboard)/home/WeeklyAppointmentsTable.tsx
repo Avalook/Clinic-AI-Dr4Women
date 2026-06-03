@@ -22,7 +22,7 @@ export interface ApptDay {
 
 export default function WeeklyAppointmentsTable({ days }: { days: ApptDay[] }) {
   return (
-    <div className="space-y-3">
+    <div className="max-h-[460px] space-y-3 overflow-y-auto rounded-xl border border-[#e4e4e7] bg-[#fafafa] p-2">
       {days.map((day) => (
         <div
           key={day.date}

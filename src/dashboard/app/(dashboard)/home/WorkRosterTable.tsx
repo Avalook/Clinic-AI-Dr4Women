@@ -37,7 +37,7 @@ export default function WorkRosterTable({
   }
 
   return (
-    <div className="overflow-x-auto rounded-xl border border-[#e4e4e7] bg-white shadow-[0_1px_3px_rgba(0,0,0,0.06)]">
+    <div className="max-h-[460px] overflow-auto rounded-xl border border-[#e4e4e7] bg-white shadow-[0_1px_3px_rgba(0,0,0,0.06)]">
       <table className="min-w-max border-collapse text-xs">
         <thead>
           <tr className="bg-[#fafafa]">

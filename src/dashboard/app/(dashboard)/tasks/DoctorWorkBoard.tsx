@@ -79,7 +79,7 @@ export default function DoctorWorkBoard({
       )}
 
       <div className="flex flex-col gap-4 lg:flex-row lg:items-start">
-      <div className="min-w-0 flex-1 overflow-hidden rounded-xl border border-[#e4e4e7] bg-white shadow-[0_1px_3px_rgba(0,0,0,0.06)]">
+      <div className="min-w-0 flex-1 max-h-[560px] overflow-auto rounded-xl border border-[#e4e4e7] bg-white shadow-[0_1px_3px_rgba(0,0,0,0.06)]">
         <div className="grid grid-cols-[7rem_1fr] border-b border-[#e4e4e7] bg-[#fafafa] text-xs font-semibold uppercase tracking-wide text-[#71717a]">
           <div className="px-3 py-2">Ngày</div>
           <div className="border-l border-[#e4e4e7] px-3 py-2">

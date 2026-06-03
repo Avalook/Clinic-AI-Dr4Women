@@ -82,7 +82,7 @@ export default function CskhActionBoard({ rows }: { rows: CskhActionRow[] }) {
                     {items.length}
                   </span>
                 </div>
-                <div className="space-y-2 p-2">
+                <div className="max-h-[460px] space-y-2 overflow-y-auto p-2">
                   {items.length === 0 && (
                     <p className="py-6 text-center text-xs text-[#a1a1aa]">
                       Trống
