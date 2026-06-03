@@ -1,14 +1,12 @@
-// Trang chủ — ĐỒNG BỘ cho mọi vai trò:
+// Trang chủ — ĐỒNG BỘ cho mọi vai trò. Giữ ĐÚNG 4 khối:
 //  1. Lời chào (chức danh + tên) + ngày hôm nay
 //  2. 3 ô số: Việc đang chờ làm · BN mới đăng ký hôm nay · Lịch chờ xác nhận
 //  3. Ca trực hôm nay của bạn (từ work_roster)
-//  4. 2 mục: Lịch hẹn khám (check đặt lịch) + Lịch làm việc  ← sẽ làm kỹ sau
 //
-// (Mục "Lối tắt" cũ đã TẠM ẨN bằng comment ở cuối file — chưa xoá để khỏi phải
-//  viết lại nếu cần dùng lại.)
+// (Khối "2 mục" Lịch hẹn/Lịch làm việc + "Lối tắt" cũ đã bỏ/ẩn theo yêu cầu —
+//  comment "Lối tắt" giữ ở cuối file để dùng lại nếu cần.)
 
 import Link from "next/link";
-import { ClipboardList, Calendar } from "lucide-react";
 import StatCard from "../StatCard";
 import { getSupabaseServer } from "../../../lib/supabase-server";
 import {
@@ -149,43 +147,6 @@ export default async function HomePage() {
           )}
         </section>
       )}
-
-      {/* 2 mục mới — bản cơ bản, sẽ làm kỹ sau */}
-      <section className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-        <Link
-          href="/appointments"
-          className="flex items-center gap-3 rounded-xl border border-[#e4e4e7] bg-white p-4 shadow-[0_1px_2px_rgba(0,0,0,0.04)] transition-all duration-150 hover:-translate-y-0.5 hover:border-[#ec4899] hover:shadow-md"
-        >
-          <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-[#fce7f3] text-[#db2777]">
-            <ClipboardList size={18} />
-          </span>
-          <span>
-            <span className="block text-sm font-medium text-[#171717]">
-              Lịch hẹn khám (check đặt lịch)
-            </span>
-            <span className="block text-xs text-[#888888]">
-              Theo dõi & xác nhận lịch hẹn
-            </span>
-          </span>
-        </Link>
-
-        <Link
-          href="/schedule"
-          className="flex items-center gap-3 rounded-xl border border-[#e4e4e7] bg-white p-4 shadow-[0_1px_2px_rgba(0,0,0,0.04)] transition-all duration-150 hover:-translate-y-0.5 hover:border-[#ec4899] hover:shadow-md"
-        >
-          <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-[#fce7f3] text-[#db2777]">
-            <Calendar size={18} />
-          </span>
-          <span>
-            <span className="block text-sm font-medium text-[#171717]">
-              Lịch làm việc
-            </span>
-            <span className="block text-xs text-[#888888]">
-              Ca trực theo tuần
-            </span>
-          </span>
-        </Link>
-      </section>
 
       {/*
         ===== TẠM ẨN: "Lối tắt" cũ (giữ lại để dùng sau, đừng xoá) =====
