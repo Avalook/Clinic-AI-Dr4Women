@@ -152,13 +152,16 @@ type PatchAction =
   | "cskh_confirm"
   | "cancel"
   | "no_show"
-  | "reassign";
+  | "reassign"
+  | "reschedule";
 
 interface PatchBody {
   id?: string;
   action?: PatchAction;
   cancellation_reason?: string; // cho action "cancel"
-  doctor_id?: string; // cho action "reassign" (bác sĩ mới); rỗng = bỏ phân
+  doctor_id?: string; // "reassign"/"reschedule" (bác sĩ mới); rỗng = bỏ phân
+  slot_start?: string; // cho action "reschedule" (ISO UTC)
+  slot_end?: string; // cho action "reschedule" (ISO UTC)
 }
 
 // "complete" = bác sĩ chốt KHÁM XONG (lịch → COMPLETED). KHÔNG đụng visit
@@ -170,8 +173,8 @@ const CHECKIN_ACTIONS = new Set<PatchAction>([
   "undo_checkin",
   "cskh_confirm",
 ]);
-// Quản trị vòng đời lịch: hủy + phân lại bác sĩ (CSKH/Quản lý).
-const MANAGE_ACTIONS = new Set<PatchAction>(["cancel", "reassign"]);
+// Quản trị vòng đời lịch: hủy + phân lại + ĐỔI LỊCH (CSKH/Quản lý).
+const MANAGE_ACTIONS = new Set<PatchAction>(["cancel", "reassign", "reschedule"]);
 // no_show: front-desk đánh "không đến" (canCheckin).
 const ALL_ACTIONS = new Set<PatchAction>([
   ...DOCTOR_ACTIONS,
@@ -301,6 +304,11 @@ export async function PATCH(request: Request) {
     // Bác sĩ từ chối → CSKH/QL phân lại → về SCHEDULED (gán bác sĩ mới ở dưới).
     newStatus = "SCHEDULED";
     fromStatuses = ["DOCTOR_DECLINED"];
+  } else if (action === "reschedule") {
+    // Đổi lịch (CSKH/QL theo yêu cầu khách): GIỮ trạng thái, chỉ đổi giờ
+    // (+ tuỳ chọn đổi bác sĩ). Chỉ đổi khi lịch còn "sống", chưa khám xong.
+    newStatus = appt.status;
+    fromStatuses = ["SCHEDULED", "CONFIRMED", "CHECKED_IN"];
   } else {
     // undo_checkin
     newStatus = "CONFIRMED";
@@ -321,6 +329,24 @@ export async function PATCH(request: Request) {
     patch.cancellation_reason = (body.cancellation_reason ?? "").trim() || null;
   } else if (action === "reassign") {
     patch.doctor_id = (body.doctor_id ?? "").trim() || null;
+  } else if (action === "reschedule") {
+    const ss = (body.slot_start ?? "").trim();
+    const se = (body.slot_end ?? "").trim();
+    if (!ss || !se) {
+      return NextResponse.json({ error: "Thiếu giờ hẹn mới." }, { status: 400 });
+    }
+    if (new Date(se).getTime() <= new Date(ss).getTime()) {
+      return NextResponse.json(
+        { error: "Giờ kết thúc phải sau giờ bắt đầu." },
+        { status: 400 },
+      );
+    }
+    patch.slot_start = ss;
+    patch.slot_end = se;
+    // Chỉ đổi bác sĩ khi field doctor_id được gửi (rỗng = bỏ phân bác sĩ).
+    if (body.doctor_id !== undefined) {
+      patch.doctor_id = (body.doctor_id ?? "").trim() || null;
+    }
   }
 
   const { data: updated, error: updErr } = await db
@@ -330,6 +356,13 @@ export async function PATCH(request: Request) {
     .in("status", fromStatuses)
     .select("id");
   if (updErr) {
+    // 23P01 = exclusion_violation (bác sĩ trùng giờ) khi đổi lịch.
+    if (updErr.code === "23P01") {
+      return NextResponse.json(
+        { error: "Bác sĩ đã có lịch trùng khung giờ mới này." },
+        { status: 409 },
+      );
+    }
     return NextResponse.json({ error: updErr.message }, { status: 500 });
   }
   // Race: trạng thái đã bị người khác đổi giữa lúc đọc và ghi → 0 row khớp.
@@ -350,6 +383,7 @@ export async function PATCH(request: Request) {
     cancel: "appointment.cancelled",
     no_show: "appointment.no_show",
     reassign: "appointment.reassigned",
+    reschedule: "appointment.rescheduled",
   };
 
   await logEvent(db, {
@@ -400,6 +434,36 @@ export async function PATCH(request: Request) {
       { onConflict: "source_ref" },
     );
     if (caErr) console.error("cskh_action upsert (confirm) lỗi:", caErr.message);
+  }
+
+  // CSKH ĐỔI LỊCH cho khách → ghi 1 việc "Đổi lịch" vào cskh_action (gom vào
+  // cột "Đặt hẹn" của board theo dõi). Upsert theo source_ref để cập nhật khi
+  // đổi nhiều lần. Best-effort.
+  if (action === "reschedule") {
+    const ns = (body.slot_start ?? "").trim();
+    const nd = ns
+      ? new Date(ns).toLocaleString("vi-VN", {
+          timeZone: "Asia/Ho_Chi_Minh",
+          day: "2-digit",
+          month: "2-digit",
+          hour: "2-digit",
+          minute: "2-digit",
+        })
+      : "";
+    const { error: caErr } = await db.from("cskh_action").upsert(
+      {
+        source_ref: `dash-resched-${id}`,
+        clinic_patient_id: appt.clinic_patient_id,
+        category: "Đổi lịch",
+        status: "Đã đổi lịch hẹn",
+        description: `CSKH đổi lịch hẹn${nd ? ` · giờ mới ${nd}` : ""}`,
+        source_created_at: new Date().toISOString(),
+        created_by_text: "CSKH · dashboard",
+        appointment_link_raw: id,
+      },
+      { onConflict: "source_ref" },
+    );
+    if (caErr) console.error("cskh_action upsert (reschedule) lỗi:", caErr.message);
   }
 
   // Bác sĩ "Khám xong" → ghi việc "CSKH sau khám" để CSKH chăm sóc sau khám

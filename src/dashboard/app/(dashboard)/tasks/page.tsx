@@ -135,17 +135,9 @@ export default async function TasksPage() {
     supabase
       .from("appointment")
       .select(SELECT)
-      // Đủ 7 trạng thái — board phân về 4 cột (gồm "Ngoài luồng": hủy/không đến/
-      // bác sĩ từ chối).
-      .in("status", [
-        "SCHEDULED",
-        "CONFIRMED",
-        "CHECKED_IN",
-        "COMPLETED",
-        "NO_SHOW",
-        "CANCELLED",
-        "DOCTOR_DECLINED",
-      ])
+      // Board 3 cột: Chờ xác nhận → Đã xác nhận → Đã khám xong. (Đã BỎ cột
+      // "Ngoài luồng" — không fetch hủy/không đến/bác sĩ từ chối về board này.)
+      .in("status", ["SCHEDULED", "CONFIRMED", "CHECKED_IN", "COMPLETED"])
       .gte("slot_start", startUtc)
       .lt("slot_start", endUtc)
       .order("slot_start", { ascending: true })
@@ -202,7 +194,7 @@ export default async function TasksPage() {
           />
 
           {/* Ý nghĩa từng trạng thái — để phòng khám đọc hiểu (PM yêu cầu) */}
-          <dl className="grid gap-2.5 rounded-lg border border-[#e4e4e7] bg-[#fafafa] px-4 py-3 text-xs text-[#52525b] sm:grid-cols-2 lg:grid-cols-4">
+          <dl className="grid gap-2.5 rounded-lg border border-[#e4e4e7] bg-[#fafafa] px-4 py-3 text-xs text-[#52525b] sm:grid-cols-3">
             {[
               {
                 dot: "#2563eb",
@@ -218,11 +210,6 @@ export default async function TasksPage() {
                 dot: "#71717a",
                 term: "Đã khám xong",
                 desc: "Khách đã khám xong lượt này.",
-              },
-              {
-                dot: "#dc2626",
-                term: "Hủy / Không đến",
-                desc: "Lịch đã hủy, khách không đến, hoặc bác sĩ trả lại (cần phân lại).",
               },
             ].map((s) => (
               <div key={s.term} className="flex gap-2">

@@ -7,8 +7,9 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { Check, Pencil, X, Ban, RotateCcw } from "lucide-react";
-import { fmtTimeOrNone } from "../../../lib/datetime";
+import { Check, Pencil, X, Ban, CalendarClock } from "lucide-react";
+import { fmtTimeOrNone, vnLocalToUtcISO } from "../../../lib/datetime";
+import { digitsOnly, phoneError } from "../../../lib/validation";
 import { INPUT, LABEL, TBL_RESIZE_HINT } from "../form-ui";
 import StatusBadge from "../StatusBadge";
 
@@ -44,9 +45,10 @@ export interface ApptRow {
   service: { name: string } | null;
 }
 
-// Board "Tình trạng lịch hẹn" — 4 cột theo appointment.status, 1 lịch ở 1 cột.
-// Cột "Ngoài luồng" gom Hủy / Không đến / Bác sĩ từ chối (trước đây 3 status này
-// bị fetch về rồi tàng hình — không cột nào hiện).
+// Board "Tình trạng lịch hẹn" — 3 cột theo appointment.status, 1 lịch ở 1 cột.
+// (Đã BỎ cột "Ngoài luồng" theo yêu cầu: MVP nhập tay, không phân biệt vãng lai.
+//  Lịch hủy/không đến biến mất khỏi board sau khi xử lý; xem lại ở Lịch hẹn (QL)
+//  hoặc hồ sơ khách.)
 const COLUMNS = [
   { key: "pending", label: "Chờ xác nhận", statuses: ["SCHEDULED"], dot: "#2563eb" },
   {
@@ -56,12 +58,6 @@ const COLUMNS = [
     dot: "#16a34a",
   },
   { key: "done", label: "Đã khám xong", statuses: ["COMPLETED"], dot: "#71717a" },
-  {
-    key: "off",
-    label: "Hủy / Không đến",
-    statuses: ["CANCELLED", "NO_SHOW", "DOCTOR_DECLINED"],
-    dot: "#dc2626",
-  },
 ];
 
 interface Form {
@@ -100,7 +96,11 @@ export default function ConfirmBoard({
   const [error, setError] = useState<string | null>(null);
   const [showCancel, setShowCancel] = useState(false);
   const [cancelReason, setCancelReason] = useState("");
-  const [reassignDoc, setReassignDoc] = useState("");
+  // Đổi lịch (theo yêu cầu khách): ngày/giờ mới + tuỳ chọn đổi bác sĩ.
+  const [showResched, setShowResched] = useState(false);
+  const [reschedDate, setReschedDate] = useState("");
+  const [reschedTime, setReschedTime] = useState("");
+  const [reschedDoc, setReschedDoc] = useState("");
 
   const sel = rows.find((r) => r.id === selId) ?? null;
   const locName = (id: string | null) =>
@@ -113,13 +113,17 @@ export default function ConfirmBoard({
     setError(null);
     setShowCancel(false);
     setCancelReason("");
-    setReassignDoc("");
+    setShowResched(false);
+    setReschedDate("");
+    setReschedTime("");
+    setReschedDoc("");
   }
   function close() {
     setSelId(null);
     setEditing(false);
     setError(null);
     setShowCancel(false);
+    setShowResched(false);
   }
 
   function startEdit() {
@@ -158,6 +162,7 @@ export default function ConfirmBoard({
       return;
     }
     setShowCancel(false);
+    setShowResched(false);
     router.refresh();
   }
 
@@ -170,15 +175,26 @@ export default function ConfirmBoard({
       "Lỗi hủy lịch.",
     );
   }
-  async function reassign() {
-    await patchAppt(
-      { action: "reassign", doctor_id: reassignDoc },
-      "Lỗi phân lại bác sĩ.",
-    );
+  async function reschedule() {
+    if (!reschedDate || !reschedTime) {
+      setError("Chọn ngày và giờ mới.");
+      return;
+    }
+    const start = new Date(vnLocalToUtcISO(reschedDate, reschedTime));
+    const end = new Date(start.getTime() + 30 * 60_000);
+    const payload: Record<string, unknown> = {
+      action: "reschedule",
+      slot_start: start.toISOString(),
+      slot_end: end.toISOString(),
+    };
+    if (reschedDoc) payload.doctor_id = reschedDoc; // rỗng = giữ bác sĩ hiện tại
+    await patchAppt(payload, "Lỗi đổi lịch.");
   }
 
   async function save() {
     if (!sel || !form) return;
+    const ve = phoneError(form.phone_primary) || phoneError(form.phone_secondary);
+    if (ve) return setError(ve);
     setBusy(true);
     setError(null);
     const res = await fetch("/api/patients", {
@@ -204,7 +220,7 @@ export default function ConfirmBoard({
     <div className="flex flex-col gap-4 lg:flex-row lg:items-start">
       {/* MỘT bảng — các cột trạng thái chung trong 1 khung */}
       <div className="flex h-[520px] min-h-0 min-w-0 max-h-[88vh] flex-1 resize-y flex-col overflow-hidden rounded-xl border border-[#f3cfe0] bg-white shadow-[0_1px_3px_rgba(236,72,153,0.08)]">
-        <div className="grid min-h-0 flex-1 grid-cols-2 divide-x divide-[#f6e0ec] lg:grid-cols-4">
+        <div className="grid min-h-0 flex-1 grid-cols-1 divide-x divide-[#f6e0ec] sm:grid-cols-3">
           {COLUMNS.map((col) => {
             const items = rows.filter((r) => col.statuses.includes(r.status));
             return (
@@ -327,10 +343,27 @@ export default function ConfirmBoard({
                   {sel.status === "SCHEDULED" ? "Không xác nhận / Sửa" : "Sửa"}
                 </button>
 
+                {/* Đổi lịch (CSKH/QL) — theo yêu cầu khách, lịch còn "sống" */}
+                {canManage && LIVE.includes(sel.status) && (
+                  <button
+                    onClick={() => {
+                      setShowResched((v) => !v);
+                      setShowCancel(false);
+                    }}
+                    disabled={busy}
+                    className="inline-flex min-h-10 items-center gap-1 rounded-lg border border-[#bfdbfe] bg-white px-4 text-sm font-medium text-[#2563eb] hover:bg-[#eff6ff] disabled:opacity-50"
+                  >
+                    <CalendarClock size={14} /> Đổi lịch
+                  </button>
+                )}
+
                 {/* Hủy lịch (CSKH/QL) — lịch còn "sống" */}
                 {canManage && LIVE.includes(sel.status) && (
                   <button
-                    onClick={() => setShowCancel((v) => !v)}
+                    onClick={() => {
+                      setShowCancel((v) => !v);
+                      setShowResched(false);
+                    }}
                     disabled={busy}
                     className="inline-flex min-h-10 items-center gap-1 rounded-lg border border-[#fecaca] bg-white px-4 text-sm font-medium text-[#dc2626] hover:bg-[#fef2f2] disabled:opacity-50"
                   >
@@ -367,28 +400,51 @@ export default function ConfirmBoard({
                 </div>
               )}
 
-              {/* Phân lại bác sĩ (CSKH/QL) — lịch bị bác sĩ từ chối */}
-              {canManage && sel.status === "DOCTOR_DECLINED" && (
-                <div className="mt-3 space-y-2 rounded-lg border border-[#fed7aa] bg-white p-3">
-                  <label className={LABEL}>Phân lại cho bác sĩ</label>
-                  <select
-                    className={INPUT}
-                    value={reassignDoc}
-                    onChange={(e) => setReassignDoc(e.target.value)}
-                  >
-                    <option value="">— Chưa phân (về Chờ xác nhận) —</option>
-                    {doctors.map((d) => (
-                      <option key={d.id} value={d.id}>
-                        {d.label}
-                      </option>
-                    ))}
-                  </select>
+              {/* Đổi lịch (CSKH/QL) — đổi ngày/giờ (+ tuỳ chọn bác sĩ) */}
+              {canManage && showResched && LIVE.includes(sel.status) && (
+                <div className="mt-3 space-y-2 rounded-lg border border-[#bfdbfe] bg-white p-3">
+                  <div className="grid grid-cols-2 gap-2">
+                    <div>
+                      <label className={LABEL}>Ngày mới</label>
+                      <input
+                        type="date"
+                        className={INPUT}
+                        value={reschedDate}
+                        onChange={(e) => setReschedDate(e.target.value)}
+                      />
+                    </div>
+                    <div>
+                      <label className={LABEL}>Giờ mới</label>
+                      <input
+                        type="time"
+                        step={60}
+                        className={INPUT}
+                        value={reschedTime}
+                        onChange={(e) => setReschedTime(e.target.value)}
+                      />
+                    </div>
+                  </div>
+                  <div>
+                    <label className={LABEL}>Bác sĩ (tuỳ chọn)</label>
+                    <select
+                      className={INPUT}
+                      value={reschedDoc}
+                      onChange={(e) => setReschedDoc(e.target.value)}
+                    >
+                      <option value="">— Giữ bác sĩ hiện tại —</option>
+                      {doctors.map((d) => (
+                        <option key={d.id} value={d.id}>
+                          {d.label}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
                   <button
-                    onClick={reassign}
+                    onClick={reschedule}
                     disabled={busy}
-                    className="inline-flex min-h-10 items-center gap-1 rounded-lg bg-[#ea580c] px-4 text-sm font-semibold text-white hover:bg-[#c2410c] disabled:opacity-50"
+                    className="inline-flex min-h-10 items-center gap-1 rounded-lg bg-[#2563eb] px-4 text-sm font-semibold text-white hover:bg-[#1d4ed8] disabled:opacity-50"
                   >
-                    <RotateCcw size={14} /> {busy ? "Đang phân lại…" : "Phân lại"}
+                    <CalendarClock size={14} /> {busy ? "Đang đổi…" : "Xác nhận đổi lịch"}
                   </button>
                 </div>
               )}
@@ -417,18 +473,22 @@ export default function ConfirmBoard({
                   <label className={LABEL}>SĐT chính</label>
                   <input
                     className={INPUT}
-                    inputMode="tel"
+                    inputMode="numeric"
+                    maxLength={10}
+                    placeholder="10 chữ số"
                     value={form.phone_primary}
-                    onChange={(e) => set("phone_primary", e.target.value)}
+                    onChange={(e) => set("phone_primary", digitsOnly(e.target.value).slice(0, 10))}
                   />
                 </div>
                 <div>
                   <label className={LABEL}>SĐT người nhà</label>
                   <input
                     className={INPUT}
-                    inputMode="tel"
+                    inputMode="numeric"
+                    maxLength={10}
+                    placeholder="10 chữ số"
                     value={form.phone_secondary}
-                    onChange={(e) => set("phone_secondary", e.target.value)}
+                    onChange={(e) => set("phone_secondary", digitsOnly(e.target.value).slice(0, 10))}
                   />
                 </div>
                 <div>

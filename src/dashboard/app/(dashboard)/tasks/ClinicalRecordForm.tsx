@@ -196,6 +196,19 @@ export default function ClinicalRecordForm({
 
   const locked = data?.visit?.status === "FINALIZED";
 
+  // GATE LỄ TÂN: bác sĩ CHỈ điền được khi lễ tân đã check-in (bệnh nhân đã đến).
+  // Không áp cho luồng đón-khám (vitalsOnly) — đó CHÍNH là lúc lễ tân check-in
+  // + ghi sinh hiệu. (COMPLETED vẫn cho xem/sửa nháp khi visit chưa FINALIZED.)
+  const arrivalPending =
+    !vitalsOnly && appt.status !== "CHECKED_IN" && appt.status !== "COMPLETED";
+
+  // Đủ điều kiện TỰ ĐỘNG "Khám xong": đang đã-đến + đã điền Chẩn đoán + Lời dặn.
+  const willComplete =
+    !vitalsOnly &&
+    appt.status === "CHECKED_IN" &&
+    f.chan_doan.trim() !== "" &&
+    f.loi_dan.trim() !== "";
+
   // Sinh hiệu (Sinh hiệu) gói riêng để dùng cho cả 2 luồng lưu.
   const vitalsPayload = () => ({
     mach: f.mach,
@@ -233,6 +246,10 @@ export default function ClinicalRecordForm({
 
   async function save() {
     if (vitalsOnly) return saveVitals();
+    if (arrivalPending) {
+      setMsg("Chờ lễ tân xác nhận bệnh nhân đã đến (check-in) trước khi khám.");
+      return;
+    }
     setSaving(true);
     setMsg(null);
     const res = await fetch("/api/clinical-record", {
@@ -267,18 +284,38 @@ export default function ClinicalRecordForm({
         },
       }),
     });
-    setSaving(false);
     if (!res.ok) {
+      setSaving(false);
       setMsg((await res.json()).error ?? "Lỗi lưu hồ sơ.");
       return;
     }
-    setMsg("Đã lưu nháp hồ sơ.");
+    // Điền ĐỦ (Chẩn đoán VII + Lời dặn VIII) + BN đã đến → TỰ ĐỘNG chuyển lịch
+    // sang "Đã khám xong" (COMPLETED). Không đụng FINALIZE (khóa pháp lý riêng).
+    if (willComplete) {
+      const done = await fetch("/api/appointments", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id: appt.id, action: "complete" }),
+      });
+      setSaving(false);
+      setMsg(
+        done.ok
+          ? "Đã lưu hồ sơ & chuyển bệnh nhân sang Đã khám xong."
+          : "Đã lưu hồ sơ. (Chưa tự chuyển Khám xong — hãy tải lại.)",
+      );
+    } else {
+      setSaving(false);
+      setMsg(
+        "Đã lưu nháp. Điền đủ Chẩn đoán + Lời dặn sẽ tự chuyển Đã khám xong.",
+      );
+    }
     router.refresh();
   }
 
   const preg = data?.pregnancy;
   const labs = data?.labs ?? [];
-  const ro = locked || saving; // khoá Sinh hiệu khi đang lưu / hồ sơ đã chốt
+  // khoá khi: hồ sơ đã chốt / đang lưu / (bác sĩ) BN chưa check-in
+  const ro = locked || saving || arrivalPending;
   const roRest = ro || vitalsOnly; // đón-khám (vitalsOnly): mọi mục khác chỉ xem
 
   return (
@@ -315,6 +352,11 @@ export default function ClinicalRecordForm({
         {locked && (
           <p className="rounded-md bg-[#fee2e2] px-3 py-1.5 text-xs text-[#dc2626]">
             🔒 Hồ sơ đã chốt (FINALIZED) — luật cấm sửa, chỉ xem.
+          </p>
+        )}
+        {arrivalPending && (
+          <p className="rounded-md bg-[#fef9c3] px-3 py-1.5 text-xs text-[#a16207]">
+            🕓 Chờ lễ tân xác nhận bệnh nhân đã đến (check-in) — chưa khám được.
           </p>
         )}
 
@@ -495,7 +537,13 @@ export default function ClinicalRecordForm({
             disabled={ro}
             className="min-h-10 rounded-lg bg-[#ec4899] px-4 text-sm font-semibold text-white hover:bg-[#db2777] disabled:opacity-50"
           >
-            {saving ? "Đang lưu…" : vitalsOnly ? "Lưu sinh hiệu" : "Lưu hồ sơ"}
+            {saving
+              ? "Đang lưu…"
+              : vitalsOnly
+                ? "Lưu sinh hiệu"
+                : willComplete
+                  ? "Lưu & Khám xong"
+                  : "Lưu hồ sơ"}
           </button>
           <button onClick={onClose} className="min-h-10 rounded-lg border border-[#e4e4e7] bg-white px-4 text-sm text-[#52525b] hover:bg-[#f4f4f5]">
             Đóng

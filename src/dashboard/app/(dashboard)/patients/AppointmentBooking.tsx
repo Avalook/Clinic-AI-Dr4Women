@@ -8,7 +8,7 @@
 
 import { useState, type ReactNode } from "react";
 import { vnLocalToUtcISO } from "../../../lib/datetime";
-import { INPUT, LABEL, BTN, CHANNELS, DURATIONS } from "../form-ui";
+import { INPUT, LABEL, BTN, DURATIONS } from "../form-ui";
 
 export interface Option {
   id: string;
@@ -43,7 +43,8 @@ export default function AppointmentBooking({
   const [apptDate, setApptDate] = useState("");
   const [apptTime, setApptTime] = useState("");
   const [duration, setDuration] = useState(30);
-  const [channel, setChannel] = useState("WALK_IN");
+  // Kênh đặt = nhập tự do (sau tự tính từ Pancake). Để trống được.
+  const [channel, setChannel] = useState("");
   const [queueNumber, setQueueNumber] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
@@ -170,17 +171,12 @@ export default function AppointmentBooking({
         </div>
         <div className="space-y-1">
           <label className={LABEL}>Kênh đặt</label>
-          <select
+          <input
             value={channel}
             onChange={(e) => setChannel(e.target.value)}
             className={INPUT}
-          >
-            {CHANNELS.map((c) => (
-              <option key={c.id} value={c.id}>
-                {c.label}
-              </option>
-            ))}
-          </select>
+            placeholder="VD: Zalo, Hotline, Facebook… (tuỳ chọn)"
+          />
         </div>
       </div>
 

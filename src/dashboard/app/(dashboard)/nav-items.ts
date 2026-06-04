@@ -10,6 +10,8 @@ import {
   Calendar,
   BarChart3,
   Settings,
+  Contact,
+  Stethoscope,
   type LucideIcon,
 } from "lucide-react";
 import { type ClinicRole, isNurseRole } from "../../lib/roles";
@@ -32,7 +34,19 @@ export const NAV: NavItem[] = [
     shortLabel: "Lịch hẹn",
     icon: ClipboardList,
   },
-  { href: "/patients", label: "Bệnh nhân", shortLabel: "Bệnh nhân", icon: Users },
+  {
+    href: "/customers",
+    label: "Thông tin khách hàng",
+    shortLabel: "Khách hàng",
+    icon: Contact,
+  },
+  {
+    href: "/patient-list",
+    label: "Danh sách bệnh nhân",
+    shortLabel: "BN đã khám",
+    icon: Stethoscope,
+  },
+  { href: "/patients", label: "Bệnh nhân (tra cứu)", shortLabel: "Tra cứu", icon: Users },
   {
     href: "/patients/new",
     label: "Nhập thông tin khách hàng mới",

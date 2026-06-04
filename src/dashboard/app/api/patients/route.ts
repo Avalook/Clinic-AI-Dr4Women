@@ -12,6 +12,7 @@ import { getSupabaseServer } from "../../../lib/supabase-server";
 import { getSupabaseService } from "../../../lib/supabase-service";
 import { getClinicRole, getClinicStaffId } from "../../../lib/clinic-session";
 import { canWriteIntake } from "../../../lib/roles";
+import { PHONE_RE, CCCD_RE } from "../../../lib/validation";
 import { logEvent } from "../../../lib/event-log";
 
 interface Body {
@@ -89,9 +90,30 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Phải chọn cơ sở." }, { status: 400 });
   }
 
+  // Quy tắc nhập liệu CỨNG (server-side, không tin client): SĐT 10 số / CCCD 12 số.
+  const phone_secondary = (body.phone_secondary ?? "").trim() || null;
+  if (phone_primary && !PHONE_RE.test(phone_primary)) {
+    return NextResponse.json(
+      { error: "SĐT chính phải gồm đúng 10 chữ số liền." },
+      { status: 400 },
+    );
+  }
+  if (phone_secondary && !PHONE_RE.test(phone_secondary)) {
+    return NextResponse.json(
+      { error: "SĐT người nhà phải gồm đúng 10 chữ số liền." },
+      { status: 400 },
+    );
+  }
+
   // CCCD là UNIQUE cứng (không bỏ qua được kể cả force) → kiểm TRƯỚC để báo lỗi
   // rõ ràng thay vì rơi vào "không tạo được mã BN".
   const national = (body.national_id_number ?? "").trim() || null;
+  if (national && !CCCD_RE.test(national)) {
+    return NextResponse.json(
+      { error: "CCCD phải gồm đúng 12 chữ số liền." },
+      { status: 400 },
+    );
+  }
   if (national) {
     const { data: cccdDup } = await db
       .from("patient")
@@ -137,8 +159,8 @@ export async function POST(request: Request) {
     full_name,
     date_of_birth: dob,
     phone_primary,
-    phone_secondary: (body.phone_secondary ?? "").trim() || null,
-    national_id_number: (body.national_id_number ?? "").trim() || null,
+    phone_secondary,
+    national_id_number: national,
     location_id,
     gender: nn(body.gender),
     ethnicity: nn(body.ethnicity),
@@ -249,6 +271,21 @@ export async function PATCH(request: Request) {
   const full_name = (body.full_name ?? "").trim();
   if (!full_name) {
     return NextResponse.json({ error: "Phải nhập họ tên." }, { status: 400 });
+  }
+  // Quy tắc nhập liệu CỨNG (server-side): SĐT 10 số.
+  const editPhone = (body.phone_primary ?? "").trim();
+  const editPhone2 = (body.phone_secondary ?? "").trim();
+  if (editPhone && !PHONE_RE.test(editPhone)) {
+    return NextResponse.json(
+      { error: "SĐT chính phải gồm đúng 10 chữ số liền." },
+      { status: 400 },
+    );
+  }
+  if (editPhone2 && !PHONE_RE.test(editPhone2)) {
+    return NextResponse.json(
+      { error: "SĐT người nhà phải gồm đúng 10 chữ số liền." },
+      { status: 400 },
+    );
   }
 
   const db = getSupabaseService();

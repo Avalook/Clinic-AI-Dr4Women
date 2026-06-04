@@ -105,8 +105,12 @@ const DOCTOR_ROLES_LIST: ClinicRole[] = ["DOCTOR", "ULTRASOUND_DOCTOR"];
 const NAV_ROLES: Record<string, "all" | ClinicRole[]> = {
   "/home": "all",
   "/appointments": ["MANAGEMENT"],
-  // CSKH + Lễ tân tra cứu lịch sử BN theo mã/tên/SĐT + xem lại bệnh án (feedback B1).
-  "/patients": ["CSKH", "RECEPTION", "MANAGEMENT"],
+  // Thông tin khách hàng (danh bạ + chi tiết + tra cứu tên/mã/SĐT) — CSKH/Lễ tân/QL.
+  "/customers": ["CSKH", "RECEPTION", "MANAGEMENT"],
+  // Danh sách bệnh nhân ĐÃ KHÁM (lần đầu / tái khám) — CSKH/Lễ tân/QL.
+  "/patient-list": ["CSKH", "RECEPTION", "MANAGEMENT"],
+  // Tra cứu BN đầy đủ (phân trang) — Quản lý. CSKH/Lễ tân dùng /customers.
+  "/patients": ["MANAGEMENT"],
   // Điều dưỡng cũng nhập được (khách vãng lai).
   "/patients/new": ["CSKH", "RECEPTION", "MANAGEMENT", "NURSE_ULTRASOUND"],
   // /checkin đã chuyển hẳn lên Trang chủ (HomeCheckin) — route cũ đã xóa.

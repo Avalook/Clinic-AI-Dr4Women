@@ -810,3 +810,75 @@ Ràng buộc: chỉ "Khám xong" được khi đã CONFIRMED/CHECKED_IN (không 
 - undo_checkin walk-in SCHEDULED→CONFIRMED (cần lưu trạng thái trước) — minor.
 - Doctor RPC `doctor_patient_list` chưa unaccent (chỉ PatientsList) — minor.
 - Nút "Chốt hồ sơ" FINALIZE + amend + trigger backstop clinical_record — ĐỂ SAU (safety gate, user đã chốt).
+
+## === PHIÊN 04/06 — CHUYỂN HƯỚNG: MVP NHẬP TAY (trống data Notion) + feedback Thu Lê đợt 2 ===
+> Quyết định chiến lược: TẠM bỏ data chuẩn hoá Notion/Excel. Dashboard = MVP nhập
+> tay thay việc nhập tay Notion+Excel. GIỮ project Supabase + schema + seed; chỉ
+> XOÁ data BN/khách. Build (Next 16) PASS (tsc + eslint + next build, đủ 26 route).
+> CHƯA commit (chờ lệnh) — có WIP cũ chưa commit của feedback C2/C3/C4 (xem dưới).
+
+### P0 — Reset Supabase "trống data" + chốt chặn sync
+- `scripts/maintenance/reset_clinical_data.sql` (MỚI): `SET LOCAL app.allow_hard_delete='on'`
+  + `TRUNCATE cskh_action,cskh_log,service_log,prescription,appointment,lab_result,
+  clinical_record,visit,patient RESTART IDENTITY CASCADE`. GIỮ seed (staff/dịch vụ/
+  kênh/cơ sở/ca trực) + event_log. ĐẢO NGƯỢC được (chạy lại sync). **Operator chạy
+  tay trên Supabase SQL Editor** (tôi không tự áp prod — §3).
+- `sync_to_supabase.py`: guard env `CLINIC_ALLOW_NOTION_SYNC=1` — sync THẬT (không
+  --dry-run) TỪ CHỐI chạy nếu thiếu biến → chống lỡ tay TRUNCATE đè data nhập tay.
+
+### P1 — Quy tắc nhập liệu CỨNG + kênh đặt tự do
+- `lib/validation.ts` (MỚI): PHONE_RE `^\d{10}$` / CCCD_RE `^\d{12}$` + digitsOnly.
+- SĐT chính/người nhà = ĐÚNG 10 số liền; CCCD = ĐÚNG 12 số liền. Chặn cả client
+  (NewPatientForm, ConfirmBoard sửa) lẫn server (`/api/patients` POST+PATCH). Input
+  ép số (digitsOnly + maxLength).
+- "Kênh đặt": select cứng → **ô NHẬP TỰ DO** (NewPatientForm + AppointmentBooking).
+  booking_channel là TEXT thuần (migration 026 chưa FK) → an toàn. (CHANNELS export
+  giữ lại, không còn dùng.)
+
+### P2 — Bỏ cột "Ngoài luồng" + thêm "Đổi lịch"
+- ConfirmBoard: 4 cột → **3 cột** (Chờ xác nhận/Đã xác nhận/Đã khám xong). Bỏ cột
+  "Hủy/Không đến". tasks/page bỏ fetch NO_SHOW/CANCELLED/DOCTOR_DECLINED + bỏ chú
+  thích cột 4. (Hủy/không đến vẫn xử lý được trên lịch còn sống → biến mất khỏi
+  board; xem lại ở /appointments của QL.)
+- Thay "Phân lại bác sĩ" (chỉ dùng khi declined — giờ không hiện) bằng **"Đổi lịch"**:
+  API action `reschedule` (`/api/appointments`, CSKH/QL, từ SCHEDULED/CONFIRMED/
+  CHECKED_IN) đổi slot_start/slot_end (+tuỳ chọn bác sĩ; rỗng = giữ bác sĩ cũ). Ghi
+  event + cskh_action "Đổi lịch" (vào cột Đặt hẹn). Bắt 23P01 (trùng giờ bác sĩ).
+
+### P3 — Trang "Thông tin khách hàng" (/customers)
+- MỚI route /customers (page server + CustomersView client): master-detail — list
+  trái + chi tiết phải, **bôi hồng** khách đang chọn. Lọc Hôm nay/Tuần/Tháng/Tất cả
+  (theo created_at) + tìm tên/mã/SĐT (server .or ilike). Sau khi tạo BN (không phải
+  vãng lai) → NewPatientForm điều hướng `/customers?selected=<id>` → tự chọn + highlight.
+- Nav: thêm "Thông tin khách hàng" + dồn /patients ("Bệnh nhân (tra cứu)") về CHỈ
+  Quản lý (CSKH/Lễ tân dùng /customers — gọn, hết trùng title như feedback nêu).
+
+### P4 — Trang "Danh sách bệnh nhân" (/patient-list)
+- MỚI route /patient-list (page server + PatientListView client): chỉ BN đã khám
+  (appointment COMPLETED), gom theo BN → badge **Khám lần đầu** (1 lần) / **Tái khám**
+  (≥2). Tìm + lọc theo phân loại (client). Cap 2000 lượt gần nhất. Nav cho CSKH/Lễ tân/QL.
+
+### P5 — Gate lễ tân→bác sĩ + TỰ ĐỘNG "Khám xong"
+- ClinicalRecordForm: bác sĩ CHỈ điền được khi appointment = **CHECKED_IN** (lễ tân
+  đã check-in). Chưa thì khoá toàn form + banner "🕓 Chờ lễ tân... check-in". Không
+  áp cho vitalsOnly (đó chính là lúc lễ tân ghi sinh hiệu). HomeCheckin đã fetch
+  CONFIRMED → lễ tân check-in được (luồng thông).
+- Khi bác sĩ Lưu mà ĐÃ điền đủ **Chẩn đoán (VII) + Lời dặn (VIII)** và đang CHECKED_IN
+  → tự PATCH `complete` → lịch sang COMPLETED (nút đổi chữ "Lưu & Khám xong"). KHÔNG
+  đụng FINALIZE (khóa pháp lý riêng). Nút "Khám xong" thủ công vẫn giữ (fallback).
+
+### LUỒNG CHUẨN SAU PHIÊN
+`CSKH nhập KH → /customers (highlight)` · `CSKH đặt lịch → SCHEDULED` · `CSKH xác nhận
+→ CONFIRMED (+cskh_action Đặt hẹn, hiện ở board bác sĩ)` · `Lễ tân check-in → CHECKED_IN`
+· `Bác sĩ điền đủ tóm tắt → tự COMPLETED` · `BN khám ≥2 lần → Tái khám ở /patient-list`.
+
+### CÒN LẠI / CHỜ USER
+- **CHẠY reset SQL** trên Supabase (operator) khi muốn về trống data.
+- **WIP CHƯA COMMIT có sẵn đầu phiên** (không phải của phiên này, đã GIỮ + xây tiếp):
+  feedback C2 (DoctorWorkBoard kanban theo trạng thái), C3 (badge tái khám), C4
+  (SelfRosterForm tự đăng ký ca + api/roster + schedule/page), B1 (mở /patients —
+  phiên này đã đổi hướng sang /customers). roles.ts + tasks/page.tsx có CẢ WIP cũ
+  lẫn sửa phiên này → commit sẽ bundle chung.
+- Walk-in (điều dưỡng) vẫn còn variant riêng — chưa gộp "tất cả nhập tay" hoàn toàn
+  (user nói không phân biệt vãng lai; mới bỏ cột Ngoài luồng, chưa gỡ form walk-in).
+- Chưa commit/push — chờ lệnh.

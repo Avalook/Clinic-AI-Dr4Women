@@ -11,13 +11,13 @@ import Link from "next/link";
 import { UserRound, CalendarClock } from "lucide-react";
 import type { Option } from "../AppointmentBooking";
 import { vnLocalToUtcISO } from "../../../../lib/datetime";
+import { digitsOnly, phoneError, cccdError } from "../../../../lib/validation";
 import {
   INPUT,
   LABEL,
   BTN,
   BTN_GHOST,
   CARD,
-  CHANNELS,
   DURATIONS,
 } from "../../form-ui";
 
@@ -96,7 +96,8 @@ export default function NewPatientForm({
   const [apptDate, setApptDate] = useState("");
   const [apptTime, setApptTime] = useState("");
   const [duration, setDuration] = useState(30);
-  const [channel, setChannel] = useState("WALK_IN");
+  // Kênh đặt = NHẬP TỰ DO (feedback: "cho điền thôi, sau tự tính"). Để trống được.
+  const [channel, setChannel] = useState("");
   // Số khám (queue_number) — feedback B5#8.
   const [queueNumber, setQueueNumber] = useState("");
 
@@ -144,8 +145,15 @@ export default function NewPatientForm({
   // Land on the patient profile (the "nice profile" the user sees right after).
   // Kèm mã BN để banner hiện "Mã BN: …" ngay sau khi tạo (feedback B5#2).
   function goToProfile(id: string, code?: string) {
-    const q = code ? `?new=1&code=${encodeURIComponent(code)}` : "?new=1";
-    router.push(`/patients/${id}${q}`);
+    // Khách thường (CSKH/Lễ tân/QL): nhảy sang "Thông tin khách hàng" với khách
+    // vừa nhập được CHỌN sẵn + bôi hồng (đúng yêu cầu "thông tin sau nhập trả
+    // về"). Khách vãng lai (điều dưỡng): về hồ sơ để thấy luôn lượt khám hôm nay.
+    if (walkin) {
+      const qs = code ? `?new=1&code=${encodeURIComponent(code)}` : "?new=1";
+      router.push(`/patients/${id}${qs}`);
+    } else {
+      router.push(`/customers?selected=${encodeURIComponent(id)}`);
+    }
   }
 
   async function proceed(clinicPatientId: string, code?: string) {
@@ -161,6 +169,12 @@ export default function NewPatientForm({
 
   async function save(force: boolean) {
     setError(null);
+    // Quy tắc nhập liệu CỨNG: SĐT 10 số / CCCD 12 số (chặn ngay trước khi gửi).
+    const ve = phoneError(phone) || phoneError(phone2) || cccdError(cccd);
+    if (ve) {
+      setError(ve);
+      return;
+    }
     setSubmitting(true);
     const res = await fetch("/api/patients", {
       method: "POST",
@@ -262,28 +276,33 @@ export default function NewPatientForm({
             <label className={LABEL}>SĐT chính</label>
             <input
               value={phone}
-              onChange={(e) => setPhone(e.target.value)}
+              onChange={(e) => setPhone(digitsOnly(e.target.value).slice(0, 10))}
               className={INPUT}
-              placeholder="09xxxxxxxx"
-              inputMode="tel"
+              placeholder="10 chữ số, vd 0901234567"
+              inputMode="numeric"
+              maxLength={10}
             />
           </div>
           <div>
             <label className={LABEL}>SĐT người nhà (nếu có)</label>
             <input
               value={phone2}
-              onChange={(e) => setPhone2(e.target.value)}
+              onChange={(e) => setPhone2(digitsOnly(e.target.value).slice(0, 10))}
               className={INPUT}
-              inputMode="tel"
+              placeholder="10 chữ số"
+              inputMode="numeric"
+              maxLength={10}
             />
           </div>
           <div>
             <label className={LABEL}>CCCD (nếu cung cấp)</label>
             <input
               value={cccd}
-              onChange={(e) => setCccd(e.target.value)}
+              onChange={(e) => setCccd(digitsOnly(e.target.value).slice(0, 12))}
               className={INPUT}
+              placeholder="12 chữ số"
               inputMode="numeric"
+              maxLength={12}
             />
           </div>
           <div>
@@ -477,17 +496,12 @@ export default function NewPatientForm({
           </div>
           <div>
             <label className={LABEL}>Kênh đặt</label>
-            <select
+            <input
               value={channel}
               onChange={(e) => setChannel(e.target.value)}
               className={INPUT}
-            >
-              {CHANNELS.map((c) => (
-                <option key={c.id} value={c.id}>
-                  {c.label}
-                </option>
-              ))}
-            </select>
+              placeholder="VD: Zalo, Hotline, Facebook, Khách quen… (tuỳ chọn)"
+            />
           </div>
         </div>
       </section>
