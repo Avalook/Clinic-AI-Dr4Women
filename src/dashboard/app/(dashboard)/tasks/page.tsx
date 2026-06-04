@@ -30,7 +30,9 @@ async function DoctorTasks() {
   const supabase = await getSupabaseServer();
   const staffId = await getClinicStaffId();
   const { startUtc } = vnTodayRangeUtc();
-  const N = 7;
+  // Cửa sổ 14 ngày tới: lịch CSKH đặt cho vài ngày sau VẪN hiện ở "Công việc của
+  // tôi" của bác sĩ (feedback B5#6 — trước đây 7 ngày nên lịch xa không thấy).
+  const N = 14;
   const endUtc = new Date(new Date(startUtc).getTime() + N * DAY_MS).toISOString();
 
   let q = supabase
@@ -118,8 +120,9 @@ export default async function TasksPage() {
 
   const supabase = await getSupabaseServer();
   const { startUtc } = vnTodayRangeUtc();
-  // Hàng đợi CSKH: từ hôm nay tới 7 ngày tới, các lịch chờ/đã xác nhận.
-  const endUtc = new Date(new Date(startUtc).getTime() + 7 * DAY_MS).toISOString();
+  // Hàng đợi CSKH: hôm nay → 31 ngày tới (mở rộng từ 7) để lịch CSKH vừa đặt cho
+  // tuần/tháng sau VẪN hiện ở "Tình trạng lịch hẹn" (feedback B5#6).
+  const endUtc = new Date(new Date(startUtc).getTime() + 31 * DAY_MS).toISOString();
 
   const CSKH_SELECT = `
     id, category, status, description, action_data, source_created_at, created_by_text,
