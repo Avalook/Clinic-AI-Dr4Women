@@ -1019,6 +1019,22 @@ def main() -> int:
         ),
     )
     args = parser.parse_args()
+
+    # CHỐT CHẶN (04/06): MVP đã chuyển sang NHẬP TAY. Sync THẬT sẽ TRUNCATE rồi
+    # nạp lại data import (Notion/CSV) → XOÁ sạch data phòng khám nhập tay. Chỉ
+    # cho chạy sync ghi-DB khi operator CHỦ ĐỘNG đặt CLINIC_ALLOW_NOTION_SYNC=1.
+    # --dry-run vô hại (rollback) nên được miễn.
+    if not args.dry_run and os.environ.get("CLINIC_ALLOW_NOTION_SYNC") != "1":
+        print(
+            "REFUSED: sync THẬT sẽ TRUNCATE rồi nạp lại data import — XOÁ data "
+            "nhập tay trên dashboard.\n"
+            "Nếu CHẮC CHẮN muốn nạp lại bộ data demo, đặt biến môi trường "
+            "CLINIC_ALLOW_NOTION_SYNC=1 rồi chạy lại.\n"
+            "(Hoặc dùng --dry-run để thử transform mà KHÔNG ghi DB.)",
+            file=sys.stderr,
+        )
+        return 2
+
     logging.basicConfig(
         level=logging.INFO, format="%(levelname)s %(name)s: %(message)s"
     )
