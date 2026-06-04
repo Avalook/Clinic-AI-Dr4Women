@@ -102,13 +102,13 @@ export default function DoctorWorkBoard({
   }
 
   const boardEl = (
-    <div className="h-full max-h-[78vh] overflow-hidden rounded-xl border border-[#f3cfe0] bg-white shadow-[0_1px_3px_rgba(236,72,153,0.08)]">
-      <div className="flex h-full divide-x divide-[#f6e0ec] overflow-x-auto">
+    <div className="h-full max-h-[78vh] overflow-auto rounded-xl border border-[#f3cfe0] bg-white shadow-[0_1px_3px_rgba(236,72,153,0.08)]">
+      <div className="flex min-h-full divide-x divide-[#f6e0ec]">
         {COLUMNS.map((col) => {
           const items = rows.filter((r) => col.statuses.includes(r.status));
           return (
             <div key={col.key} className="flex min-w-[220px] flex-1 flex-col">
-              <div className="flex items-center gap-2 border-b border-[#f3cfe0] bg-[#fce7f3] px-3 py-2">
+              <div className="sticky top-0 z-10 flex items-center gap-2 border-b border-[#f3cfe0] bg-[#fce7f3] px-3 py-2">
                 <span
                   className="h-2 w-2 rounded-full"
                   style={{ backgroundColor: col.dot }}
@@ -120,7 +120,7 @@ export default function DoctorWorkBoard({
                   {items.length}
                 </span>
               </div>
-              <div className="min-h-0 flex-1 space-y-2 overflow-y-auto p-2">
+              <div className="space-y-2 p-2">
                 {items.length === 0 && (
                   <p className="py-6 text-center text-xs text-[#a1a1aa]">Trống</p>
                 )}

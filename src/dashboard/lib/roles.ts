@@ -96,10 +96,10 @@ export const ROLE_LABEL: Record<ClinicRole, string> = {
 // are scoped to everyone-except-reception.
 // Lịch làm việc: bác sĩ/điều dưỡng xem ca trực của mình + quản lý xem cả bảng.
 // CSKH & Lễ tân KHÔNG xem (sidebar gọn theo đầu việc của họ).
-// Bác sĩ (DOCTOR + Bác sĩ siêu âm) sidebar CHỈ 2 mục: Trang chủ + Công việc của
-// tôi. Mọi việc của bác sĩ (xem lịch/BN, confirm/decline, hồ sơ lâm sàng) gom hết
-// vào "Công việc của tôi" (/tasks). Nên /appointments, /patients, /schedule
-// KHÔNG còn cho bác sĩ — chỉ Quản lý (và điều dưỡng giữ ca trực).
+// Bác sĩ (DOCTOR + Bác sĩ siêu âm): việc chính gom ở "Công việc của tôi"
+// (/tasks). Thêm "Lịch làm việc" (/schedule) để TỰ đăng ký ca của mình (feedback
+// C4). /appointments + /patients/new vẫn KHÔNG cho bác sĩ (chỉ Quản lý / front
+// desk). /patients giờ mở cho CSKH + Lễ tân tra cứu (feedback B1).
 const DOCTOR_ROLES_LIST: ClinicRole[] = ["DOCTOR", "ULTRASOUND_DOCTOR"];
 
 const NAV_ROLES: Record<string, "all" | ClinicRole[]> = {
