@@ -915,3 +915,37 @@ Ràng buộc: chỉ "Khám xong" được khi đã CONFIRMED/CHECKED_IN (không 
 ### CÒN LẠI (chờ data tích luỹ / mẫu / PM)
 - /reports KPI (chờ data nhập tay) · mẫu phiếu siêu âm · FINALIZE (TT13) + vòng đời
   CSKH-action đầy đủ · upload PDF lên Storage (v2).
+
+## === PHIÊN 04/06 (tiếp) — Lịch hẹn ngày-NGANG (Excel form) + xóa demo lịch trực ===
+> Feedback ảnh: (1) bảng "Lịch làm việc" đang là data clone demo → bỏ; (2) bảng
+> "Lịch hẹn khám (check đặt lịch)" đổi cấu trúc sang đúng dạng file Excel "Check
+> đặt lịch" (ngày trải ngang). Build (Next 16) PASS: tsc + eslint + next build, 30 route.
+
+### Việc 1 — Bảng "Lịch làm việc · tuần này" để TRỐNG
+- Tên NV trong ô đến từ **DB `work_roster`** (88 dòng clone demo), KHÔNG hardcode.
+  `WorkRosterTable` đã render lưới rỗng (toàn "—") khi bảng trống → KHÔNG sửa UI.
+- Tạo `scripts/maintenance/clear_work_roster.sql`: TRUNCATE RIÊNG work_roster
+  (không đụng patient/appointment đã nhập tay — khác `reset_clinical_data.sql` xóa
+  cả BN). Operator chạy tay trên Supabase (§3 — không tự ghi prod). Nhập lại qua
+  /schedule (tự đăng ký) hoặc /schedule/edit (quản lý xếp). Áp cho mọi trang đọc
+  work_roster (home + schedule) cùng lúc.
+
+### Việc 2 — "Lịch hẹn khám" NGÀY-DỌC → NGÀY-NGANG (gỡ nợ đã ghi phiên trước)
+- Viết lại `WeeklyAppointmentsTable.tsx` thành **lưới ma trận** đúng file Excel:
+  NGÀY (T2..CN) trải NGANG ở header trên cùng (colSpan = số BS × 4) → trong ngày
+  các BÁC SĨ cạnh nhau (colSpan 4 + badge số lịch) → mỗi BS 4 cột con KHUNG GIỜ ·
+  SỐ KHÁM · THÔNG TIN · PHÂN LOẠI KHÁM. Cuộn ngang + dọc, kéo co dãn.
+- **Lưới dùng CHUNG số dòng** (maxRows = max số lịch của 1 cột BS bất kỳ trong tuần);
+  cột BS ít lịch hơn để **ô xám trống** (giống vùng grey file Excel). Viền trái đậm
+  ngăn từng khối ngày. Ngày rỗng = 1 cột "Không có lịch"; cả tuần rỗng = 1 dòng
+  "Chưa có lịch hẹn nào trong tuần".
+- KHÔNG đổi data/query trang chủ — chỉ đổi render (interface ApptDay/WeekApptRow giữ).
+- **Giản lược có chủ đích** (chờ user xác nhận): (a) KHUNG GIỜ KHÔNG gộp dọc theo
+  khung 15' như Excel — DB giờ phần lớn trống/khác nhau từng lịch, gộp = bịa; mỗi
+  lịch 1 dòng giờ riêng. (b) Số khám tổng (46/7/8 ở Excel) để dạng badge cạnh tên
+  BS thay vì hàng riêng. Muốn đúng 100% Excel thì làm tiếp.
+
+### Verify + git
+- tsc --noEmit + eslint (file) + npm run build PASS (30 route, /home OK).
+- Chưa verify UI có đăng nhập (cần Supabase login — user xem trực tiếp).
+- Commit + push **origin**. Push **avalook** (Vercel) user làm tay (safety-guard cross-account).
