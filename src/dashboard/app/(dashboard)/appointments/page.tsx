@@ -19,7 +19,13 @@ export const dynamic = "force-dynamic";
 
 // Happy-path workflow statuses (DOCTOR_DECLINED is surfaced separately via the
 // reassign notice; CANCELLED / NO_SHOW live in patient history).
-const BOARD_STATUSES = ["SCHEDULED", "CONFIRMED", "CHECKED_IN", "COMPLETED"];
+const BOARD_STATUSES = [
+  "SCHEDULED",
+  "CSKH_CONFIRMED",
+  "CONFIRMED",
+  "CHECKED_IN",
+  "COMPLETED",
+];
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 type Range = "day" | "week" | "month";

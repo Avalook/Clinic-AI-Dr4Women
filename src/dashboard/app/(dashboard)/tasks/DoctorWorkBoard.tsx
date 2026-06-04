@@ -42,7 +42,13 @@ export interface DoctorApptRow {
 }
 
 const COLUMNS = [
-  { key: "pending", label: "Chờ xác nhận", statuses: ["SCHEDULED"], dot: "#2563eb" },
+  {
+    key: "pending",
+    label: "Chờ xác nhận",
+    // Gồm lịch CSKH đã xác nhận với khách (CSKH_CONFIRMED) — vẫn chờ bác sĩ nhận ca.
+    statuses: ["SCHEDULED", "CSKH_CONFIRMED"],
+    dot: "#2563eb",
+  },
   {
     key: "confirmed",
     label: "Đã xác nhận / Đã đến",
@@ -159,14 +165,22 @@ export default function DoctorWorkBoard({
                       </span>
                     </button>
 
-                    {(a.phan_loai || col.key === "off") && (
+                    {(a.phan_loai ||
+                      col.key === "off" ||
+                      a.status === "CSKH_CONFIRMED") && (
                       <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
                         <PhanLoai value={a.phan_loai} />
+                        {a.status === "CSKH_CONFIRMED" && (
+                          <span className="inline-block rounded-full bg-[#ccfbf1] px-2 py-0.5 text-[10px] font-medium text-[#0f766e]">
+                            CSKH đã xác nhận
+                          </span>
+                        )}
                         {col.key === "off" && <StatusBadge status={a.status} />}
                       </div>
                     )}
 
-                    {a.status === "SCHEDULED" && (
+                    {(a.status === "SCHEDULED" ||
+                      a.status === "CSKH_CONFIRMED") && (
                       <div className="mt-2 flex gap-2 border-t border-[#f4f4f5] pt-2">
                         <button
                           onClick={() => act(a.id, "confirm")}

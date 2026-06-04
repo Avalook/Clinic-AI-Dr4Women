@@ -2,6 +2,7 @@
 
 const STATUS_STYLE: Record<string, string> = {
   SCHEDULED: "bg-[#dbeafe] text-[#1d4ed8]",
+  CSKH_CONFIRMED: "bg-[#ccfbf1] text-[#0f766e]",
   CONFIRMED: "bg-[#dcfce7] text-[#15803d]",
   CHECKED_IN: "bg-[#fef9c3] text-[#a16207]",
   COMPLETED: "bg-[#f4f4f5] text-[#71717a]",
@@ -13,6 +14,7 @@ const STATUS_STYLE: Record<string, string> = {
 // Nhãn tiếng Việt cho mọi trạng thái (chuyên nghiệp hơn mã code trần).
 const STATUS_LABEL: Record<string, string> = {
   SCHEDULED: "Chờ xác nhận",
+  CSKH_CONFIRMED: "Chờ bác sĩ",
   CONFIRMED: "Đã xác nhận",
   CHECKED_IN: "Đã đến",
   COMPLETED: "Đã khám xong",

@@ -31,7 +31,11 @@ export default function HomeCheckin({
   const [error, setError] = useState<string | null>(null);
   const [selId, setSelId] = useState<string | null>(null);
 
-  const arrived = rows.filter((r) => r.status === "CHECKED_IN").length;
+  // "Đã đến" gồm CẢ check-in (đang chờ khám) lẫn đã khám xong — vì khách thực
+  // sự đã có mặt trong ngày. Lễ tân/QL nhìn số này để biết tổng khách đến.
+  const arrived = rows.filter(
+    (r) => r.status === "CHECKED_IN" || r.status === "COMPLETED",
+  ).length;
   const term = q.trim().toLowerCase();
   const shown = term
     ? rows.filter((r) => {
@@ -90,6 +94,7 @@ export default function HomeCheckin({
         <ul className="space-y-2">
           {shown.map((r) => {
             const checkedIn = r.status === "CHECKED_IN";
+            const completed = r.status === "COMPLETED";
             const active = selId === r.id;
             return (
               <li
@@ -98,9 +103,11 @@ export default function HomeCheckin({
                   "flex items-center gap-3 rounded-xl border bg-white p-2.5 " +
                   (active
                     ? "border-[#ec4899] ring-2 ring-[#ec4899]/20"
-                    : checkedIn
-                      ? "border-[#bbf7d0]"
-                      : "border-[#f3cfe0]")
+                    : completed
+                      ? "border-[#e4e4e7] bg-[#fafafa]"
+                      : checkedIn
+                        ? "border-[#bbf7d0]"
+                        : "border-[#f3cfe0]")
                 }
               >
                 <div className="flex w-12 shrink-0 flex-col items-center">
@@ -129,14 +136,20 @@ export default function HomeCheckin({
                     </span>
                   </span>
                 </button>
-                {checkedIn ? (
+                {completed ? (
+                  // Đã khám xong — KHÔNG xoá khỏi danh sách + không có thao tác
+                  // (bác sĩ đã chốt). Vẫn click tên mở hồ sơ ở cột phải được.
+                  <span className="shrink-0 rounded-full bg-[#f4f4f5] px-2.5 py-0.5 text-[10px] font-medium text-[#52525b]">
+                    Đã khám xong
+                  </span>
+                ) : checkedIn ? (
                   <button
                     onClick={() => act(r.id, "undo_checkin")}
                     disabled={busyId === r.id}
                     className="shrink-0 text-[11px] text-[#a1a1aa] hover:text-[#71717a] disabled:opacity-50"
                   >
                     <span className="mb-0.5 block rounded-full bg-[#dcfce7] px-2 py-0.5 text-center text-[10px] font-medium text-[#15803d]">
-                      Đã đến
+                      Đã check-in
                     </span>
                     Hoàn tác
                   </button>

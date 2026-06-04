@@ -51,7 +51,7 @@ const COLUMNS: Column[] = [
   {
     key: "confirmed",
     label: "Đã xác nhận",
-    statuses: ["CONFIRMED", "CHECKED_IN"],
+    statuses: ["CSKH_CONFIRMED", "CONFIRMED", "CHECKED_IN"],
     accent: "#16a34a",
     tint: "#f0fdf4",
   },

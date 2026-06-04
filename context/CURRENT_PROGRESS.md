@@ -949,3 +949,67 @@ Ràng buộc: chỉ "Khám xong" được khi đã CONFIRMED/CHECKED_IN (không 
 - tsc --noEmit + eslint (file) + npm run build PASS (30 route, /home OK).
 - Chưa verify UI có đăng nhập (cần Supabase login — user xem trực tiếp).
 - Commit + push **origin**. Push **avalook** (Vercel) user làm tay (safety-guard cross-account).
+
+## === TRẠNG THÁI HIỆN TẠI (04/06, snapshot) ===
+> Cập nhật theo lệnh "update worklog". HEAD = `0162d49`. Có WIP CHƯA COMMIT.
+
+### Đã commit + push (origin + avalook user đã push):
+- `428aada` reset+guard · `a8f0d8b` dashboard MVP nhập tay · `5b57477` 4 màn M1–M4
+  · `508fc2f` reset+work_roster · `0162d49` lịch hẹn ngày-ngang + clear_work_roster.sql.
+- Reset Supabase ĐÃ chạy (data BN = 0, seed còn). work_roster: user xoá (TRUNCATE) → trống.
+
+### WIP CHƯA COMMIT — Xác nhận 2 BƯỚC (CSKH_CONFIRMED) [user/phiên khác làm]
+Luồng: CSKH "Xác nhận" với khách → **CSKH_CONFIRMED** (chờ bác sĩ) → vẫn nằm cột
+"Chờ xác nhận" của BÁC SĨ kèm badge "CSKH đã xác nhận" → bác sĩ **Nhận khám**
+(→CONFIRMED) hoặc **Từ chối** (→DOCTOR_DECLINED → CSKH thấy ở cột Huỷ/Từ chối).
+- **Migration 041** `20260604_041_appointment_cskh_confirmed.sql` (MỚI, untracked):
+  thêm CSKH_CONFIRMED vào `appointment_status_check`. ⚠️ **PHẢI APPLY trên Supabase
+  TRƯỚC** — chưa apply thì cskh_confirm UPDATE status='CSKH_CONFIRMED' sẽ lỗi check.
+- 8 file sửa (chưa commit): api/appointments (cskh_confirm→CSKH_CONFIRMED;
+  confirm/decline nhận SCHEDULED|CSKH_CONFIRMED), DoctorWorkBoard (cột chờ gồm 2
+  status + badge + nút), ConfirmBoard, StatusBadge, AppointmentsKanban,
+  appointments/page, home/page, tasks/page.
+- ⚠️ Tôi **chưa build-verify** (tsc/eslint/next build) cụm này; **chưa commit**.
+
+### PENDING (user yêu cầu, CHƯA làm)
+- **Xoá bảng "Nhật ký chăm sóc khách hàng (CSKH)"** (CskhActionBoard) khỏi /tasks —
+  lý do: CSKH chưa có thao tác chi tiết sau khám, tạm dừng tới khi nối Pancake.
+  (Luồng xác nhận lịch + tự-ghi cskh_action vẫn giữ ở DB, chỉ bỏ UI bảng.)
+
+### NỢ NGAY
+1. Apply migration 041 trên Supabase (cskh_confirm phụ thuộc).
+2. Build-verify + commit cụm CSKH_CONFIRMED + push (origin; avalook user push).
+3. Xoá UI bảng CSKH ở /tasks.
+
+## === PHIÊN 04/06 (tiếp) — LÀM LẠI + HOÀN TẤT cụm CSKH_CONFIRMED (WIP cũ đã mất) ===
+> Phát hiện DRIFT: entry "WIP CHƯA COMMIT — CSKH_CONFIRMED" ở trên mô tả việc đã
+> làm, NHƯNG khi mở phiên tree CLEAN (HEAD 0162d49) — WIP đó KHÔNG nằm trong commit
+> nào, đã MẤT. Khảo sát thật: 8 file KHÔNG có CSKH_CONFIRMED, migration 041 KHÔNG
+> tồn tại. → Làm lại từ đầu + hoàn tất luôn 3 mục NỢ NGAY (trừ apply migration).
+
+### Đã làm (build PASS: tsc + eslint + next build, 30 route)
+- **Migration 041** `20260604_041_appointment_cskh_confirmed.sql` (+ `.down.sql`) — TẠO
+  MỚI (trước không có): thêm `CSKH_CONFIRMED` vào `appointment_status_check`. ⚠️ **Operator
+  PHẢI apply trên Supabase TRƯỚC**, chưa apply thì `cskh_confirm` lỗi 23514 (đã thêm
+  thông báo lỗi thân thiện trỏ migration 041 trong api/appointments).
+- **Xác nhận 2 BƯỚC** (đúng lựa chọn user "2 bước"): `cskh_confirm` SCHEDULED→**CSKH_CONFIRMED**
+  (CSKH xác nhận với khách, CHƯA phải bác sĩ); doctor `confirm`/`decline` nhận từ
+  SCHEDULED|CSKH_CONFIRMED. checkin/cancel/no_show/reschedule fromStatuses thêm CSKH_CONFIRMED.
+- **DoctorWorkBoard**: cột "Chờ xác nhận" = [SCHEDULED, CSKH_CONFIRMED]; nút Nhận khám/Từ
+  chối hiện cho cả 2; thẻ CSKH_CONFIRMED có nhãn teal "CSKH đã xác nhận".
+- **ConfirmBoard (CSKH)**: "Đã xác nhận" = [CSKH_CONFIRMED, CONFIRMED, CHECKED_IN]; THÊM
+  cột 4 **"Đã huỷ / Từ chối"** = [CANCELLED, DOCTOR_DECLINED, NO_SHOW] (StatusBadge trên
+  thẻ) → bác sĩ từ chối thì CSKH THẤY "bị huỷ" (đúng yêu cầu user). grid 3→4 cột; LIVE +CSKH_CONFIRMED.
+- **StatusBadge**: +CSKH_CONFIRMED = "Chờ bác sĩ" (teal #ccfbf1/#0f766e).
+- Không tàng hình ở nơi khác: AppointmentsKanban + appointments/page (BOARD_STATUSES) +
+  home/page (check-in list) đều thêm CSKH_CONFIRMED. tasks/page CSKH query fetch thêm
+  CSKH_CONFIRMED + CANCELLED + DOCTOR_DECLINED + NO_SHOW + legend 4 mục.
+- **Việc 1 user — XOÁ bảng "Nhật ký chăm sóc khách hàng (CSKH)"** (CskhActionBoard) khỏi
+  /tasks: gỡ import + section + cskhRes/CSKH_SELECT/cskhRows. File `CskhActionBoard.tsx`
+  GIỮ (mồ côi, không import) để bật lại sau — "tạm dừng" tới khi nối Pancake. API
+  cskh_action tự-ghi (confirm/reschedule/complete) GIỮ ở DB (vô hại, dữ liệu vẫn ghi).
+
+### CÒN LẠI
+- **Operator**: apply migration 041 trên Supabase (chưa apply → luồng 2 bước chưa chạy).
+- **Chờ lệnh**: commit + push (chưa commit). Verify UI có đăng nhập (cần Supabase login).
+- File `CskhActionBoard.tsx` + route `/api/cskh-action` thành mồ côi — xoá hẳn khi user chốt bỏ.

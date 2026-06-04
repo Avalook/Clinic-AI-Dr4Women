@@ -122,7 +122,15 @@ export default async function HomePage() {
           .select(CHECKIN_SELECT)
           .gte("slot_start", dayStart)
           .lt("slot_start", dayEnd)
-          .in("status", ["SCHEDULED", "CONFIRMED", "CHECKED_IN"])
+          // GIỮ luôn BN đã CHECKED_IN + đã COMPLETED — không xoá khỏi danh sách
+          // sau khi check-in / khám xong, để lễ tân thấy ai đã đến cả ngày.
+          .in("status", [
+            "SCHEDULED",
+            "CSKH_CONFIRMED",
+            "CONFIRMED",
+            "CHECKED_IN",
+            "COMPLETED",
+          ])
           .order("slot_start", { ascending: true })
           .limit(300)
       : Promise.resolve({ data: [] }),

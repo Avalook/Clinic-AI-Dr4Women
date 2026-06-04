@@ -10,9 +10,11 @@
 //
 //   PATCH { id, action: "confirm" | "decline" }   (DOCTOR only, own appt)
 //     → { ok: true, status }
-//   Confirm: SCHEDULED→CONFIRMED. Decline: SCHEDULED→DOCTOR_DECLINED (keeps
-//   doctor_id so it stays in the doctor's history; reception is notified via
-//   the declined-appointments query in the dashboard layout).
+//   Two-step confirmation: CSKH confirms WITH THE PATIENT (cskh_confirm:
+//   SCHEDULED→CSKH_CONFIRMED) but the slot still awaits the doctor. Confirm:
+//   SCHEDULED|CSKH_CONFIRMED→CONFIRMED. Decline: SCHEDULED|CSKH_CONFIRMED→
+//   DOCTOR_DECLINED (keeps doctor_id for history; surfaces to CSKH in the
+//   "Đã huỷ / Từ chối" column + the declined-appointments notice in the layout).
 
 import { NextResponse } from "next/server";
 import { getSupabaseServer } from "../../../lib/supabase-server";
@@ -276,11 +278,13 @@ export async function PATCH(request: Request) {
       );
     }
     if (action === "confirm") {
+      // Bác sĩ NHẬN CA — kể cả lịch CSKH đã xác nhận với khách (2 bước).
       newStatus = "CONFIRMED";
-      fromStatuses = ["SCHEDULED"];
+      fromStatuses = ["SCHEDULED", "CSKH_CONFIRMED"];
     } else if (action === "decline") {
+      // Bác sĩ TỪ CHỐI — từ lịch mới HOẶC lịch CSKH đã xác nhận → CSKH thấy "Đã huỷ".
       newStatus = "DOCTOR_DECLINED";
-      fromStatuses = ["SCHEDULED"];
+      fromStatuses = ["SCHEDULED", "CSKH_CONFIRMED"];
     } else {
       // Khám xong: đã xác nhận / đã đến → COMPLETED.
       newStatus = "COMPLETED";
@@ -288,19 +292,20 @@ export async function PATCH(request: Request) {
     }
   } else if (action === "checkin") {
     newStatus = "CHECKED_IN";
-    fromStatuses = ["SCHEDULED", "CONFIRMED"];
+    fromStatuses = ["SCHEDULED", "CSKH_CONFIRMED", "CONFIRMED"];
   } else if (action === "cskh_confirm") {
-    // CSKH gọi xác nhận lịch với khách → SCHEDULED → CONFIRMED.
-    newStatus = "CONFIRMED";
+    // CSKH gọi xác nhận lịch với khách → SCHEDULED → CSKH_CONFIRMED. Lịch VẪN
+    // chờ bác sĩ nhận ca (xác nhận 2 bước), nên vẫn nằm ở "Chờ xác nhận" của bác sĩ.
+    newStatus = "CSKH_CONFIRMED";
     fromStatuses = ["SCHEDULED"];
   } else if (action === "cancel") {
     // Hủy lịch (CSKH/QL) — từ mọi trạng thái còn "sống".
     newStatus = "CANCELLED";
-    fromStatuses = ["SCHEDULED", "CONFIRMED", "CHECKED_IN"];
+    fromStatuses = ["SCHEDULED", "CSKH_CONFIRMED", "CONFIRMED", "CHECKED_IN"];
   } else if (action === "no_show") {
     // Khách không đến (front-desk) — chỉ khi chưa check-in.
     newStatus = "NO_SHOW";
-    fromStatuses = ["SCHEDULED", "CONFIRMED"];
+    fromStatuses = ["SCHEDULED", "CSKH_CONFIRMED", "CONFIRMED"];
   } else if (action === "reassign") {
     // Bác sĩ từ chối → CSKH/QL phân lại → về SCHEDULED (gán bác sĩ mới ở dưới).
     newStatus = "SCHEDULED";
@@ -309,7 +314,7 @@ export async function PATCH(request: Request) {
     // Đổi lịch (CSKH/QL theo yêu cầu khách): GIỮ trạng thái, chỉ đổi giờ
     // (+ tuỳ chọn đổi bác sĩ). Chỉ đổi khi lịch còn "sống", chưa khám xong.
     newStatus = appt.status;
-    fromStatuses = ["SCHEDULED", "CONFIRMED", "CHECKED_IN"];
+    fromStatuses = ["SCHEDULED", "CSKH_CONFIRMED", "CONFIRMED", "CHECKED_IN"];
   } else {
     // undo_checkin
     newStatus = "CONFIRMED";
@@ -381,6 +386,17 @@ export async function PATCH(request: Request) {
       return NextResponse.json(
         { error: "Bác sĩ đã có lịch trùng khung giờ mới này." },
         { status: 409 },
+      );
+    }
+    // 23514 = check_violation. Trạng thái mới (CSKH_CONFIRMED) chưa được DB cho
+    // phép → nhiều khả năng migration 041 (appointment_cskh_confirmed) chưa chạy.
+    if (updErr.code === "23514") {
+      return NextResponse.json(
+        {
+          error:
+            "Trạng thái lịch hẹn chưa được DB cho phép — cần chạy migration 041 (appointment_cskh_confirmed) trên Supabase.",
+        },
+        { status: 500 },
       );
     }
     return NextResponse.json({ error: updErr.message }, { status: 500 });

@@ -124,6 +124,7 @@ export default async function TasksPage() {
   // tuần/tháng sau VẪN hiện ở "Tình trạng lịch hẹn" (feedback B5#6).
   const endUtc = new Date(new Date(startUtc).getTime() + 31 * DAY_MS).toISOString();
 
+  // Bảng 2 (Nhật ký CSKH) — đọc 200 việc gần nhất từ cskh_action.
   const CSKH_SELECT = `
     id, category, status, description, action_data, source_created_at, created_by_text,
     patient:patient!clinic_patient_id (
@@ -135,15 +136,23 @@ export default async function TasksPage() {
     supabase
       .from("appointment")
       .select(SELECT)
-      // Board 3 cột: Chờ xác nhận → Đã xác nhận → Đã khám xong. (Đã BỎ cột
-      // "Ngoài luồng" — không fetch hủy/không đến/bác sĩ từ chối về board này.)
-      .in("status", ["SCHEDULED", "CONFIRMED", "CHECKED_IN", "COMPLETED"])
+      // Board 4 cột: Chờ xác nhận → Đã xác nhận → Đã khám xong → Đã huỷ / Từ chối.
+      // Cột cuối để CSKH THẤY lịch bác sĩ từ chối (DOCTOR_DECLINED) + hủy + không đến.
+      .in("status", [
+        "SCHEDULED",
+        "CSKH_CONFIRMED",
+        "CONFIRMED",
+        "CHECKED_IN",
+        "COMPLETED",
+        "CANCELLED",
+        "DOCTOR_DECLINED",
+        "NO_SHOW",
+      ])
       .gte("slot_start", startUtc)
       .lt("slot_start", endUtc)
       .order("slot_start", { ascending: true })
       .limit(300),
     supabase.from("clinic_location").select("id, name").order("name"),
-    // Bảng 2: nhật ký việc CSKH (CSKH-Action), 200 việc gần nhất.
     supabase
       .from("cskh_action")
       .select(CSKH_SELECT)
@@ -194,7 +203,7 @@ export default async function TasksPage() {
           />
 
           {/* Ý nghĩa từng trạng thái — để phòng khám đọc hiểu (PM yêu cầu) */}
-          <dl className="grid gap-2.5 rounded-lg border border-[#e4e4e7] bg-[#fafafa] px-4 py-3 text-xs text-[#52525b] sm:grid-cols-3">
+          <dl className="grid gap-2.5 rounded-lg border border-[#e4e4e7] bg-[#fafafa] px-4 py-3 text-xs text-[#52525b] sm:grid-cols-2 lg:grid-cols-4">
             {[
               {
                 dot: "#2563eb",
@@ -204,12 +213,17 @@ export default async function TasksPage() {
               {
                 dot: "#16a34a",
                 term: "Đã xác nhận",
-                desc: "CSKH đã gọi, khách đồng ý sẽ đến (gồm khách đã check-in tại quầy).",
+                desc: "CSKH đã gọi xác nhận với khách (chờ bác sĩ nhận ca), hoặc bác sĩ đã nhận / khách đã đến.",
               },
               {
                 dot: "#71717a",
                 term: "Đã khám xong",
                 desc: "Khách đã khám xong lượt này.",
+              },
+              {
+                dot: "#dc2626",
+                term: "Đã huỷ / Từ chối",
+                desc: "Lịch bị hủy, bác sĩ từ chối, hoặc khách không đến.",
               },
             ].map((s) => (
               <div key={s.term} className="flex gap-2">
@@ -225,6 +239,8 @@ export default async function TasksPage() {
             ))}
           </dl>
 
+          {/* Bảng 2 — Nhật ký CSKH (CSKH-Action). ĐANG XÂY DỰNG: data sẽ tự ghi
+              khi nối Zalo/Pancake; hiện CSKH có thể ghi tay 1 việc qua nút "+". */}
           <section className="space-y-2">
             <div>
               <h2 className="text-base font-semibold text-[#171717]">
@@ -234,9 +250,15 @@ export default async function TasksPage() {
                 Các việc CSKH theo loại (từ bảng CSKH-Action) · mỗi thẻ = 1 lần
                 thao tác với khách. Bấm “+ Thêm việc” trên mỗi cột để ghi tay.
               </p>
-              <p className="mt-1 inline-flex rounded-md bg-[#eff6ff] px-2 py-0.5 text-xs text-[#1d4ed8]">
-                🤖 Tự ghi khi CSKH thao tác (xác nhận lịch → vào “Đặt hẹn” ngay) + về sau khi nối Zalo / Pancake.
-              </p>
+              <div className="mt-2 flex flex-wrap gap-2">
+                <span className="inline-flex items-center gap-1 rounded-md bg-[#fef3c7] px-2 py-0.5 text-xs font-medium text-[#a16207]">
+                  🚧 Đang xây dựng
+                </span>
+                <span className="inline-flex items-center gap-1 rounded-md bg-[#eff6ff] px-2 py-0.5 text-xs text-[#1d4ed8]">
+                  🤖 Tự ghi khi CSKH thao tác (xác nhận lịch → vào “Đặt hẹn”
+                  ngay) + về sau khi nối Zalo / Pancake.
+                </span>
+              </div>
             </div>
             {cskhRes.error ? (
               <div className="rounded-md bg-[#fef9c3] px-3 py-2 text-sm text-[#a16207]">

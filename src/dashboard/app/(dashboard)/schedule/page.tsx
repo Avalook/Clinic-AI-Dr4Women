@@ -1,7 +1,9 @@
-// Lịch làm việc — KANBAN theo tuần (7 cột = 7 ngày). Mọi vai trò:
-//  - Quản lý: thấy tất cả phân công + nút Sửa.
-//  - Bác sĩ / điều dưỡng / người khác: chỉ thấy ca trực CỦA MÌNH.
-// Hover = nổi thẻ, click = chi tiết. Dữ liệu đọc qua RLS; ghi qua /api/roster.
+// Lịch làm việc — BẢNG MA TRẬN tuần (đồng bộ form ở mọi vai trò: cùng layout
+// với "Lịch làm việc · tuần này" trên Trang chủ — ngày × trạm, gom theo tầng).
+//  - Quản lý: thấy tất cả phân công + nút "Sửa lịch" → /schedule/edit.
+//  - Bác sĩ / điều dưỡng / lễ tân / CSKH: thấy bảng đầy đủ (tham khảo cả phòng
+//    khám) + form "Đăng ký ca của tôi" ở trên.
+// Read-only; ghi qua /api/roster (form đăng ký) hoặc /schedule/edit (quản lý).
 
 import Link from "next/link";
 import { getSupabaseServer } from "../../../lib/supabase-server";
@@ -13,12 +15,19 @@ import {
   weekStartOf,
   shiftWeek,
   currentWeekStartVn,
-  todayVn,
 } from "../../../lib/roster";
-import WeekKanban, { type KanbanRosterRow } from "./WeekKanban";
+import WorkRosterTable, {
+  type RosterRow,
+} from "../home/WorkRosterTable";
 import SelfRosterForm from "./SelfRosterForm";
 
 export const dynamic = "force-dynamic";
+
+// Row kèm id để SelfRosterForm xoá được đúng ca (RosterRow của bảng không có id).
+interface RosterRowWithId extends RosterRow {
+  id: string;
+  staff_id: string | null;
+}
 
 export default async function SchedulePage({
   searchParams,
@@ -33,16 +42,18 @@ export default async function SchedulePage({
   const isAdmin = isAdminRole(role);
   const myStaffId = isAdmin ? null : await getClinicStaffId();
 
+  // Lấy TOÀN BỘ phân công của tuần (cho mọi vai trò) → bảng ma trận đồng bộ với
+  // trang chủ. Form "Đăng ký ca của tôi" lọc client-side theo staff_id.
   const supabase = await getSupabaseServer();
-  let q = supabase
+  const { data } = await supabase
     .from("work_roster")
     .select("id, work_date, shift, station, staff_id, staff_name")
     .eq("week_start", week)
     .order("sort", { ascending: true });
-  // Cá nhân: chỉ lấy phân công của mình.
-  if (!isAdmin && myStaffId) q = q.eq("staff_id", myStaffId);
-  const { data } = await q;
-  const rows = (data as KanbanRosterRow[] | null) ?? [];
+  const rows = (data as RosterRowWithId[] | null) ?? [];
+  const myRows = myStaffId
+    ? rows.filter((r) => r.staff_id === myStaffId)
+    : [];
 
   const weekLabel = `${fmtDayMonth(dates[0])} – ${fmtDayMonth(dates[6])}`;
   const navHref = (w: string) => `/schedule?week=${w}`;
@@ -54,8 +65,8 @@ export default async function SchedulePage({
           <h1 className="text-xl font-semibold text-[#171717]">Lịch làm việc</h1>
           <p className="text-sm text-[#888888]">
             {isAdmin
-              ? "Phân công theo vị trí — click thẻ để xem chi tiết."
-              : "Ca trực của bạn trong tuần — click thẻ để xem chi tiết."}
+              ? "Bảng phân công tuần — bấm “Sửa lịch” để thêm/xoá ca."
+              : "Bảng phân công tuần — bạn có thể tự đăng ký ca ở form bên dưới."}
           </p>
         </div>
         {isAdmin && (
@@ -85,35 +96,21 @@ export default async function SchedulePage({
         </Link>
       </div>
 
-      {isAdmin ? (
-        <WeekKanban
+      {/* Bảng ma trận — DÙNG CHUNG với Trang chủ, mọi vai trò thấy giống nhau. */}
+      <WorkRosterTable dates={dates} rows={rows} />
+
+      {/* Không phải quản lý: form tự đăng ký ca CỦA MÌNH ở dưới (feedback C4). */}
+      {!isAdmin && (
+        <SelfRosterForm
+          weekStart={week}
           dates={dates}
-          rows={rows}
-          todayIso={todayVn()}
-          personal={false}
+          myRows={myRows.map((r) => ({
+            id: r.id,
+            work_date: r.work_date,
+            station: r.station,
+            shift: r.shift as "FULL" | "SANG" | "CHIEU",
+          }))}
         />
-      ) : (
-        <>
-          {/* Tự đăng ký ca của mình (feedback C4). */}
-          <SelfRosterForm
-            weekStart={week}
-            dates={dates}
-            myRows={rows.map((r) => ({
-              id: r.id,
-              work_date: r.work_date,
-              station: r.station,
-              shift: r.shift,
-            }))}
-          />
-          {rows.length > 0 && (
-            <WeekKanban
-              dates={dates}
-              rows={rows}
-              todayIso={todayVn()}
-              personal
-            />
-          )}
-        </>
       )}
     </div>
   );

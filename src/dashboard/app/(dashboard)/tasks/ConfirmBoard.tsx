@@ -45,19 +45,26 @@ export interface ApptRow {
   service: { name: string } | null;
 }
 
-// Board "Tình trạng lịch hẹn" — 3 cột theo appointment.status, 1 lịch ở 1 cột.
-// (Đã BỎ cột "Ngoài luồng" theo yêu cầu: MVP nhập tay, không phân biệt vãng lai.
-//  Lịch hủy/không đến biến mất khỏi board sau khi xử lý; xem lại ở Lịch hẹn (QL)
-//  hoặc hồ sơ khách.)
+// Board "Tình trạng lịch hẹn" — 4 cột theo appointment.status, 1 lịch ở 1 cột:
+// Chờ xác nhận → Đã xác nhận → Đã khám xong → Đã huỷ / Từ chối. Cột cuối để CSKH
+// THẤY lịch bác sĩ TỪ CHỐI (DOCTOR_DECLINED) + hủy + không đến (trước đây tàng hình).
 const COLUMNS = [
   { key: "pending", label: "Chờ xác nhận", statuses: ["SCHEDULED"], dot: "#2563eb" },
   {
     key: "confirmed",
     label: "Đã xác nhận",
-    statuses: ["CONFIRMED", "CHECKED_IN"],
+    // CSKH_CONFIRMED = CSKH đã xác nhận với khách (chờ bác sĩ nhận ca);
+    // CONFIRMED = bác sĩ đã nhận ca; CHECKED_IN = khách đã đến.
+    statuses: ["CSKH_CONFIRMED", "CONFIRMED", "CHECKED_IN"],
     dot: "#16a34a",
   },
   { key: "done", label: "Đã khám xong", statuses: ["COMPLETED"], dot: "#71717a" },
+  {
+    key: "off",
+    label: "Đã huỷ / Từ chối",
+    statuses: ["CANCELLED", "DOCTOR_DECLINED", "NO_SHOW"],
+    dot: "#dc2626",
+  },
 ];
 
 interface Form {
@@ -105,7 +112,8 @@ export default function ConfirmBoard({
   const sel = rows.find((r) => r.id === selId) ?? null;
   const locName = (id: string | null) =>
     locations.find((l) => l.id === id)?.label ?? "—";
-  const LIVE = ["SCHEDULED", "CONFIRMED", "CHECKED_IN"]; // còn "sống" → hủy được
+  // Còn "sống" → hủy / đổi lịch được (gồm CSKH đã xác nhận, chờ bác sĩ).
+  const LIVE = ["SCHEDULED", "CSKH_CONFIRMED", "CONFIRMED", "CHECKED_IN"];
 
   function select(a: ApptRow) {
     setSelId(a.id);
@@ -220,7 +228,7 @@ export default function ConfirmBoard({
     <div className="flex flex-col gap-4 lg:flex-row lg:items-start">
       {/* MỘT bảng — các cột trạng thái chung trong 1 khung */}
       <div className="flex h-[520px] min-h-0 min-w-0 max-h-[88vh] flex-1 resize-y flex-col overflow-hidden rounded-xl border border-[#f3cfe0] bg-white shadow-[0_1px_3px_rgba(236,72,153,0.08)]">
-        <div className="grid min-h-0 flex-1 grid-cols-1 divide-x divide-[#f6e0ec] sm:grid-cols-3">
+        <div className="grid min-h-0 flex-1 grid-cols-1 divide-x divide-[#f6e0ec] sm:grid-cols-2 lg:grid-cols-4">
           {COLUMNS.map((col) => {
             const items = rows.filter((r) => col.statuses.includes(r.status));
             return (
@@ -267,6 +275,11 @@ export default function ConfirmBoard({
                         {fmtTimeOrNone(a.slot_start)}
                         {a.service?.name ? ` · ${a.service.name}` : ""}
                       </span>
+                      {col.key === "off" && (
+                        <span className="mt-1.5 block">
+                          <StatusBadge status={a.status} />
+                        </span>
+                      )}
                     </button>
                   ))}
                 </div>
