@@ -2,15 +2,16 @@
 
 // Bảng 2 (kiểu PM "xem CSKH Action"): nhật ký VIỆC CSKH, gom theo `Phân loại`.
 // KHÁC Bảng 1 — mỗi thẻ ở đây = 1 LẦN CSKH thao tác (không phải 1 lịch hẹn).
-// Nguồn: bảng cskh_action (cột `category` = Phân loại). CHỈ ĐỌC — đây là log sẽ
-// được hệ TỰ GHI (Zalo/Pancake) sau, nên KHÔNG có ô nhập tay. Bấm thẻ → popup
-// chi tiết việc + hồ sơ khách (như Bảng 1).
+// Nguồn: bảng cskh_action (cột `category` = Phân loại). Việc được hệ TỰ GHI (xác
+// nhận lịch / khám xong; Zalo/Pancake sau) HOẶC CSKH ghi TAY qua nút "+" trên mỗi
+// cột (feedback B4 → POST /api/cskh-action). Bấm thẻ → popup chi tiết + hồ sơ khách.
 
 import { useState } from "react";
+import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { ExternalLink, X } from "lucide-react";
+import { ExternalLink, X, Plus } from "lucide-react";
 import { fmtDateTimeOrDate } from "../../../lib/datetime";
-import { TBL_RESIZE_HINT } from "../form-ui";
+import { INPUT, LABEL, TBL_RESIZE_HINT } from "../form-ui";
 
 export interface CskhActionRow {
   id: string;
@@ -48,8 +49,54 @@ function bucketKey(category: string | null): string {
 }
 
 export default function CskhActionBoard({ rows }: { rows: CskhActionRow[] }) {
+  const router = useRouter();
   const [selId, setSelId] = useState<string | null>(null);
   const sel = rows.find((r) => r.id === selId) ?? null;
+
+  // Ghi tay 1 việc CSKH (feedback B4) — modal mở từ nút "+" trên mỗi cột.
+  const [addCat, setAddCat] = useState<string | null>(null);
+  const [desc, setDesc] = useState("");
+  const [statusVal, setStatusVal] = useState("");
+  const [pcode, setPcode] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+
+  function openAdd(category: string) {
+    setAddCat(category);
+    setDesc("");
+    setStatusVal("");
+    setPcode("");
+    setErr(null);
+  }
+  function closeAdd() {
+    setAddCat(null);
+    setErr(null);
+  }
+  async function submit() {
+    if (!desc.trim()) {
+      setErr("Phải nhập nội dung việc.");
+      return;
+    }
+    setBusy(true);
+    setErr(null);
+    const res = await fetch("/api/cskh-action", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        category: addCat,
+        description: desc,
+        status: statusVal,
+        patient_code: pcode,
+      }),
+    });
+    setBusy(false);
+    if (!res.ok) {
+      setErr((await res.json()).error ?? "Lỗi lưu việc.");
+      return;
+    }
+    closeAdd();
+    router.refresh();
+  }
 
   // Gom dòng theo cột; chỉ thêm cột "Khác" nếu thật sự có dòng không khớp.
   const byKey = new Map<string, CskhActionRow[]>();
@@ -81,9 +128,20 @@ export default function CskhActionBoard({ rows }: { rows: CskhActionRow[] }) {
                   <span className="text-sm font-semibold text-[#171717]">
                     {col.label}
                   </span>
-                  <span className="ml-auto rounded-full bg-white px-2 py-0.5 text-xs text-[#71717a]">
-                    {items.length}
-                  </span>
+                  <div className="ml-auto flex items-center gap-1">
+                    <span className="rounded-full bg-white px-2 py-0.5 text-xs text-[#71717a]">
+                      {items.length}
+                    </span>
+                    {col.key !== OTHER.key && (
+                      <button
+                        onClick={() => openAdd(col.label)}
+                        title={`Thêm việc: ${col.label}`}
+                        className="rounded-md p-1 text-[#9d2463] hover:bg-white/70"
+                      >
+                        <Plus size={15} />
+                      </button>
+                    )}
+                  </div>
                 </div>
                 <div className="min-h-0 flex-1 space-y-2 overflow-y-auto p-2">
                   {items.length === 0 && (
@@ -157,6 +215,79 @@ export default function CskhActionBoard({ rows }: { rows: CskhActionRow[] }) {
         </aside>
       )}
     </div>
+
+    {addCat !== null && (
+      <div
+        className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 p-4"
+        onClick={closeAdd}
+      >
+        <div
+          className="w-full max-w-md rounded-xl border border-[#f3cfe0] bg-white p-4 shadow-[0_8px_30px_rgba(0,0,0,0.12)]"
+          onClick={(e) => e.stopPropagation()}
+        >
+          <div className="mb-3 flex items-center justify-between">
+            <h3 className="text-sm font-semibold text-[#9d174d]">
+              Thêm việc: {addCat}
+            </h3>
+            <button
+              onClick={closeAdd}
+              aria-label="Đóng"
+              className="rounded-md p-1 text-[#9d174d] hover:bg-[#fdf2f8]"
+            >
+              <X size={16} />
+            </button>
+          </div>
+          <div className="space-y-2">
+            <div>
+              <label className={LABEL}>Nội dung việc *</label>
+              <textarea
+                className={INPUT}
+                rows={3}
+                value={desc}
+                onChange={(e) => setDesc(e.target.value)}
+                placeholder="VD: Gọi nhắc tái khám, tư vấn kết quả…"
+              />
+            </div>
+            <div className="grid grid-cols-2 gap-2">
+              <div>
+                <label className={LABEL}>Trạng thái</label>
+                <input
+                  className={INPUT}
+                  value={statusVal}
+                  onChange={(e) => setStatusVal(e.target.value)}
+                  placeholder="VD: Đã gọi"
+                />
+              </div>
+              <div>
+                <label className={LABEL}>Mã BN (nếu có)</label>
+                <input
+                  className={INPUT}
+                  value={pcode}
+                  onChange={(e) => setPcode(e.target.value)}
+                  placeholder="BN-2026-..."
+                />
+              </div>
+            </div>
+            {err && <p className="text-xs text-[#dc2626]">{err}</p>}
+            <div className="flex gap-2 pt-1">
+              <button
+                onClick={submit}
+                disabled={busy}
+                className="min-h-10 rounded-lg bg-[#ec4899] px-4 text-sm font-semibold text-white hover:bg-[#db2777] disabled:opacity-50"
+              >
+                {busy ? "Đang lưu..." : "Lưu việc"}
+              </button>
+              <button
+                onClick={closeAdd}
+                className="min-h-10 rounded-lg border border-[#e4e4e7] bg-white px-4 text-sm text-[#52525b] hover:bg-[#f4f4f5]"
+              >
+                Huỷ
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    )}
     </>
   );
 }

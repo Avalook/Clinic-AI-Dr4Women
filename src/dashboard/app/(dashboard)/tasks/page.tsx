@@ -4,15 +4,12 @@
 // CCCD KHÔNG select (D-identity).
 
 import { getSupabaseServer } from "../../../lib/supabase-server";
-import { vnTodayRangeUtc, fmtDate } from "../../../lib/datetime";
+import { vnTodayRangeUtc } from "../../../lib/datetime";
 import { getClinicRole, getClinicStaffId } from "../../../lib/clinic-session";
 import { isDoctorRole, canManageAppt } from "../../../lib/roles";
 import ConfirmBoard, { type ApptRow, type Opt } from "./ConfirmBoard";
 import CskhActionBoard, { type CskhActionRow } from "./CskhActionBoard";
-import DoctorWorkBoard, {
-  type DoctorDay,
-  type DoctorApptRow,
-} from "./DoctorWorkBoard";
+import DoctorWorkBoard, { type DoctorApptRow } from "./DoctorWorkBoard";
 
 export const dynamic = "force-dynamic";
 
@@ -47,17 +44,40 @@ async function DoctorTasks() {
   const { data, error } = await q;
   const rows = (data as DoctorApptRow[] | null) ?? [];
 
-  // Gom theo ngày VN (startUtc đã là 00:00 giờ VN; VN không có DST nên +DAY_MS chuẩn).
-  const t0 = new Date(startUtc).getTime();
-  const days: DoctorDay[] = Array.from({ length: N }, (_, i) => {
-    const s = t0 + i * DAY_MS;
-    const e = s + DAY_MS;
-    const items = rows.filter((r) => {
+  // "Phân loại khám" (Khám lần đầu / Tái khám) — suy từ lịch sử hẹn của BN: lịch
+  // SỚM NHẤT của BN = Khám lần đầu, các lịch sau = Tái khám. DB chưa có cột riêng
+  // → suy luận nhất quán (giống bảng "Lịch hẹn khám" ở Trang chủ), KHÔNG bịa số.
+  const pids = [
+    ...new Set(
+      rows
+        .map((r) => r.patient?.clinic_patient_id)
+        .filter((x): x is string => !!x),
+    ),
+  ];
+  const earliest = new Map<string, number>();
+  if (pids.length) {
+    const { data: prior } = await supabase
+      .from("appointment")
+      .select("clinic_patient_id, slot_start")
+      .in("clinic_patient_id", pids);
+    for (const r of (prior as
+      | { clinic_patient_id: string; slot_start: string }[]
+      | null) ?? []) {
       const t = new Date(r.slot_start).getTime();
-      return t >= s && t < e;
-    });
-    const label = i === 0 ? "Hôm nay" : i === 1 ? "Ngày mai" : fmtDate(new Date(s));
-    return { label, items };
+      const cur = earliest.get(r.clinic_patient_id);
+      if (cur === undefined || t < cur) earliest.set(r.clinic_patient_id, t);
+    }
+  }
+  const withPhanLoai: DoctorApptRow[] = rows.map((r) => {
+    const pid = r.patient?.clinic_patient_id;
+    const e = pid ? earliest.get(pid) : undefined;
+    const phan_loai =
+      e === undefined
+        ? ""
+        : new Date(r.slot_start).getTime() > e
+          ? "Tái khám"
+          : "Khám lần đầu";
+    return { ...r, phan_loai };
   });
 
   return (
@@ -65,7 +85,8 @@ async function DoctorTasks() {
       <header>
         <h1 className="text-xl font-semibold text-[#171717]">Công việc của tôi</h1>
         <p className="text-sm text-[#888888]">
-          Lịch khám của bạn theo ngày · bấm tên bệnh nhân để mở hồ sơ lâm sàng.
+          Lịch khám của bạn theo trạng thái · bấm tên bệnh nhân để mở hồ sơ lâm
+          sàng.
         </p>
       </header>
       {error ? (
@@ -73,7 +94,7 @@ async function DoctorTasks() {
           {error.message}
         </div>
       ) : (
-        <DoctorWorkBoard days={days} staffId={staffId} />
+        <DoctorWorkBoard rows={withPhanLoai} staffId={staffId} />
       )}
     </div>
   );

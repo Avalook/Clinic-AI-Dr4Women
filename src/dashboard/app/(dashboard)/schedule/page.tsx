@@ -16,6 +16,7 @@ import {
   todayVn,
 } from "../../../lib/roster";
 import WeekKanban, { type KanbanRosterRow } from "./WeekKanban";
+import SelfRosterForm from "./SelfRosterForm";
 
 export const dynamic = "force-dynamic";
 
@@ -84,17 +85,35 @@ export default async function SchedulePage({
         </Link>
       </div>
 
-      {!isAdmin && rows.length === 0 ? (
-        <div className="rounded-lg border border-[#e4e4e7] bg-white px-4 py-10 text-center text-sm text-[#888888]">
-          Tuần này bạn chưa có ca trực.
-        </div>
-      ) : (
+      {isAdmin ? (
         <WeekKanban
           dates={dates}
           rows={rows}
           todayIso={todayVn()}
-          personal={!isAdmin}
+          personal={false}
         />
+      ) : (
+        <>
+          {/* Tự đăng ký ca của mình (feedback C4). */}
+          <SelfRosterForm
+            weekStart={week}
+            dates={dates}
+            myRows={rows.map((r) => ({
+              id: r.id,
+              work_date: r.work_date,
+              station: r.station,
+              shift: r.shift,
+            }))}
+          />
+          {rows.length > 0 && (
+            <WeekKanban
+              dates={dates}
+              rows={rows}
+              todayIso={todayVn()}
+              personal
+            />
+          )}
+        </>
       )}
     </div>
   );
