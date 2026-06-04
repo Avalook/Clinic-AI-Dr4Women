@@ -11,7 +11,7 @@
 --
 -- ✅ GIỮ LẠI (cấu hình phòng khám — dashboard cần để chạy):
 --      clinic_location, service_type, booking_channel,
---      staff, staff_capability, work_roster, work_session,
+--      staff, staff_capability, work_session,
 --      work_session_staff, schema_migrations, event_log (nhật ký audit).
 --
 -- 🗑️ XOÁ SẠCH (data khách/bệnh nhân — sẽ nhập tay lại từ dashboard):
@@ -19,7 +19,8 @@
 --               pregnancy, patient_next_of_kin, ultrasound_record,
 --               visit, clinical_record, visit_amendment, lab_result,
 --               prescription, appointment, mpi_merge_queue, staff_task …),
---      cskh_action, cskh_log, service_log.
+--      cskh_action, cskh_log, service_log,
+--      work_roster (lịch trực tuần — bản clone là demo; để trống cho nhập tay).
 --
 -- ♻️ ĐẢO NGƯỢC ĐƯỢC: muốn lấy lại bộ data demo (5.5k BN) chỉ cần chạy lại
 --      sync (xem CHỐT CHẶN bên dưới) — script này KHÔNG phá huỷ gì
@@ -56,6 +57,11 @@ TRUNCATE TABLE
   patient
 RESTART IDENTITY CASCADE;
 
+-- Lịch trực tuần (work_roster): bản clone là DEMO. Để TRỐNG cho mỗi vai trò tự
+-- đăng ký ca (/schedule) + quản lý xếp (/schedule/edit) ghi vào. Bỏ dòng này nếu
+-- muốn GIỮ lịch trực.
+TRUNCATE TABLE work_roster RESTART IDENTITY;
+
 COMMIT;
 
 -- ---------------------------------------------------------------------
@@ -70,9 +76,9 @@ UNION ALL SELECT 'prescription',         count(*) FROM prescription
 UNION ALL SELECT 'cskh_action',          count(*) FROM cskh_action
 UNION ALL SELECT 'service_log',          count(*) FROM service_log
 UNION ALL SELECT 'patient_contact_channel', count(*) FROM patient_contact_channel
+UNION ALL SELECT 'work_roster',          count(*) FROM work_roster
 UNION ALL SELECT '— GIỮ: staff —',       count(*) FROM staff
 UNION ALL SELECT '— GIỮ: service_type —',count(*) FROM service_type
 UNION ALL SELECT '— GIỮ: booking_channel —', count(*) FROM booking_channel
 UNION ALL SELECT '— GIỮ: clinic_location —', count(*) FROM clinic_location
-UNION ALL SELECT '— GIỮ: work_roster —', count(*) FROM work_roster
 ORDER BY bang;
