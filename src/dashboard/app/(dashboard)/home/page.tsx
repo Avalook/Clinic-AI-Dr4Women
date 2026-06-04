@@ -6,7 +6,6 @@
 // (Khối "2 mục" Lịch hẹn/Lịch làm việc + "Lối tắt" cũ đã bỏ/ẩn theo yêu cầu —
 //  comment "Lối tắt" giữ ở cuối file để dùng lại nếu cần.)
 
-import Link from "next/link";
 import StatCard from "../StatCard";
 import { getSupabaseServer } from "../../../lib/supabase-server";
 import {
@@ -18,16 +17,7 @@ import { type ClinicRole, canCheckin } from "../../../lib/roles";
 import HomeCheckin, { type HomeCheckinRow } from "./HomeCheckin";
 import type { ActiveStaff } from "../../../lib/clinic-session";
 import { vnTodayRangeUtc, fmtDate, vnLocalToUtcISO } from "../../../lib/datetime";
-import {
-  STATION_SHORT,
-  STATION_GROUP,
-  GROUP_COLOR,
-  SHIFT_LABEL,
-  todayVn,
-  currentWeekStartVn,
-  weekDates,
-  type Shift,
-} from "../../../lib/roster";
+import { currentWeekStartVn, weekDates } from "../../../lib/roster";
 import WeeklyAppointmentsTable, {
   type ApptDay,
   type WeekApptRow,
@@ -56,12 +46,6 @@ function cleanName(name: string): string {
 function greet(role: ClinicRole | null, staff: ActiveStaff | null): string {
   if (!role || !staff) return "Trang chủ";
   return `Chào ${GREET_LABEL[role]} ${cleanName(staff.short_name ?? staff.full_name)}`;
-}
-
-interface TodayShift {
-  id: string;
-  station: string;
-  shift: Shift;
 }
 
 export default async function HomePage() {
@@ -102,7 +86,6 @@ export default async function HomePage() {
     taskRes,
     newPatientRes,
     pendingApptRes,
-    shiftRes,
     rosterRes,
     weekApptRes,
     checkinRes,
@@ -122,13 +105,6 @@ export default async function HomePage() {
       .eq("status", "SCHEDULED")
       .gte("slot_start", dayStart)
       .lt("slot_start", dayEnd),
-    staffId
-      ? supabase
-          .from("work_roster")
-          .select("id, station, shift")
-          .eq("staff_id", staffId)
-          .eq("work_date", todayVn())
-      : Promise.resolve({ data: [] }),
     supabase
       .from("work_roster")
       .select("work_date, station, staff_name, shift")
@@ -158,8 +134,6 @@ export default async function HomePage() {
     { label: "BN mới đăng ký hôm nay", value: newPatientRes.count ?? 0 },
     { label: "Lịch chờ xác nhận", value: pendingApptRes.count ?? 0 },
   ];
-  const todayShifts = (shiftRes.data as TodayShift[] | null) ?? [];
-
   // Gom lịch hẹn theo ngày (tuần này) cho bảng "Lịch hẹn khám".
   const rosterRows = (rosterRes.data as RosterRow[] | null) ?? [];
   type RawAppt = Omit<WeekApptRow, "phan_loai">;
@@ -228,46 +202,7 @@ export default async function HomePage() {
         ))}
       </div>
 
-      {/* Ca trực hôm nay của bạn */}
-      {staffId && (
-        <section>
-          <h2 className="mb-2 text-sm font-semibold text-[#171717]">
-            Ca trực hôm nay của bạn
-          </h2>
-          {todayShifts.length === 0 ? (
-            <div className="rounded-xl border border-[#e4e4e7] bg-white px-4 py-4 text-sm text-[#888888]">
-              Hôm nay bạn không có ca trực.{" "}
-              <Link href="/schedule" className="text-[#ec4899] hover:underline">
-                Xem cả tuần →
-              </Link>
-            </div>
-          ) : (
-            <div className="flex flex-wrap gap-2">
-              {todayShifts.map((s) => {
-                const color =
-                  GROUP_COLOR[STATION_GROUP[s.station] ?? ""] ?? "#71717a";
-                return (
-                  <span
-                    key={s.id}
-                    style={{ borderLeftColor: color }}
-                    className="rounded-lg border border-l-4 border-[#e4e4e7] bg-white px-3 py-1.5 text-sm text-[#171717] shadow-[0_1px_2px_rgba(0,0,0,0.04)]"
-                  >
-                    {STATION_SHORT[s.station] ?? s.station}
-                    {s.shift !== "FULL" && (
-                      <span className="text-[#888888]">
-                        {" "}
-                        · {SHIFT_LABEL[s.shift]}
-                      </span>
-                    )}
-                  </span>
-                );
-              })}
-            </div>
-          )}
-        </section>
-      )}
-
-      {/* Check-in bệnh nhân — DƯỚI Ca trực, TRÊN Lịch hẹn khám (ĐD/Lễ tân/Quản lý).
+      {/* Check-in bệnh nhân — TRÊN Lịch hẹn khám (ĐD/Lễ tân/Quản lý).
           Bấm mở danh sách ngay dưới nút; Lịch hẹn khám tự đẩy xuống. */}
       {showCheckin && (
         <HomeCheckin rows={checkinRows} staffId={staffId} />

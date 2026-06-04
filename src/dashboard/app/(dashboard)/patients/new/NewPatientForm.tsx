@@ -75,6 +75,9 @@ export default function NewPatientForm({
   // Patient
   const [fullName, setFullName] = useState("");
   const [dob, setDob] = useState("");
+  // Năm sinh-only (feedback B5#4): BN chỉ nhớ năm → bật toggle, nhập năm.
+  const [dobYearOnly, setDobYearOnly] = useState(false);
+  const [birthYear, setBirthYear] = useState("");
   const [phone, setPhone] = useState("");
   const [phone2, setPhone2] = useState("");
   const [cccd, setCccd] = useState("");
@@ -86,7 +89,6 @@ export default function NewPatientForm({
   const [occupation, setOccupation] = useState("");
   const [objection, setObjection] = useState("");
   const [address, setAddress] = useState("");
-  const [guardian, setGuardian] = useState("");
 
   // Appointment (optional)
   const [serviceId, setServiceId] = useState("");
@@ -95,6 +97,8 @@ export default function NewPatientForm({
   const [apptTime, setApptTime] = useState("");
   const [duration, setDuration] = useState(30);
   const [channel, setChannel] = useState("WALK_IN");
+  // Số khám (queue_number) — feedback B5#8.
+  const [queueNumber, setQueueNumber] = useState("");
 
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
@@ -124,6 +128,7 @@ export default function NewPatientForm({
         slot_start: start.toISOString(),
         slot_end: end.toISOString(),
         booking_channel: walkin ? "WALK_IN" : channel,
+        queue_number: queueNumber,
       }),
     });
     if (!res.ok) {
@@ -137,11 +142,13 @@ export default function NewPatientForm({
   }
 
   // Land on the patient profile (the "nice profile" the user sees right after).
-  function goToProfile(id: string) {
-    router.push(`/patients/${id}?new=1`);
+  // Kèm mã BN để banner hiện "Mã BN: …" ngay sau khi tạo (feedback B5#2).
+  function goToProfile(id: string, code?: string) {
+    const q = code ? `?new=1&code=${encodeURIComponent(code)}` : "?new=1";
+    router.push(`/patients/${id}${q}`);
   }
 
-  async function proceed(clinicPatientId: string) {
+  async function proceed(clinicPatientId: string, code?: string) {
     const booked = await bookFor(clinicPatientId);
     if (!booked) {
       // Patient exists; let the operator open the profile to retry booking.
@@ -149,7 +156,7 @@ export default function NewPatientForm({
       setDupes(null);
       return;
     }
-    goToProfile(clinicPatientId);
+    goToProfile(clinicPatientId, code);
   }
 
   async function save(force: boolean) {
@@ -160,7 +167,8 @@ export default function NewPatientForm({
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         full_name: fullName,
-        date_of_birth: dob,
+        date_of_birth: dobYearOnly ? "" : dob,
+        birth_year: dobYearOnly ? birthYear : undefined,
         phone_primary: phone,
         phone_secondary: phone2,
         national_id_number: cccd,
@@ -171,7 +179,6 @@ export default function NewPatientForm({
         occupation,
         patient_objection: objection,
         address,
-        guardian_name: guardian,
         force,
       }),
     });
@@ -186,7 +193,10 @@ export default function NewPatientForm({
       setDupes(json.matches as DupMatch[]);
       return;
     }
-    await proceed(json.patient.clinic_patient_id as string);
+    await proceed(
+      json.patient.clinic_patient_id as string,
+      json.patient.patient_code as string,
+    );
   }
 
   return (
@@ -214,13 +224,39 @@ export default function NewPatientForm({
             />
           </div>
           <div>
-            <label className={LABEL}>Ngày sinh</label>
-            <input
-              type="date"
-              value={dob}
-              onChange={(e) => setDob(e.target.value)}
-              className={INPUT}
-            />
+            <div className="mb-1 flex items-center justify-between gap-2">
+              <label className={LABEL + " mb-0"}>
+                {dobYearOnly ? "Năm sinh" : "Ngày sinh"}
+              </label>
+              <label className="flex cursor-pointer items-center gap-1 text-[12px] text-[#888888]">
+                <input
+                  type="checkbox"
+                  checked={dobYearOnly}
+                  onChange={(e) => setDobYearOnly(e.target.checked)}
+                  className="accent-[#ec4899]"
+                />
+                Chỉ biết năm
+              </label>
+            </div>
+            {dobYearOnly ? (
+              <input
+                type="number"
+                inputMode="numeric"
+                min={1900}
+                max={2100}
+                value={birthYear}
+                onChange={(e) => setBirthYear(e.target.value)}
+                className={INPUT}
+                placeholder="VD: 1990"
+              />
+            ) : (
+              <input
+                type="date"
+                value={dob}
+                onChange={(e) => setDob(e.target.value)}
+                className={INPUT}
+              />
+            )}
           </div>
           <div>
             <label className={LABEL}>SĐT chính</label>
@@ -309,14 +345,6 @@ export default function NewPatientForm({
               onChange={(e) => setObjection(e.target.value)}
               className={INPUT}
               placeholder="DV / BHYT / ..."
-            />
-          </div>
-          <div>
-            <label className={LABEL}>Người bảo lãnh</label>
-            <input
-              value={guardian}
-              onChange={(e) => setGuardian(e.target.value)}
-              className={INPUT}
             />
           </div>
           <div className="sm:col-span-2">
@@ -418,9 +446,19 @@ export default function NewPatientForm({
             <label className={LABEL}>Giờ</label>
             <input
               type="time"
+              step={60}
               value={apptTime}
               onChange={(e) => setApptTime(e.target.value)}
               className={INPUT}
+            />
+          </div>
+          <div>
+            <label className={LABEL}>Số khám</label>
+            <input
+              value={queueNumber}
+              onChange={(e) => setQueueNumber(e.target.value)}
+              className={INPUT}
+              placeholder="VD: 5 / ƯT1 (tuỳ chọn)"
             />
           </div>
           <div>

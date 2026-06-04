@@ -25,6 +25,37 @@ interface VisitRow {
   clinical_record: ClinicalRecordRow | ClinicalRecordRow[] | null;
 }
 
+interface HistoryVisitRow {
+  visit_id: string;
+  status: string;
+  created_at: string;
+  appointment_id: string | null;
+  service: { name: string } | { name: string }[] | null;
+  doctor: { full_name: string } | { full_name: string }[] | null;
+  clinical_record:
+    | { chief_complaint_at_visit: string | null; soap_assessment: unknown }
+    | { chief_complaint_at_visit: string | null; soap_assessment: unknown }[]
+    | null;
+}
+
+/** JSONB SOAP có thể là chuỗi hoặc object → gộp thành text đọc được. */
+function flatten(v: unknown): string {
+  if (v == null) return "";
+  if (typeof v === "string") return v.trim();
+  if (typeof v === "object") {
+    return Object.values(v as Record<string, unknown>)
+      .filter((x): x is string => typeof x === "string" && x.trim() !== "")
+      .map((x) => x.trim())
+      .join(" · ");
+  }
+  return String(v);
+}
+
+function one<T>(x: T | T[] | null): T | null {
+  if (!x) return null;
+  return Array.isArray(x) ? (x[0] ?? null) : x;
+}
+
 export async function GET(request: Request) {
   const supabase = await getSupabaseServer();
   const {
@@ -39,7 +70,7 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: "Thiếu patientId." }, { status: 400 });
   }
 
-  const [profileRes, pregRes, labRes, visitRes] = await Promise.all([
+  const [profileRes, pregRes, labRes, visitRes, historyRes] = await Promise.all([
     supabase
       .from("patient_medical_profile")
       .select(
@@ -73,7 +104,32 @@ export async function GET(request: Request) {
           .limit(1)
           .maybeSingle()
       : Promise.resolve({ data: null }),
+    // Lịch sử khám các đợt TRƯỚC của BN (feedback C5#4) — đọc qua RLS, read-only.
+    supabase
+      .from("visit")
+      .select(
+        "visit_id, status, created_at, appointment_id, service:service_type!service_type_id ( name ), doctor:staff!attending_doctor_id ( full_name ), clinical_record ( chief_complaint_at_visit, soap_assessment )",
+      )
+      .eq("clinic_patient_id", patientId)
+      .order("created_at", { ascending: false })
+      .limit(8),
   ]);
+
+  // Bỏ chính lượt khám đang mở; gói gọn để hiển thị.
+  const history = ((historyRes.data as HistoryVisitRow[] | null) ?? [])
+    .filter((v) => v.appointment_id !== appointmentId)
+    .map((v) => {
+      const cr = one(v.clinical_record);
+      return {
+        visit_id: v.visit_id,
+        created_at: v.created_at,
+        status: v.status,
+        service: one(v.service)?.name ?? null,
+        doctor: one(v.doctor)?.full_name ?? null,
+        chief_complaint: cr?.chief_complaint_at_visit ?? "",
+        assessment: cr ? flatten(cr.soap_assessment) : "",
+      };
+    });
 
   const visit = (visitRes.data as VisitRow | null) ?? null;
   const cr = visit
@@ -86,6 +142,7 @@ export async function GET(request: Request) {
     profile: profileRes.data ?? null,
     pregnancy: pregRes.data ?? null,
     labs: labRes.data ?? [],
+    history,
     visit: visit ? { visit_id: visit.visit_id, status: visit.status } : null,
     draft: {
       chief_complaint: cr?.chief_complaint_at_visit ?? "",

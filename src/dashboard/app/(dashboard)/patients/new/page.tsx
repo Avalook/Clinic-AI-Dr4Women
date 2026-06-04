@@ -31,10 +31,14 @@ export default async function NewPatientPage() {
     id: r.id as string,
     label: r.name as string,
   }));
-  const services: Option[] = (svcRes.data ?? []).map((r) => ({
-    id: r.id as string,
-    label: r.name as string,
-  }));
+  // Lọc bỏ dịch vụ rác "FREE" (option import từ Notion) khỏi dropdown đặt lịch
+  // — feedback B5#3 ("tại sao có chữ free trong dịch vụ khám").
+  const services: Option[] = (svcRes.data ?? [])
+    .filter((r) => (r.name as string)?.trim().toUpperCase() !== "FREE")
+    .map((r) => ({
+      id: r.id as string,
+      label: r.name as string,
+    }));
   const doctors: Option[] = (docRes.data ?? []).map((r) => ({
     id: r.id as string,
     label: r.full_name as string,

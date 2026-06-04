@@ -44,6 +44,7 @@ export default function AppointmentBooking({
   const [apptTime, setApptTime] = useState("");
   const [duration, setDuration] = useState(30);
   const [channel, setChannel] = useState("WALK_IN");
+  const [queueNumber, setQueueNumber] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
@@ -66,6 +67,7 @@ export default function AppointmentBooking({
         slot_start: start.toISOString(),
         slot_end: end.toISOString(),
         booking_channel: channel,
+        queue_number: queueNumber,
       }),
     });
     const json = await res.json();
@@ -123,9 +125,19 @@ export default function AppointmentBooking({
           <label className={LABEL}>Giờ *</label>
           <input
             type="time"
+            step={60}
             value={apptTime}
             onChange={(e) => setApptTime(e.target.value)}
             className={INPUT}
+          />
+        </div>
+        <div className="space-y-1">
+          <label className={LABEL}>Số khám</label>
+          <input
+            value={queueNumber}
+            onChange={(e) => setQueueNumber(e.target.value)}
+            className={INPUT}
+            placeholder="VD: 5 / ƯT1 (tuỳ chọn)"
           />
         </div>
         <div className="space-y-1">

@@ -13,6 +13,7 @@ interface PatientRow {
   patient_code: string;
   full_name: string;
   date_of_birth: string | null;
+  birth_year?: number | null;
   gender: string | null;
   phone_primary: string | null;
   phone_secondary: string | null;
@@ -34,10 +35,12 @@ interface AppointmentRow {
   service: { name: string } | null;
 }
 
-const PATIENT_COLUMNS =
+const PATIENT_COLUMNS_BASE =
   "clinic_patient_id, patient_code, full_name, date_of_birth, gender, " +
   "phone_primary, phone_secondary, ethnicity, nationality, occupation, " +
   "patient_objection, address, guardian_name, created_at";
+// birth_year cần migration 040; nếu chưa apply → fallback PATIENT_COLUMNS_BASE.
+const PATIENT_COLUMNS = PATIENT_COLUMNS_BASE + ", birth_year";
 
 // doctor is a LEFT JOIN (doctor_id is nullable).
 const APPOINTMENT_COLUMNS = `
@@ -46,7 +49,8 @@ const APPOINTMENT_COLUMNS = `
   service:service_type!service_type_id ( name )
 `;
 
-function ageFromDob(dob: string | null): string {
+function ageFromDob(dob: string | null, birthYear?: number | null): string {
+  if (!dob && birthYear) return String(new Date().getFullYear() - birthYear);
   if (!dob) return "—";
   const birth = new Date(dob);
   if (Number.isNaN(birth.getTime())) return "—";
@@ -55,6 +59,12 @@ function ageFromDob(dob: string | null): string {
   const m = now.getMonth() - birth.getMonth();
   if (m < 0 || (m === 0 && now.getDate() < birth.getDate())) age -= 1;
   return String(age);
+}
+
+// Ngày sinh hiển thị: năm-only (birth_year) → "1990"; else ngày sinh thật.
+function dobLabel(p: PatientRow): string {
+  if (p.birth_year) return String(p.birth_year);
+  return p.date_of_birth ?? "—";
 }
 
 function Field({ label, value }: { label: string; value: React.ReactNode }) {
@@ -83,8 +93,19 @@ export default async function PatientDetail({ id }: { id: string }) {
       .limit(20),
   ]);
 
-  const patient = patientRes.data as PatientRow | null;
-  const error = patientRes.error ?? apptRes.error;
+  let patient = patientRes.data as PatientRow | null;
+  let perr = patientRes.error;
+  // birth_year chưa migrate → query lỗi cột thiếu → đọc lại không có birth_year.
+  if (perr && /birth_year|column/i.test(perr.message ?? "")) {
+    const retry = await supabase
+      .from("patient")
+      .select(PATIENT_COLUMNS_BASE)
+      .eq("clinic_patient_id", id)
+      .maybeSingle();
+    patient = retry.data as PatientRow | null;
+    perr = retry.error;
+  }
+  const error = perr ?? apptRes.error;
   const appointments = (apptRes.data as AppointmentRow[] | null) ?? [];
 
   if (error) {
@@ -132,8 +153,8 @@ export default async function PatientDetail({ id }: { id: string }) {
           </div>
         </div>
         <dl className="grid grid-cols-2 gap-x-4 gap-y-4 p-4 sm:grid-cols-4 sm:gap-x-6 sm:p-6">
-          <Field label="Ngày sinh" value={patient.date_of_birth ?? "—"} />
-          <Field label="Tuổi" value={ageFromDob(patient.date_of_birth)} />
+          <Field label="Ngày sinh" value={dobLabel(patient)} />
+          <Field label="Tuổi" value={ageFromDob(patient.date_of_birth, patient.birth_year)} />
           <Field label="Giới tính" value={patient.gender ?? "—"} />
           <Field label="SĐT" value={patient.phone_primary ?? "—"} />
           <Field label="SĐT người nhà" value={patient.phone_secondary ?? "—"} />
@@ -141,7 +162,6 @@ export default async function PatientDetail({ id }: { id: string }) {
           <Field label="Quốc tịch" value={patient.nationality ?? "—"} />
           <Field label="Nghề nghiệp" value={patient.occupation ?? "—"} />
           <Field label="Đối tượng" value={patient.patient_objection ?? "—"} />
-          <Field label="Người bảo lãnh" value={patient.guardian_name ?? "—"} />
           <Field
             label="Số lịch hẹn"
             value={appointments.length >= 20 ? "20+" : String(appointments.length)}

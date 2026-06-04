@@ -36,10 +36,20 @@ interface Lab {
   result_unit: string | null;
   flag: string | null;
 }
+interface HistoryItem {
+  visit_id: string;
+  created_at: string;
+  status: string;
+  service: string | null;
+  doctor: string | null;
+  chief_complaint: string;
+  assessment: string;
+}
 interface Data {
   profile: Profile | null;
   pregnancy: Pregnancy | null;
   labs: Lab[];
+  history: HistoryItem[];
   visit: { visit_id: string; status: string } | null;
   draft: {
     chief_complaint: string;
@@ -73,6 +83,13 @@ const objOf = (x: unknown): Record<string, unknown> =>
 const str = (x: unknown): string => (x == null ? "" : String(x));
 const arr = (x: string[] | null | undefined) => (x && x.length ? x.join(", ") : "");
 const famText = (x: unknown) => (!x ? "" : typeof x === "string" ? x : JSON.stringify(x));
+
+// Tên xét nghiệm nguồn đôi khi kèm link Notion dài "(https://…)" → cắt bỏ cho gọn
+// (feedback C6 — link tràn cột, hiển thị lỗi).
+const cleanTestName = (s: string): string => {
+  const out = (s ?? "").replace(/\s*\(https?:\/\/[^)]*\)?/gi, "").trim();
+  return out || (s ?? "");
+};
 
 function readDraft(d: Data["draft"]): Fields {
   const o = objOf(d.objective);
@@ -284,7 +301,9 @@ export default function ClinicalRecordForm({
             )}
           </h3>
           <p className="text-xs text-[#888888]">
-            {p?.full_name} · {p?.patient_code} · {fmtDateTimeOrDate(appt.slot_start)}
+            {p?.full_name} · {p?.patient_code}
+            {appt.service?.name ? ` · ${appt.service.name}` : ""} ·{" "}
+            {fmtDateTimeOrDate(appt.slot_start)}
           </p>
         </div>
         <button onClick={onClose} aria-label="Đóng" className="rounded-md p-1 text-[#71717a] hover:bg-[#f4f4f5]">
@@ -309,12 +328,48 @@ export default function ClinicalRecordForm({
             <AdminRow label="Nghề nghiệp" value={p?.occupation} />
             <AdminRow label="Đối tượng" value={p?.patient_objection} />
             <AdminRow label="SĐT" value={p?.phone_primary} />
-            <AdminRow label="Người bảo lãnh" value={p?.guardian_name} />
             <AdminRow label="Địa chỉ" value={p?.address} />
           </dl>
         </Section>
 
-        <Section no="" title="Sinh hiệu" editorLabel={vitalsOnly ? "lễ tân điền" : "bác sĩ điền"}>
+        {(data?.history?.length ?? 0) > 0 && (
+          <details className="border-t border-[#f4f4f5] pt-3" open>
+            <summary className="cursor-pointer text-sm font-semibold text-[#171717]">
+              Lịch sử khám trước ({data!.history.length})
+            </summary>
+            <ul className="mt-2 space-y-2">
+              {data!.history.map((h) => (
+                <li
+                  key={h.visit_id}
+                  className="rounded-lg border border-[#e4e4e7] bg-[#fafafa] p-2.5 text-sm"
+                >
+                  <div className="flex flex-wrap items-center justify-between gap-1">
+                    <span className="font-medium text-[#171717]">
+                      {fmtDate(h.created_at)}
+                    </span>
+                    <span className="text-xs text-[#888888]">
+                      {[h.service, h.doctor].filter(Boolean).join(" · ") || "—"}
+                    </span>
+                  </div>
+                  {h.chief_complaint && (
+                    <p className="mt-1 line-clamp-3 text-[#52525b]">
+                      <span className="text-[#888888]">Lý do: </span>
+                      {h.chief_complaint}
+                    </p>
+                  )}
+                  {h.assessment && (
+                    <p className="mt-0.5 line-clamp-2 text-[#52525b]">
+                      <span className="text-[#888888]">Chẩn đoán: </span>
+                      {h.assessment}
+                    </p>
+                  )}
+                </li>
+              ))}
+            </ul>
+          </details>
+        )}
+
+        <Section no="" title="Sinh hiệu" editorLabel="lễ tân/điều dưỡng điền">
           <div className="grid grid-cols-2 gap-2">
             {([
               ["mach", "Mạch (l/p)"], ["nhiet_do", "Nhiệt độ (°C)"],
@@ -406,7 +461,7 @@ export default function ClinicalRecordForm({
             <ul className="divide-y divide-[#f4f4f5] rounded-lg border border-[#e4e4e7]">
               {labs.map((l, i) => (
                 <li key={i} className="flex items-center justify-between gap-2 px-3 py-1.5 text-sm">
-                  <span className="min-w-0 truncate text-[#171717]">{l.test_name}</span>
+                  <span className="min-w-0 truncate text-[#171717]">{cleanTestName(l.test_name)}</span>
                   <span className="flex shrink-0 items-center gap-2">
                     <span className="font-medium">
                       {l.result_value ?? l.result_numeric ?? "—"}{l.result_unit ? ` ${l.result_unit}` : ""}

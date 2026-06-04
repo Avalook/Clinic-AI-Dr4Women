@@ -80,6 +80,12 @@ function firstRecord(
   return Array.isArray(cr) ? (cr[0] ?? null) : cr;
 }
 
+// Tên xét nghiệm nguồn đôi khi kèm link Notion dài "(https://…)" → cắt bỏ cho gọn.
+function cleanTestName(s: string): string {
+  const out = (s ?? "").replace(/\s*\(https?:\/\/[^)]*\)?/gi, "").trim();
+  return out || (s ?? "");
+}
+
 const SECTION = "text-base font-semibold text-[#171717]";
 const TH = "px-4 py-2.5 font-medium";
 const TD = "px-4 py-2.5";
@@ -298,7 +304,7 @@ export default async function PatientHistory({ id }: { id: string }) {
                 <div key={l.lab_result_id} className={`${CARD} p-3`}>
                   <div className="flex items-start justify-between gap-2">
                     <span className="font-medium text-[#171717]">
-                      {l.test_name}
+                      {cleanTestName(l.test_name)}
                     </span>
                     <span className="shrink-0 font-mono text-xs text-[#888888]">
                       {fmtDate(l.result_received_at)}
@@ -336,7 +342,7 @@ export default async function PatientHistory({ id }: { id: string }) {
                     <td className={`${TD} font-mono text-xs text-[#4d4d4d]`}>
                       {fmtDate(l.result_received_at)}
                     </td>
-                    <td className={`${TD} text-[#171717]`}>{l.test_name}</td>
+                    <td className={`${TD} text-[#171717]`}>{cleanTestName(l.test_name)}</td>
                     <td className={`${TD} text-[#4d4d4d]`}>
                       {l.result_value ??
                         (l.result_numeric != null ? String(l.result_numeric) : "—")}

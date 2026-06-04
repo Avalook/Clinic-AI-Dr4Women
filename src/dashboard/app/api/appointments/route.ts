@@ -34,6 +34,7 @@ interface Body {
   slot_start?: string;
   slot_end?: string;
   booking_channel?: string;
+  queue_number?: string;
 }
 
 export async function POST(request: Request) {
@@ -86,6 +87,7 @@ export async function POST(request: Request) {
 
   const doctor_id = (body.doctor_id ?? "").trim() || null;
   const booking_channel = (body.booking_channel ?? "").trim() || "WALK_IN";
+  const queue_number = (body.queue_number ?? "").trim() || null;
 
   const { data, error } = await db
     .from("appointment")
@@ -97,6 +99,7 @@ export async function POST(request: Request) {
       slot_start,
       slot_end,
       booking_channel,
+      queue_number,
       status: "SCHEDULED",
     })
     .select("id")

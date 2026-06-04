@@ -178,7 +178,7 @@ export default async function TasksPage() {
           />
 
           {/* Ý nghĩa từng trạng thái — để phòng khám đọc hiểu (PM yêu cầu) */}
-          <dl className="grid gap-2.5 rounded-lg border border-[#e4e4e7] bg-[#fafafa] px-4 py-3 text-xs text-[#52525b] sm:grid-cols-3">
+          <dl className="grid gap-2.5 rounded-lg border border-[#e4e4e7] bg-[#fafafa] px-4 py-3 text-xs text-[#52525b] sm:grid-cols-2 lg:grid-cols-4">
             {[
               {
                 dot: "#2563eb",
@@ -194,6 +194,11 @@ export default async function TasksPage() {
                 dot: "#71717a",
                 term: "Đã khám xong",
                 desc: "Khách đã khám xong lượt này.",
+              },
+              {
+                dot: "#dc2626",
+                term: "Hủy / Không đến",
+                desc: "Lịch đã hủy, khách không đến, hoặc bác sĩ trả lại (cần phân lại).",
               },
             ].map((s) => (
               <div key={s.term} className="flex gap-2">
@@ -212,11 +217,11 @@ export default async function TasksPage() {
           <section className="space-y-2">
             <div>
               <h2 className="text-base font-semibold text-[#171717]">
-                Theo dõi tình trạng lịch hẹn
+                Nhật ký chăm sóc khách hàng (CSKH)
               </h2>
               <p className="text-sm text-[#888888]">
-                Nhật ký việc CSKH theo loại (từ bảng CSKH-Action) · mỗi thẻ = 1 lần
-                thao tác với khách.
+                Các việc CSKH theo loại (từ bảng CSKH-Action) · mỗi thẻ = 1 lần
+                thao tác với khách. Bấm “+ Thêm việc” trên mỗi cột để ghi tay.
               </p>
               <p className="mt-1 inline-flex rounded-md bg-[#eff6ff] px-2 py-0.5 text-xs text-[#1d4ed8]">
                 🤖 Tự ghi khi CSKH thao tác (xác nhận lịch → vào “Đặt hẹn” ngay) + về sau khi nối Zalo / Pancake.

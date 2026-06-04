@@ -58,7 +58,7 @@ const COLUMNS = [
   { key: "done", label: "Đã khám xong", statuses: ["COMPLETED"], dot: "#71717a" },
   {
     key: "off",
-    label: "Ngoài luồng",
+    label: "Hủy / Không đến",
     statuses: ["CANCELLED", "NO_SHOW", "DOCTOR_DECLINED"],
     dot: "#dc2626",
   },
@@ -288,7 +288,6 @@ export default function ConfirmBoard({
                 <Row label="Quốc tịch" value={sel.patient?.nationality} />
                 <Row label="Nghề nghiệp" value={sel.patient?.occupation} />
                 <Row label="Đối tượng" value={sel.patient?.patient_objection} />
-                <Row label="Người bảo lãnh" value={sel.patient?.guardian_name} />
                 <Row label="Địa chỉ" value={sel.patient?.address} />
                 <Row label="Cơ sở" value={locName(sel.patient?.location_id ?? null)} />
                 <Row
@@ -489,14 +488,6 @@ export default function ConfirmBoard({
                     value={form.patient_objection}
                     onChange={(e) => set("patient_objection", e.target.value)}
                     placeholder="DV / BHYT / ..."
-                  />
-                </div>
-                <div>
-                  <label className={LABEL}>Người bảo lãnh</label>
-                  <input
-                    className={INPUT}
-                    value={form.guardian_name}
-                    onChange={(e) => set("guardian_name", e.target.value)}
                   />
                 </div>
                 <div>

@@ -20,10 +20,10 @@ export default async function PatientDetailPage({
   searchParams,
 }: {
   params: Promise<{ id: string }>;
-  searchParams: Promise<{ new?: string }>;
+  searchParams: Promise<{ new?: string; code?: string }>;
 }) {
   const { id } = await params;
-  const { new: isNew } = await searchParams;
+  const { new: isNew, code } = await searchParams;
 
   const role = await getClinicRole();
 
@@ -65,10 +65,13 @@ export default async function PatientDetailPage({
       id: r.id as string,
       label: r.name as string,
     }));
-    services = (svcRes.data ?? []).map((r) => ({
-      id: r.id as string,
-      label: r.name as string,
-    }));
+    // Bỏ dịch vụ rác "FREE" khỏi dropdown đặt lịch (feedback B5#3).
+    services = (svcRes.data ?? [])
+      .filter((r) => (r.name as string)?.trim().toUpperCase() !== "FREE")
+      .map((r) => ({
+        id: r.id as string,
+        label: r.name as string,
+      }));
     doctors = (docRes.data ?? []).map((r) => ({
       id: r.id as string,
       label: r.full_name as string,
@@ -87,8 +90,17 @@ export default async function PatientDetailPage({
       </header>
       {isNew && (
         <div className="rounded-lg border border-[#bbf7d0] bg-[#f0fdf4] px-4 py-3 text-sm text-[#15803d]">
-          ✓ Đã tạo hồ sơ khách hàng. Thông tin vừa nhập & lịch hẹn hiển thị bên
-          dưới.
+          ✓ Đã tạo hồ sơ khách hàng
+          {code ? (
+            <>
+              {" "}
+              — Mã BN:{" "}
+              <span className="font-mono font-semibold">{code}</span>
+            </>
+          ) : (
+            ""
+          )}
+          . Thông tin vừa nhập & lịch hẹn hiển thị bên dưới.
         </div>
       )}
       <PatientDetail id={id} />

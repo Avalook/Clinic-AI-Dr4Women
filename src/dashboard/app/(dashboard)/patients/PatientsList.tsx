@@ -9,6 +9,7 @@ interface PatientRow {
   patient_code: string;
   full_name: string;
   date_of_birth: string | null;
+  birth_year?: number | null;
   phone_primary: string | null;
   created_at: string;
 }
@@ -16,6 +17,8 @@ interface PatientRow {
 // IMPORTANT: keep `national_id_number` out of this list (D-identity gate).
 const SAFE_COLUMNS =
   "clinic_patient_id, patient_code, full_name, date_of_birth, phone_primary, created_at";
+// birth_year cần migration 040; nếu chưa apply → query lỗi → fallback SAFE_COLUMNS.
+const FULL_COLUMNS = SAFE_COLUMNS + ", birth_year";
 
 // Bỏ dấu + thường (khớp cột patient.full_name_unaccent của migration 039).
 function unaccentVi(s: string): string {
@@ -27,7 +30,8 @@ function unaccentVi(s: string): string {
     .toLowerCase();
 }
 
-function ageFromDob(dob: string | null): string {
+function ageFromDob(dob: string | null, birthYear?: number | null): string {
+  if (!dob && birthYear) return String(new Date().getFullYear() - birthYear);
   if (!dob) return "—";
   const birth = new Date(dob);
   if (Number.isNaN(birth.getTime())) return "—";
@@ -36,6 +40,12 @@ function ageFromDob(dob: string | null): string {
   const m = now.getMonth() - birth.getMonth();
   if (m < 0 || (m === 0 && now.getDate() < birth.getDate())) age -= 1;
   return String(age);
+}
+
+// Ngày sinh hiển thị: năm-only (birth_year) → "1990"; else ngày sinh thật.
+function dobLabel(p: PatientRow): string {
+  if (p.birth_year) return String(p.birth_year);
+  return p.date_of_birth ?? "—";
 }
 
 const TH =
@@ -84,10 +94,10 @@ export default async function PatientsList({
   } else {
     // useUnaccent=true → thêm cột full_name_unaccent (migration 039). Nếu chưa có
     // cột (chưa chạy migration) → query lỗi → fallback không bỏ dấu.
-    const run = (useUnaccent: boolean) => {
+    const run = (cols: string, useUnaccent: boolean) => {
       let query = supabase
         .from("patient")
-        .select(SAFE_COLUMNS, { count: "exact" })
+        .select(cols, { count: "exact" })
         .order("created_at", { ascending: false })
         .range(from, from + PAGE_SIZE - 1);
       if (term) {
@@ -103,9 +113,10 @@ export default async function PatientsList({
       }
       return query;
     };
-    let { data, error: qErr, count } = await run(true);
-    if (qErr && /full_name_unaccent/.test(qErr.message ?? "")) {
-      ({ data, error: qErr, count } = await run(false));
+    let { data, error: qErr, count } = await run(FULL_COLUMNS, true);
+    // Thiếu cột (birth_year / full_name_unaccent chưa migrate) → fallback an toàn.
+    if (qErr && /full_name_unaccent|birth_year|column/i.test(qErr.message ?? "")) {
+      ({ data, error: qErr, count } = await run(SAFE_COLUMNS, false));
     }
     rows = (data as PatientRow[] | null) ?? [];
     total = count ?? 0;
@@ -177,13 +188,13 @@ export default async function PatientsList({
                 <dt className="text-[10px] uppercase tracking-wide text-[#888888]">
                   DOB
                 </dt>
-                <dd className="font-mono">{p.date_of_birth ?? "—"}</dd>
+                <dd className="font-mono">{dobLabel(p)}</dd>
               </div>
               <div>
                 <dt className="text-[10px] uppercase tracking-wide text-[#888888]">
                   Tuổi
                 </dt>
-                <dd>{ageFromDob(p.date_of_birth)}</dd>
+                <dd>{ageFromDob(p.date_of_birth, p.birth_year)}</dd>
               </div>
               <div>
                 <dt className="text-[10px] uppercase tracking-wide text-[#888888]">
@@ -240,10 +251,10 @@ export default async function PatientsList({
                   </Link>
                 </td>
                 <td className="px-4 py-2.5 font-mono text-xs text-[#4d4d4d]">
-                  {p.date_of_birth ?? "—"}
+                  {dobLabel(p)}
                 </td>
                 <td className="px-4 py-2.5 text-[#4d4d4d]">
-                  {ageFromDob(p.date_of_birth)}
+                  {ageFromDob(p.date_of_birth, p.birth_year)}
                 </td>
                 <td className="px-4 py-2.5 font-mono text-xs text-[#4d4d4d]">
                   {p.phone_primary ?? "—"}

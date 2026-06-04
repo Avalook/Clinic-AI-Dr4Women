@@ -17,6 +17,9 @@ import { logEvent } from "../../../lib/event-log";
 interface Body {
   full_name?: string;
   date_of_birth?: string;
+  // Năm sinh khi BN chỉ nhớ năm (feedback B5#4). Cần migration 040; nếu chưa
+  // apply, insert dưới bắt lỗi cột thiếu → bỏ birth_year, giữ date_of_birth.
+  birth_year?: number | string;
   phone_primary?: string;
   phone_secondary?: string;
   national_id_number?: string;
@@ -117,9 +120,22 @@ export async function POST(request: Request) {
     }
   }
 
-  const row = {
+  // Năm sinh-only (feedback B5#4): nếu chỉ có năm → lưu birth_year + đặt
+  // date_of_birth = YYYY-01-01 để tuổi + mọi chỗ hiển thị NGÀY vẫn chạy.
+  const byNum = Number(body.birth_year);
+  const byValid =
+    body.birth_year != null &&
+    String(body.birth_year).trim() !== "" &&
+    Number.isFinite(byNum) &&
+    byNum >= 1900 &&
+    byNum <= 2100;
+  const birthYear = byValid ? Math.trunc(byNum) : null;
+  let dob = (body.date_of_birth ?? "").trim() || null;
+  if (!dob && birthYear) dob = `${birthYear}-01-01`;
+
+  const row: Record<string, unknown> = {
     full_name,
-    date_of_birth: (body.date_of_birth ?? "").trim() || null,
+    date_of_birth: dob,
     phone_primary,
     phone_secondary: (body.phone_secondary ?? "").trim() || null,
     national_id_number: (body.national_id_number ?? "").trim() || null,
@@ -133,6 +149,7 @@ export async function POST(request: Request) {
     guardian_name: nn(body.guardian_name),
     is_active: true,
   };
+  if (birthYear) row.birth_year = birthYear;
 
   // Insert with a generated patient_code; retry on the (rare) unique clash.
   for (let attempt = 0; attempt < 5; attempt++) {
@@ -165,6 +182,12 @@ export async function POST(request: Request) {
         },
       });
       return NextResponse.json({ ok: true, patient: data });
+    }
+    // 42703 = undefined_column: birth_year chưa tồn tại (migration 040 chưa
+    // apply) → bỏ birth_year (date_of_birth = YYYY-01-01 vẫn lưu), thử lại.
+    if (error.code === "42703" && "birth_year" in row) {
+      delete row.birth_year;
+      continue;
     }
     if (error.code !== "23505") {
       return NextResponse.json({ error: error.message }, { status: 500 });
