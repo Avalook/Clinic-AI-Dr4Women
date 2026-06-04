@@ -9,7 +9,7 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { X } from "lucide-react";
+import { X, Plus } from "lucide-react";
 import { fmtDate, fmtDateTimeOrDate } from "../../../lib/datetime";
 import { INPUT, LABEL } from "../form-ui";
 import type { DoctorApptRow } from "./DoctorWorkBoard";
@@ -35,6 +35,7 @@ interface Lab {
   result_numeric: number | null;
   result_unit: string | null;
   flag: string | null;
+  external_ref: string | null;
 }
 interface HistoryItem {
   visit_id: string;
@@ -45,11 +46,18 @@ interface HistoryItem {
   chief_complaint: string;
   assessment: string;
 }
+interface ApiRx {
+  drug_name_raw: string | null;
+  quantity: string | null;
+  dosage_instructions: string | null;
+  caution: string | null;
+}
 interface Data {
   profile: Profile | null;
   pregnancy: Pregnancy | null;
   labs: Lab[];
   history: HistoryItem[];
+  prescriptions: ApiRx[];
   visit: { visit_id: string; status: string } | null;
   draft: {
     chief_complaint: string;
@@ -74,6 +82,15 @@ const EMPTY_PM = {
   medications: "", family: "", notes: "",
 };
 type PmFields = typeof EMPTY_PM;
+
+// Đơn thuốc (mục IX) — free-text, mỗi dòng 1 thuốc (chưa có drug master).
+interface RxRow {
+  drug_name: string;
+  quantity: string;
+  dosage: string;
+  caution: string;
+}
+const EMPTY_RX: RxRow = { drug_name: "", quantity: "", dosage: "", caution: "" };
 const BLOOD_TYPES = ["", "A", "B", "AB", "O", "A+", "A-", "B+", "B-", "AB+", "AB-", "O+", "O-"];
 const splitComma = (s: string): string[] =>
   s.split(",").map((x) => x.trim()).filter(Boolean);
@@ -159,6 +176,9 @@ export default function ClinicalRecordForm({
   const [loading, setLoading] = useState(true);
   const [f, setF] = useState<Fields>(EMPTY);
   const [pm, setPm] = useState<PmFields>(EMPTY_PM);
+  const [rx, setRx] = useState<RxRow[]>([]);
+  const [labOrder, setLabOrder] = useState("");
+  const [labBusy, setLabBusy] = useState(false);
   const [saving, setSaving] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
 
@@ -185,6 +205,14 @@ export default function ClinicalRecordForm({
               }
             : EMPTY_PM,
         );
+        setRx(
+          (d.prescriptions ?? []).map((p) => ({
+            drug_name: p.drug_name_raw ?? "",
+            quantity: p.quantity ?? "",
+            dosage: p.dosage_instructions ?? "",
+            caution: p.caution ?? "",
+          })),
+        );
       })
       .catch(() => on && setData(null))
       .finally(() => on && setLoading(false));
@@ -193,6 +221,10 @@ export default function ClinicalRecordForm({
 
   const set = (k: keyof Fields, v: string) => setF((s) => ({ ...s, [k]: v }));
   const setP = (k: keyof PmFields, v: string) => setPm((s) => ({ ...s, [k]: v }));
+  const setRxAt = (i: number, k: keyof RxRow, v: string) =>
+    setRx((s) => s.map((r, j) => (j === i ? { ...r, [k]: v } : r)));
+  const addRx = () => setRx((s) => [...s, { ...EMPTY_RX }]);
+  const removeRx = (i: number) => setRx((s) => s.filter((_, j) => j !== i));
 
   const locked = data?.visit?.status === "FINALIZED";
 
@@ -282,6 +314,7 @@ export default function ClinicalRecordForm({
           family_history: pm.family || null,
           notes: pm.notes || null,
         },
+        prescriptions: rx,
       }),
     });
     if (!res.ok) {
@@ -310,6 +343,48 @@ export default function ClinicalRecordForm({
       );
     }
     router.refresh();
+  }
+
+  // Bác sĩ chỉ định 1 XN mới (PENDING) → ĐD nhập kết quả ở "Hàng đợi xét nghiệm".
+  async function orderLab() {
+    const name = labOrder.trim();
+    if (!name) return;
+    setLabBusy(true);
+    const res = await fetch("/api/lab-result", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        clinicPatientId: p?.clinic_patient_id,
+        appointmentId: appt.id,
+        test_name: name,
+      }),
+    });
+    setLabBusy(false);
+    if (!res.ok) {
+      setMsg((await res.json()).error ?? "Lỗi chỉ định XN.");
+      return;
+    }
+    // Hiện ngay trong mục VI (đang chờ kết quả).
+    setData((d) =>
+      d
+        ? {
+            ...d,
+            labs: [
+              {
+                test_name: name,
+                result_value: null,
+                result_numeric: null,
+                result_unit: null,
+                flag: null,
+                external_ref: null,
+              },
+              ...d.labs,
+            ],
+          }
+        : d,
+    );
+    setLabOrder("");
+    setMsg("Đã chỉ định XN — điều dưỡng nhập kết quả ở Hàng đợi xét nghiệm.");
   }
 
   const preg = data?.pregnancy;
@@ -497,8 +572,10 @@ export default function ClinicalRecordForm({
         </Section>
 
         <Section no="VI" title="Kết quả cận lâm sàng" synced>
-          {loading ? <Loading /> : labs.length === 0 ? (
-            <p className="text-sm text-[#a1a1aa]">— chưa có kết quả —</p>
+          {loading ? (
+            <Loading />
+          ) : labs.length === 0 ? (
+            <p className="text-sm text-[#a1a1aa]">— chưa chỉ định / chưa có kết quả —</p>
           ) : (
             <ul className="divide-y divide-[#f4f4f5] rounded-lg border border-[#e4e4e7]">
               {labs.map((l, i) => (
@@ -506,8 +583,19 @@ export default function ClinicalRecordForm({
                   <span className="min-w-0 truncate text-[#171717]">{cleanTestName(l.test_name)}</span>
                   <span className="flex shrink-0 items-center gap-2">
                     <span className="font-medium">
-                      {l.result_value ?? l.result_numeric ?? "—"}{l.result_unit ? ` ${l.result_unit}` : ""}
+                      {l.result_value ?? l.result_numeric ?? (l.external_ref ? "có phiếu" : "chờ KQ")}
+                      {l.result_unit ? ` ${l.result_unit}` : ""}
                     </span>
+                    {l.external_ref && (
+                      <a
+                        href={l.external_ref}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-xs font-medium text-[#2563eb] hover:underline"
+                      >
+                        Phiếu
+                      </a>
+                    )}
                     {l.flag && l.flag !== "NORMAL" && (
                       <span className="rounded bg-[#fee2e2] px-1.5 py-0.5 text-[10px] font-medium text-[#dc2626]">{l.flag}</span>
                     )}
@@ -515,6 +603,30 @@ export default function ClinicalRecordForm({
                 </li>
               ))}
             </ul>
+          )}
+          {!vitalsOnly && (
+            <div className="mt-2 flex items-center gap-2">
+              <input
+                className={INPUT}
+                value={labOrder}
+                disabled={roRest}
+                onChange={(e) => setLabOrder(e.target.value)}
+                placeholder="Chỉ định XN mới (vd: NIPT, Tổng phân tích nước tiểu…)"
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") {
+                    e.preventDefault();
+                    orderLab();
+                  }
+                }}
+              />
+              <button
+                onClick={orderLab}
+                disabled={roRest || labBusy || !labOrder.trim()}
+                className="shrink-0 rounded-lg border border-[#f3cfe0] px-3 py-2 text-sm font-medium text-[#9d2463] hover:bg-[#fdf2f8] disabled:opacity-50"
+              >
+                {labBusy ? "..." : "Chỉ định"}
+              </button>
+            </div>
           )}
         </Section>
 
@@ -525,6 +637,69 @@ export default function ClinicalRecordForm({
         <Section no="VIII" title="Hướng xử lý & lời dặn">
           <textarea className={INPUT} rows={3} value={f.loi_dan} disabled={roRest} onChange={(e) => set("loi_dan", e.target.value)} />
         </Section>
+
+        {!vitalsOnly && (
+          <Section no="IX" title="Đơn thuốc">
+            <div className="space-y-2">
+              {rx.length === 0 && (
+                <p className="text-sm text-[#a1a1aa]">— chưa kê thuốc —</p>
+              )}
+              {rx.map((row, i) => (
+                <div key={i} className="rounded-lg border border-[#e4e4e7] p-2">
+                  <div className="flex items-center gap-2">
+                    <input
+                      className={INPUT}
+                      placeholder="Tên thuốc"
+                      value={row.drug_name}
+                      disabled={roRest}
+                      onChange={(e) => setRxAt(i, "drug_name", e.target.value)}
+                    />
+                    {!roRest && (
+                      <button
+                        onClick={() => removeRx(i)}
+                        aria-label="Xoá thuốc"
+                        className="shrink-0 rounded-md p-1.5 text-[#dc2626] hover:bg-[#fef2f2]"
+                      >
+                        <X size={15} />
+                      </button>
+                    )}
+                  </div>
+                  <div className="mt-2 grid grid-cols-1 gap-2 sm:grid-cols-3">
+                    <input
+                      className={INPUT}
+                      placeholder="Số lượng (vd: 30 viên)"
+                      value={row.quantity}
+                      disabled={roRest}
+                      onChange={(e) => setRxAt(i, "quantity", e.target.value)}
+                    />
+                    <input
+                      className={INPUT}
+                      placeholder="Cách dùng (vd: 2v/ngày sau ăn)"
+                      value={row.dosage}
+                      disabled={roRest}
+                      onChange={(e) => setRxAt(i, "dosage", e.target.value)}
+                    />
+                    <input
+                      className={INPUT}
+                      placeholder="Lưu ý"
+                      value={row.caution}
+                      disabled={roRest}
+                      onChange={(e) => setRxAt(i, "caution", e.target.value)}
+                    />
+                  </div>
+                </div>
+              ))}
+              {!roRest && (
+                <button
+                  onClick={addRx}
+                  className="inline-flex items-center gap-1 rounded-lg border border-dashed border-[#f3cfe0] px-3 py-1.5 text-sm font-medium text-[#9d2463] hover:bg-[#fdf2f8]"
+                >
+                  <Plus size={14} /> Thêm thuốc
+                </button>
+              )}
+            </div>
+          </Section>
+        )}
       </div>
 
       <div className="flex items-center justify-between gap-2 border-t border-[#e4e4e7] px-4 py-3">

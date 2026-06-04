@@ -17,6 +17,7 @@
 import { NextResponse } from "next/server";
 import { getSupabaseServer } from "../../../lib/supabase-server";
 import { getSupabaseService } from "../../../lib/supabase-service";
+import { vnTodayRangeUtc } from "../../../lib/datetime";
 import { getClinicRole, getClinicStaffId } from "../../../lib/clinic-session";
 import {
   canWriteIntake,
@@ -254,7 +255,7 @@ export async function PATCH(request: Request) {
 
   const { data: appt, error: loadErr } = await db
     .from("appointment")
-    .select("id, doctor_id, status, clinic_patient_id, slot_start")
+    .select("id, doctor_id, status, clinic_patient_id, slot_start, queue_number")
     .eq("id", id)
     .maybeSingle();
   if (loadErr) {
@@ -347,6 +348,25 @@ export async function PATCH(request: Request) {
     if (body.doctor_id !== undefined) {
       patch.doctor_id = (body.doctor_id ?? "").trim() || null;
     }
+  }
+
+  // Lễ tân check-in → TỰ CẤP SỐ THỨ TỰ trong ngày nếu lịch chưa có số (giữ số
+  // nhập tay nếu đã có). Số = max(số đã cấp hôm nay) + 1, đếm theo toàn phòng
+  // khám trong ngày VN. Best-effort: lỗi đếm KHÔNG chặn việc check-in.
+  if (action === "checkin" && !((appt.queue_number as string | null) ?? "").trim()) {
+    const { startUtc, endUtc } = vnTodayRangeUtc();
+    const { data: todays } = await db
+      .from("appointment")
+      .select("queue_number")
+      .gte("slot_start", startUtc)
+      .lt("slot_start", endUtc)
+      .not("queue_number", "is", null);
+    let max = 0;
+    for (const r of (todays as { queue_number: string | null }[] | null) ?? []) {
+      const n = parseInt((r.queue_number ?? "").trim(), 10);
+      if (Number.isFinite(n) && n > max) max = n;
+    }
+    patch.queue_number = String(max + 1);
   }
 
   const { data: updated, error: updErr } = await db

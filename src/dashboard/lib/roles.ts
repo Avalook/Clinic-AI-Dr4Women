@@ -115,6 +115,9 @@ const NAV_ROLES: Record<string, "all" | ClinicRole[]> = {
   "/patients/new": ["CSKH", "RECEPTION", "MANAGEMENT", "NURSE_ULTRASOUND"],
   // /checkin đã chuyển hẳn lên Trang chủ (HomeCheckin) — route cũ đã xóa.
   "/tasks": ["CSKH", "MANAGEMENT", ...DOCTOR_ROLES_LIST],
+  // Hàng đợi XN + Dịch vụ: điều dưỡng/KTV thực hiện (+ Quản lý xem).
+  "/lab-queue": ["NURSE_ULTRASOUND", "MANAGEMENT"],
+  "/service-queue": ["NURSE_ULTRASOUND", "MANAGEMENT"],
   // Bác sĩ + Lễ tân + Điều dưỡng tự đăng ký ca của mình; Quản lý xếp cả bảng (feedback C4).
   "/schedule": [...DOCTOR_ROLES_LIST, "NURSE_ULTRASOUND", "RECEPTION", "MANAGEMENT"],
   "/work-sessions": ["MANAGEMENT"],

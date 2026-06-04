@@ -12,6 +12,8 @@ import {
   Settings,
   Contact,
   Stethoscope,
+  FlaskConical,
+  Activity,
   type LucideIcon,
 } from "lucide-react";
 import { type ClinicRole, isNurseRole } from "../../lib/roles";
@@ -59,6 +61,18 @@ export const NAV: NavItem[] = [
     label: "Công việc của tôi",
     shortLabel: "Việc",
     icon: CheckSquare,
+  },
+  {
+    href: "/lab-queue",
+    label: "Hàng đợi xét nghiệm",
+    shortLabel: "Xét nghiệm",
+    icon: FlaskConical,
+  },
+  {
+    href: "/service-queue",
+    label: "Hàng đợi dịch vụ",
+    shortLabel: "Dịch vụ",
+    icon: Activity,
   },
   { href: "/schedule", label: "Lịch làm việc", shortLabel: "Ca trực", icon: Calendar },
   { href: "/reports", label: "Báo cáo", icon: BarChart3 },

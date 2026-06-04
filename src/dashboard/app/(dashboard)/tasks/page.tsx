@@ -17,7 +17,7 @@ const DAY_MS = 24 * 60 * 60 * 1000;
 
 // Bác sĩ: lịch của MÌNH (đủ trường hành chính để dựng hồ sơ lâm sàng).
 const DOCTOR_SELECT = `
-  id, slot_start, status,
+  id, slot_start, status, queue_number,
   patient:patient!clinic_patient_id (
     clinic_patient_id, patient_code, full_name, date_of_birth,
     phone_primary, phone_secondary, gender, ethnicity, nationality, occupation,

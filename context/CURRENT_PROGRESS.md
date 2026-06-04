@@ -881,4 +881,37 @@ Ràng buộc: chỉ "Khám xong" được khi đã CONFIRMED/CHECKED_IN (không 
   lẫn sửa phiên này → commit sẽ bundle chung.
 - Walk-in (điều dưỡng) vẫn còn variant riêng — chưa gộp "tất cả nhập tay" hoàn toàn
   (user nói không phân biệt vãng lai; mới bỏ cột Ngoài luồng, chưa gỡ form walk-in).
-- Chưa commit/push — chờ lệnh.
+
+## === PHIÊN 04/06 (tiếp) — RESET ĐÃ CHẠY + 4 MÀN MỞ RỘNG (M1–M4) ===
+> User đã chạy reset SQL trên Supabase: patient/appointment/visit/cskh_action = 0,
+> seed (staff 41/dịch vụ 14/kênh 7/cơ sở 2) còn nguyên → MVP nhập tay sẵn sàng.
+> Commit P0+dashboard MVP: `428aada` + `a8f0d8b`, push **origin** XONG. Push
+> **avalook** (Vercel) bị safety-guard chặn (cross-account) → user push tay.
+> Sau đó build tiếp 4 màn theo phân tích vai-trò (CSKH/ĐD là vùng yếu nhất).
+
+### M1 — Kê đơn thuốc (bác sĩ)
+- `/api/clinical-record`: GET trả `prescriptions` (theo visit); POST nhận
+  `prescriptions[]` → XOÁ đơn cũ của visit rồi ghi lại (prescription KHÔNG
+  append-only). Cột: drug_name_raw/quantity/dosage_instructions/caution.
+- ClinicalRecordForm: mục **IX. Đơn thuốc** — dòng động, prefill, gửi kèm khi Lưu.
+
+### M2 — Cấp + hiển thị số thứ tự (lễ tân)
+- `/api/appointments` checkin: TỰ CẤP queue_number = max(số hôm nay)+1 nếu chưa có
+  (giữ số nhập tay). HomeCheckin đã hiện; thêm "Số N" vào thẻ board bác sĩ.
+
+### M3 — Hàng đợi xét nghiệm (link PDF)
+- `/api/lab-result` (MỚI): POST bác sĩ chỉ định (PENDING); PATCH ĐD/Lễ tân/QL nhập
+  tóm tắt + LINK phiếu (external_ref) + lab_provider. v1 dán link (Storage=v2).
+- Trang `/lab-queue` (MỚI). ClinicalRecordForm mục VI: bác sĩ chỉ định XN + link "Phiếu".
+
+### M4 — Hàng đợi dịch vụ/thủ thuật (điều dưỡng)
+- `/api/service-log` (MỚI): POST tạo việc; PATCH start/finish (giờ + kết quả).
+- Trang `/service-queue` (MỚI).
+
+### Nav: "Hàng đợi xét nghiệm" + "Hàng đợi dịch vụ" cho NURSE_ULTRASOUND + MANAGEMENT.
+
+### Verify: tsc + eslint + next build PASS (30 route). Chưa chạy thử UI có đăng nhập.
+
+### CÒN LẠI (chờ data tích luỹ / mẫu / PM)
+- /reports KPI (chờ data nhập tay) · mẫu phiếu siêu âm · FINALIZE (TT13) + vòng đời
+  CSKH-action đầy đủ · upload PDF lên Storage (v2).

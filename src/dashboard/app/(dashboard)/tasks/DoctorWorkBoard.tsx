@@ -19,6 +19,8 @@ export interface DoctorApptRow {
   id: string;
   slot_start: string;
   status: string;
+  /** Số thứ tự khám (queue_number) — lễ tân cấp khi check-in. */
+  queue_number?: string | null;
   /** "Khám lần đầu" | "Tái khám" | "" — suy từ lịch sử hẹn (server tính sẵn). */
   phan_loai?: string;
   patient: {
@@ -150,6 +152,7 @@ export default function DoctorWorkBoard({
                             : ""}
                         </span>
                         <span className="mt-1 block text-xs text-[#52525b]">
+                          {a.queue_number ? `Số ${a.queue_number} · ` : ""}
                           {fmtDayTime(a.slot_start)}
                           {a.service?.name ? ` · ${a.service.name}` : ""}
                         </span>

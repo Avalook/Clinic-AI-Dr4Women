@@ -88,7 +88,7 @@ export async function GET(request: Request) {
     supabase
       .from("lab_result")
       .select(
-        "test_name, result_value, result_numeric, result_unit, flag, triage_group, result_received_at",
+        "test_name, result_value, result_numeric, result_unit, flag, external_ref, triage_group, result_received_at",
       )
       .eq("clinic_patient_id", patientId)
       .order("result_received_at", { ascending: false })
@@ -138,11 +138,28 @@ export async function GET(request: Request) {
       : visit.clinical_record
     : null;
 
+  // Đơn thuốc đã kê cho lượt khám này (để prefill form kê thuốc của bác sĩ).
+  let prescriptions: {
+    drug_name_raw: string | null;
+    quantity: string | null;
+    dosage_instructions: string | null;
+    caution: string | null;
+  }[] = [];
+  if (visit?.visit_id) {
+    const { data: rx } = await supabase
+      .from("prescription")
+      .select("drug_name_raw, quantity, dosage_instructions, caution")
+      .eq("visit_id", visit.visit_id)
+      .order("created_at", { ascending: true });
+    prescriptions = rx ?? [];
+  }
+
   return NextResponse.json({
     profile: profileRes.data ?? null,
     pregnancy: pregRes.data ?? null,
     labs: labRes.data ?? [],
     history,
+    prescriptions,
     visit: visit ? { visit_id: visit.visit_id, status: visit.status } : null,
     draft: {
       chief_complaint: cr?.chief_complaint_at_visit ?? "",
@@ -172,6 +189,13 @@ interface PostBody {
     family_history?: unknown;
     notes?: string | null;
   };
+  // Đơn thuốc bác sĩ kê (free-text) — thay TOÀN BỘ đơn của lượt khám này.
+  prescriptions?: Array<{
+    drug_name?: string;
+    quantity?: string;
+    dosage?: string;
+    caution?: string;
+  }>;
   // Điều dưỡng: chỉ ghi Sinh hiệu (objective.vitals), KHÔNG đụng mục khác.
   vitalsOnly?: boolean;
 }
@@ -347,6 +371,29 @@ export async function POST(request: Request) {
       { onConflict: "clinic_patient_id" },
     );
     if (pErr) return NextResponse.json({ error: pErr.message }, { status: 500 });
+  }
+
+  // Đơn thuốc: THAY toàn bộ đơn của lượt khám (xoá cũ → ghi mới). prescription
+  // không phải bảng append-only nên DELETE được; ghi qua service-role.
+  if (Array.isArray(body.prescriptions)) {
+    await db.from("prescription").delete().eq("visit_id", visitId);
+    const items = body.prescriptions
+      .filter((p) => (p.drug_name ?? "").trim() !== "")
+      .map((p, i) => ({
+        source_ref: `dash-rx-${visitId}-${i}`,
+        clinic_patient_id: clinicPatientId,
+        visit_id: visitId,
+        drug_name_raw: (p.drug_name ?? "").trim(),
+        quantity: (p.quantity ?? "").trim() || null,
+        dosage_instructions: (p.dosage ?? "").trim() || null,
+        caution: (p.caution ?? "").trim() || null,
+      }));
+    if (items.length) {
+      const { error: rxErr } = await db.from("prescription").insert(items);
+      if (rxErr) {
+        return NextResponse.json({ error: rxErr.message }, { status: 500 });
+      }
+    }
   }
 
   return NextResponse.json({ ok: true, visit_id: visitId });
