@@ -22,6 +22,7 @@ import {
   cccdError,
   dmyToIso,
   dobError,
+  birthYearError,
 } from "../../../../lib/validation";
 import {
   INPUT,
@@ -101,6 +102,8 @@ export default function NewPatientForm({
   // Suy ra ISO + lỗi nhỏ ngày sinh (chỉ khi KHÔNG dùng năm-only).
   const dobIso = dmyToIso(dobDay, dobMonth, dobYear);
   const dobErr = dobYearOnly ? null : dobError(dobDay, dobMonth, dobYear, TODAY);
+  // "Chỉ biết năm": cũng validate (1900..năm hiện tại, không tương lai) + báo inline.
+  const birthYearErr = dobYearOnly ? birthYearError(birthYear, CUR_YEAR) : null;
   // Icon lịch → bộ chọn ngày native; chọn xong tách ra 3 ô dd/mm/yyyy.
   const dobRef = useRef<HTMLInputElement>(null);
   const openDobPicker = () => {
@@ -226,9 +229,12 @@ export default function NewPatientForm({
     // Ngày sinh (yêu cầu 04/06): tick "Chỉ biết năm" → CHỈ cần NĂM (1900–2100);
     // KHÔNG tick → phải điền ĐỦ ngày/tháng/năm.
     if (dobYearOnly) {
-      const y = Number(birthYear);
-      if (!birthYear.trim() || !Number.isFinite(y) || y < 1900 || y > CUR_YEAR) {
+      if (!birthYear.trim()) {
         setError(`Nhập năm sinh (1900–${CUR_YEAR}), hoặc bỏ tick “Chỉ biết năm”.`);
+        return;
+      }
+      if (birthYearErr) {
+        setError(birthYearErr);
         return;
       }
     } else if (!dobDay && !dobMonth && !dobYear) {
@@ -331,16 +337,21 @@ export default function NewPatientForm({
               </label>
             </div>
             {dobYearOnly ? (
-              <input
-                type="number"
-                inputMode="numeric"
-                min={1900}
-                max={CUR_YEAR}
-                value={birthYear}
-                onChange={(e) => setBirthYear(e.target.value)}
-                className={INPUT}
-                placeholder="VD: 1990"
-              />
+              <div>
+                <input
+                  type="number"
+                  inputMode="numeric"
+                  min={1900}
+                  max={CUR_YEAR}
+                  value={birthYear}
+                  onChange={(e) => setBirthYear(e.target.value)}
+                  className={INPUT + (birthYearErr ? " border-[#dc2626]" : "")}
+                  placeholder="VD: 1990"
+                />
+                {birthYearErr && (
+                  <p className="mt-1 text-[12px] text-[#dc2626]">{birthYearErr}</p>
+                )}
+              </div>
             ) : (
               <div className="relative">
                 <div className="flex items-center gap-2">

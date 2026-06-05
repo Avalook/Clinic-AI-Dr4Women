@@ -40,6 +40,23 @@ export function dmyToIso(day: string, month: string, year: string): string {
 }
 
 /**
+ * Năm sinh (chế độ "Chỉ biết năm"). null = hợp lệ (hoặc CHƯA nhập); chuỗi = lỗi
+ * nhỏ cạnh ô. `maxYear` = năm hiện tại (không cho năm tương lai).
+ */
+export function birthYearError(
+  year: string,
+  maxYear: number,
+): string | null {
+  const t = (year ?? "").trim();
+  if (!t) return null;
+  const y = Number(t);
+  if (!Number.isInteger(y)) return "Năm sinh không hợp lệ.";
+  if (y > maxYear) return "Năm sinh không thể ở tương lai.";
+  if (y < 1900) return `Năm sinh không hợp lệ (1900–${maxYear}).`;
+  return null;
+}
+
+/**
  * Kiểm ngày sinh dd/mm/yyyy. null = hợp lệ (hoặc CHƯA nhập gì — caller tự bắt
  * "bắt buộc"); chuỗi = lỗi nhỏ hiện cạnh ô.
  * - `maxIso` = hôm nay (yyyy-mm-dd): ngày sinh KHÔNG được sau hôm nay.
