@@ -276,7 +276,7 @@ ClinicalRecord (1:1 với Visit)
 ├── pregnancy_id           FK NULLABLE
 ├── soap_subjective        JSONB    (S: BN kể gì)
 ├── soap_objective         JSONB    (O: BS khám/đo gì + vitals)
-├── soap_assessment        JSONB    (A: chẩn đoán + ICD-10)
+├── soap_assessment        JSONB    (A: Chuẩn đoán + ICD-10)
 ├── soap_plan              JSONB    (P: kế hoạch + thuốc + tái khám)
 ├── chief_complaint_at_visit  TEXT
 ├── voice_note_url         TEXT      (LOCAL storage, KHÔNG cloud)
@@ -286,7 +286,7 @@ ClinicalRecord (1:1 với Visit)
 SOAP backbone từ BS Hùng (Session 24, Loại B):
 - S: Lý do đến khám
 - O: Kết quả khám lâm sàng (gồm vitals)
-- A: Chẩn đoán
+- A: Chuẩn đoán
 - P: Kế hoạch điều trị + Thuốc kê + Lịch tái khám/XN
 
 VisitAmendment (APPEND-ONLY)

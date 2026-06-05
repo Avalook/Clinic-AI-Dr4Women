@@ -5,7 +5,7 @@
 
 import { notFound } from "next/navigation";
 import { getSupabaseServer } from "../../../lib/supabase-server";
-import { VN_TZ } from "../../../lib/datetime";
+import { VN_TZ, isVnMidnight } from "../../../lib/datetime";
 import MedicalSummaryPrint, { type FormData } from "./MedicalSummaryPrint";
 
 export const dynamic = "force-dynamic";
@@ -42,6 +42,18 @@ function fmtVnDateTime(v: string | null | undefined): string {
     month: "2-digit",
     year: "numeric",
     hour12: false,
+  }).format(d);
+}
+/** timestamptz → "dd/mm/yyyy" (CHỈ ngày) theo giờ VN — dùng cho lịch chỉ có ngày. */
+function fmtVnDate(v: string | null | undefined): string {
+  if (!v) return "";
+  const d = new Date(v);
+  if (Number.isNaN(d.getTime())) return "";
+  return new Intl.DateTimeFormat("vi-VN", {
+    timeZone: VN_TZ,
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
   }).format(d);
 }
 
@@ -145,7 +157,10 @@ export default async function PrintMedicalSummaryPage({
     supabase
       .from("lab_result")
       .select("test_name, result_value, result_numeric, result_unit, flag")
+      // CHỈ XN của ĐÚNG lịch hẹn này — không kéo XN của lượt khám khác vào phiếu
+      // (in lại phiếu cũ sẽ gắn nhầm KQ của lần khám sau).
       .eq("clinic_patient_id", p.clinic_patient_id)
+      .eq("appointment_id", appointmentId)
       .order("result_received_at", { ascending: false })
       .limit(20),
   ]);
@@ -203,7 +218,9 @@ export default async function PrintMedicalSummaryPage({
     diaChi: p.address ?? "",
     nguoiBaoLanh: p.guardian_name ?? "",
     soDienThoai: p.phone_primary ?? "",
-    denKhamLuc: fmtVnDateTime(appt.slot_start),
+    denKhamLuc: isVnMidnight(appt.slot_start)
+      ? fmtVnDate(appt.slot_start)
+      : fmtVnDateTime(appt.slot_start),
     lyDoVaoKham: cr?.chief_complaint_at_visit ?? "",
     tienSuDiUng: profile?.allergies?.length ? profile.allergies.join(", ") : "",
     para: "",

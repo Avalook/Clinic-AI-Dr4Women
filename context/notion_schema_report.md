@@ -1796,7 +1796,7 @@ _No rows or query failed._
 | `>> Thống kê 1` | `formula` | `schema` | formula: `let(previousindex,({{notion:block_property:xaki:850ccb0e-ac8…` |
 | `>> Thống kê 2` | `formula` | `schema` | formula: `if({{notion:block_property:f%7DP%7B:850ccb0e-ac88-8269-bc04-…` |
 | `Bác sĩ khám chính` | `select` | `schema` | options: `BS Thành`, `BS Vân`, `BS Hằng`, `BS Thủy`, `BS Linh nam khoa`, `BS Đào`, `BS Hùng`, `BS Nam`, `BS Thiệp`, `BS Quyết` |
-| `Chẩn đoán công khai` | `rich_text` | `schema` |  |
+| `Chuẩn đoán công khai` | `rich_text` | `schema` |  |
 | `Created by` | `created_by` | `schema` |  |
 | `Cận lâm sàng` | `formula` | `schema` | formula: `let(DV,{{notion:block_property:G%3AG%5C:850ccb0e-ac88-8269-b…` |
 | `Formula` | `formula` | `schema` | formula: `let(
@@ -1831,7 +1831,7 @@ if({{noti…` |
   - `>> Thống kê 1`: <string>
   - `>> Thống kê 2`: <string>
   - `Bác sĩ khám chính`: BS Thành
-  - `Chẩn đoán công khai`: kh…(36 chars)
+  - `Chuẩn đoán công khai`: kh…(36 chars)
   - `Created by`: <user>
   - `Cận lâm sàng`: <string>
   - `Formula`: <string>
@@ -1861,7 +1861,7 @@ if({{noti…` |
   - `>> Thống kê 1`: <string>
   - `>> Thống kê 2`: <string>
   - `Bác sĩ khám chính`: BS Thành
-  - `Chẩn đoán công khai`: Th…(30 chars)
+  - `Chuẩn đoán công khai`: Th…(30 chars)
   - `Created by`: <user>
   - `Cận lâm sàng`: <string>
   - `Formula`: <string>
@@ -1891,7 +1891,7 @@ if({{noti…` |
   - `>> Thống kê 1`: <string>
   - `>> Thống kê 2`: <string>
   - `Bác sĩ khám chính`: BS Thành
-  - `Chẩn đoán công khai`: TM…(75 chars)
+  - `Chuẩn đoán công khai`: TM…(75 chars)
   - `Created by`: <user>
   - `Cận lâm sàng`: <string>
   - `Formula`: <string>

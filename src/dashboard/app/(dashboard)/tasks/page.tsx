@@ -4,7 +4,12 @@
 // CCCD KHÔNG select (D-identity).
 
 import { getSupabaseServer } from "../../../lib/supabase-server";
-import { vnTodayRangeUtc } from "../../../lib/datetime";
+import {
+  vnTodayRangeUtc,
+  vnLocalToUtcISO,
+  vnMonthStartUtc,
+} from "../../../lib/datetime";
+import { currentWeekStartVn } from "../../../lib/roster";
 import { getClinicRole, getClinicStaffId } from "../../../lib/clinic-session";
 import { isDoctorRole, canManageAppt } from "../../../lib/roles";
 import ConfirmBoard, { type ApptRow, type Opt } from "./ConfirmBoard";
@@ -33,11 +38,19 @@ async function DoctorTasks() {
   // Cửa sổ 31 ngày tới: đủ cho bộ lọc Tuần này / Tuần sau / Tháng này ở board bác sĩ.
   const N = 31;
   const endUtc = new Date(new Date(startUtc).getTime() + N * DAY_MS).toISOString();
+  // Mốc ĐỌC lùi về sớm nhất board có thể lọc (đầu TUẦN hoặc đầu THÁNG hiện tại) —
+  // nếu chỉ đọc từ HÔM NAY thì "Tuần này"/"Tháng này" mất phần đầu kỳ đã qua (vd vào
+  // Thứ Năm không thấy lịch T2–T4 của chính tuần đó). So sánh chuỗi ISO-UTC = so giờ.
+  const readStartUtc = [
+    startUtc,
+    vnLocalToUtcISO(currentWeekStartVn(), "00:00"),
+    vnMonthStartUtc(),
+  ].sort()[0];
 
   let q = supabase
     .from("appointment")
     .select(DOCTOR_SELECT)
-    .gte("slot_start", startUtc)
+    .gte("slot_start", readStartUtc)
     .lt("slot_start", endUtc)
     .order("slot_start", { ascending: true })
     .limit(400);

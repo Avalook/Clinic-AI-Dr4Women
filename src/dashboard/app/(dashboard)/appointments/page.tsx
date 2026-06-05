@@ -11,7 +11,11 @@ import AppointmentsKanban, {
 } from "./AppointmentsKanban";
 import AppointmentsRealtime from "./AppointmentsRealtime";
 import { getSupabaseServer } from "../../../lib/supabase-server";
-import { getClinicRole, getActiveStaff } from "../../../lib/clinic-session";
+import {
+  getClinicRole,
+  getActiveStaff,
+  requireNavAccess,
+} from "../../../lib/clinic-session";
 import { isDoctorRole } from "../../../lib/roles";
 import { vnTodayRangeUtc } from "../../../lib/datetime";
 
@@ -41,6 +45,7 @@ export default async function AppointmentsPage({
 }: {
   searchParams: Promise<{ range?: string }>;
 }) {
+  await requireNavAccess("/appointments");
   const { range: rawRange } = await searchParams;
 
   const role = await getClinicRole();

@@ -357,10 +357,10 @@ export default function MedicalSummaryPrint({ initial }: { initial: FormData }) 
           </div>
         </div>
 
-        {/* ===== VII. CHẨN ĐOÁN ===== */}
+        {/* ===== VII. Chuẩn đoán ===== */}
         <div style={{ marginTop: 4 }}>
           <span style={roman}>VII.</span>
-          <span style={sectionTitle}>Chẩn đoán (Diagnosis):</span>
+          <span style={sectionTitle}>Chuẩn đoán (Diagnosis):</span>
           <div style={{ paddingLeft: 28 }}>
             <Area d={d} set={set} k="chanDoan" rows={2} />
           </div>

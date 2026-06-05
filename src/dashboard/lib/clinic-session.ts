@@ -4,7 +4,8 @@
 // replaces the old staff.auth_user_id linkage.
 
 import { cookies } from "next/headers";
-import { isClinicRole, type ClinicRole } from "./roles";
+import { redirect } from "next/navigation";
+import { isClinicRole, canSeeNav, type ClinicRole } from "./roles";
 import { getSupabaseServer } from "./supabase-server";
 
 export const ROLE_COOKIE = "clinic_role";
@@ -13,6 +14,14 @@ export const STAFF_COOKIE = "clinic_staff_id";
 export async function getClinicRole(): Promise<ClinicRole | null> {
   const v = (await cookies()).get(ROLE_COOKIE)?.value;
   return isClinicRole(v) ? v : null;
+}
+
+/** Server-side guard cho 1 trang theo nav href: role không được phép → về /home.
+ *  Trước đây các route chỉ ẩn ở sidebar (canSeeNav) → gõ thẳng URL vẫn vào & lộ
+ *  PII/kết quả lab. Gọi ĐẦU mỗi page bị giới hạn role để chặn cả truy cập trực tiếp. */
+export async function requireNavAccess(href: string): Promise<void> {
+  const role = await getClinicRole();
+  if (!canSeeNav(role, href)) redirect("/home");
 }
 
 /** Selected doctor's staff.id (only set when a doctor role was picked). */

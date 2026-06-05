@@ -708,7 +708,7 @@ async def _insert_services(
         cpid = uuid.UUID(cpid_str) if cpid_str else None
         service_name = (r.get("Tên dịch vụ") or "").strip()
         # Best-effort service_type FK: text starts with the friendly name
-        # (e.g. "[TT] Soi buồng tử cung chẩn đoán (https://...)"). Strip
+        # (e.g. "[TT] Soi buồng tử cung chuẩn đoán (https://...)"). Strip
         # the URL and any bracketed prefix before lookup.
         sname = service_name.split("(http")[0].strip()
         for prefix in ("[TT]", "[SA]", "[KHAM]", "[XN]"):

@@ -206,6 +206,17 @@ function asObj(x: unknown): Record<string, unknown> {
     : {};
 }
 
+/** Lọc bỏ key rỗng (null / chuỗi trắng) — để merge chỉ ghi đè bằng giá trị thật. */
+function nonEmpty(o: Record<string, unknown>): Record<string, unknown> {
+  const out: Record<string, unknown> = {};
+  for (const [k, v] of Object.entries(o)) {
+    if (v == null) continue;
+    if (typeof v === "string" && v.trim() === "") continue;
+    out[k] = v;
+  }
+  return out;
+}
+
 export async function POST(request: Request) {
   const caller = await getSupabaseServer();
   const {
@@ -327,7 +338,7 @@ export async function POST(request: Request) {
   }
 
   // Điều dưỡng: CHỈ merge Sinh hiệu vào soap_objective, không đụng các mục khác
-  // (chẩn đoán/lời dặn/tiền sử của bác sĩ giữ nguyên).
+  // (chuẩn đoán/lời dặn/tiền sử của bác sĩ giữ nguyên).
   if (vitalsOnly) {
     const { data: cr } = await db
       .from("clinical_record")
@@ -350,13 +361,33 @@ export async function POST(request: Request) {
     return NextResponse.json({ ok: true, visit_id: visitId, vitalsOnly: true });
   }
 
+  // Bác sĩ lưu: KHÔNG ghi đè trọn soap_objective. Đọc bản hiện có rồi MERGE để
+  // GIỮ Sinh hiệu điều dưỡng vừa nhập — bác sĩ có thể đã mở form TRƯỚC khi ĐD nhập
+  // sinh hiệu → prefill cũ rỗng, lưu blind sẽ xoá sạch (mất dữ liệu lâm sàng).
+  // vitals: giữ giá trị DB, chỉ ghi đè bằng ô KHÔNG RỖNG của bác sĩ.
+  const { data: crPrev } = await db
+    .from("clinical_record")
+    .select("soap_objective")
+    .eq("visit_id", visitId)
+    .maybeSingle();
+  const prevObj = asObj(crPrev?.soap_objective);
+  const inObj = asObj(body.objective);
+  const mergedObjective =
+    body.objective == null && Object.keys(prevObj).length === 0
+      ? null
+      : {
+          ...prevObj,
+          ...inObj,
+          vitals: { ...asObj(prevObj.vitals), ...nonEmpty(asObj(inObj.vitals)) },
+        };
+
   // Upsert nội dung khám (clinical_record.visit_id UNIQUE).
   const { error: crErr } = await db.from("clinical_record").upsert(
     {
       visit_id: visitId,
       chief_complaint_at_visit: (body.chief_complaint ?? "").trim() || null,
       soap_subjective: body.subjective ?? null,
-      soap_objective: body.objective ?? null,
+      soap_objective: mergedObjective,
       soap_assessment: body.assessment ?? null,
       soap_plan: body.plan ?? null,
     },

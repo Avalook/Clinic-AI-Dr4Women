@@ -2,6 +2,7 @@
 // đã hoàn tất = finished_at có giá trị. Đọc qua Supabase RLS.
 
 import { getSupabaseServer } from "../../../lib/supabase-server";
+import { requireNavAccess } from "../../../lib/clinic-session";
 import ServiceQueueView, { type ServiceRow } from "./ServiceQueueView";
 
 export const dynamic = "force-dynamic";
@@ -13,6 +14,7 @@ const SELECT = `
 `;
 
 export default async function ServiceQueuePage() {
+  await requireNavAccess("/service-queue");
   const supabase = await getSupabaseServer();
 
   const [activeRes, doneRes] = await Promise.all([

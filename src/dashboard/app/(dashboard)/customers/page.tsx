@@ -4,6 +4,7 @@
 // (CustomersView) lo chọn + bôi hồng.
 
 import { getSupabaseServer } from "../../../lib/supabase-server";
+import { requireNavAccess } from "../../../lib/clinic-session";
 import {
   vnTodayRangeUtc,
   vnMonthStartUtc,
@@ -68,6 +69,7 @@ export default async function CustomersPage({
     selected?: string;
   }>;
 }) {
+  await requireNavAccess("/customers");
   const sp = await searchParams;
   const q = (sp.q ?? "").trim();
   const period: Period = (["today", "week", "month", "all"].includes(

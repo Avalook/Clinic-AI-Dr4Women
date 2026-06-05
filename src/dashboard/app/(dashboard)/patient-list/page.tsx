@@ -2,6 +2,7 @@
 // "Khám lần đầu" (1 lần) / "Tái khám" (>=2 lần). Đọc qua Supabase RLS.
 
 import { getSupabaseServer } from "../../../lib/supabase-server";
+import { requireNavAccess } from "../../../lib/clinic-session";
 import PatientListView, { type ExaminedRow } from "./PatientListView";
 
 export const dynamic = "force-dynamic";
@@ -28,6 +29,7 @@ const SELECT = `
 `;
 
 export default async function PatientListPage() {
+  await requireNavAccess("/patient-list");
   const supabase = await getSupabaseServer();
 
   // COMPLETED = đã khám xong. Sắp xếp mới→cũ để lần xuất hiện ĐẦU của mỗi BN

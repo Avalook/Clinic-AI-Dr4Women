@@ -2,6 +2,7 @@
 // result_value lẫn external_ref. Đã trả = đã có 1 trong 2. Đọc qua RLS.
 
 import { getSupabaseServer } from "../../../lib/supabase-server";
+import { requireNavAccess } from "../../../lib/clinic-session";
 import LabQueueView, { type LabRow } from "./LabQueueView";
 
 export const dynamic = "force-dynamic";
@@ -13,6 +14,7 @@ const SELECT = `
 `;
 
 export default async function LabQueuePage() {
+  await requireNavAccess("/lab-queue");
   const supabase = await getSupabaseServer();
 
   const [pendingRes, doneRes] = await Promise.all([

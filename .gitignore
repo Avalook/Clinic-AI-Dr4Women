@@ -93,3 +93,6 @@ scripts/seed/*.csv
 
 # T-TRANSFORM-01 staged outputs (real patient data — never commit)
 scripts/data_migration/output/
+
+# DB reset backups (may contain patient PII — never commit)
+scripts/maintenance/backups/

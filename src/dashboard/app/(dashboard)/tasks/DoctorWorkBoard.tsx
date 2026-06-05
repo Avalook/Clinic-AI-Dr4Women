@@ -4,7 +4,7 @@
 // · Bệnh nhân · Phân loại · Trạng thái · Hành động; lọc theo KỲ (Hôm nay/Tuần/Tháng)
 // + TRẠNG THÁI. Bấm tên BN → hồ sơ lâm sàng (ClinicalRecordForm) ở cột PHẢI
 // (SplitPane). Nút Hành động: Nhận khám / Từ chối (lịch mới). KHÔNG còn nút "Khám
-// xong" thủ công — bác sĩ điền Chẩn đoán + Lời dặn rồi Lưu thì lịch TỰ COMPLETED.
+// xong" thủ công — bác sĩ điền Chuẩn đoán + Lời dặn rồi Lưu thì lịch TỰ COMPLETED.
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
@@ -106,11 +106,13 @@ export default function DoctorWorkBoard({
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ id, action }),
     });
-    setBusyId(null);
     if (!res.ok) {
+      setBusyId(null);
       setError((await res.json()).error ?? "Lỗi thao tác.");
       return;
     }
+    // GIỮ busyId qua suốt router.refresh() (bất đồng bộ) để tránh double-click
+    // trong cửa sổ re-render → server đổi trạng thái, nút Nhận/Từ chối tự biến mất.
     router.refresh();
   }
 

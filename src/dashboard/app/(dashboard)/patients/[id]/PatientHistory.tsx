@@ -61,7 +61,7 @@ const KV_LABEL: Record<string, string> = {
   mach: "Mạch", nhiet_do: "Nhiệt độ", huyet_ap: "Huyết áp", nhip_tho: "Nhịp thở",
   spo2: "SpO2", can_nang: "Cân nặng", chieu_cao: "Chiều cao", bmi: "BMI",
   tuoi_thai: "Tuổi thai", du_kien_sinh: "Dự kiến sinh", chieu_cao_tc: "Cao TC/VB",
-  nhip_tim_thai: "Tim thai", benh_su: "Bệnh sử", chan_doan: "Chẩn đoán",
+  nhip_tim_thai: "Tim thai", benh_su: "Bệnh sử", chan_doan: "Chuẩn đoán",
   loi_dan: "Lời dặn",
 };
 function kvPairs(v: unknown): string[] {
@@ -258,7 +258,7 @@ export default async function PatientHistory({ id }: { id: string }) {
                 { label: "Lý do khám", value: cr?.chief_complaint_at_visit ?? "" },
                 { label: "Chủ quan (S)", value: asText(cr?.soap_subjective) },
                 { label: "Khách quan (O)", value: asText(cr?.soap_objective) },
-                { label: "Chẩn đoán (A)", value: asText(cr?.soap_assessment) },
+                { label: "Chuẩn đoán (A)", value: asText(cr?.soap_assessment) },
                 { label: "Kế hoạch (P)", value: asText(cr?.soap_plan) },
               ].filter((s) => s.value);
               return (

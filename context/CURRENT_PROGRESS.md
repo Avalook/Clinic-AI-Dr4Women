@@ -464,7 +464,7 @@ patient.created_at trải:
 - Service_type alias match: hiện chỉ trim `[TT]/[SA]/[XN]/[KHAM]` prefix. Phase 2 có aliases column trong service_type → match theo nhiều cách viết.
 - `work_session` + `work_session_staff`: chưa có nguồn data. Cần PM/sếp chốt cách nhập ca trực.
 - Cron incremental sync (P3b) defer khi PK đồng ý live workflow.
-- `Phiếu khám` Notion DB có nhiều columns chưa khai thác (Chẩn đoán công khai, Khám-Tư vấn, Loại dịch vụ khám). Phase 2 extend `clinical_record` schema để hứng.
+- `Phiếu khám` Notion DB có nhiều columns chưa khai thác (Chuẩn đoán công khai, Khám-Tư vấn, Loại dịch vụ khám). Phase 2 extend `clinical_record` schema để hứng.
 
 ### BẮT ĐẦU PHIÊN SAU LÀM GÌ
 Đọc CLAUDE.md §1 → context/CURRENT_PROGRESS.md (block này) → context/SYSTEM_STATE_ACTUAL.md. Báo 3-5 dòng. Hỏi user việc tiếp.
@@ -606,7 +606,7 @@ Chuỗi nguyên nhân (gỡ từng lớp):
 - **ClinicalRecordForm**:
   - I Hành chính (read) · V thai (read pregnancy) · **VI Cận lâm sàng GIỮ read-only** (máy XN là nguồn, bác sĩ KHÔNG gõ số).
   - **III Dị ứng + IV Tiền sử** (nhóm máu/mạn tính/PT/thuốc/gia đình/ghi chú) → BÁC SĨ SỬA, lưu `patient_medical_profile` (patient-level, dùng cho mọi lần khám sau). LÝ DO mở: tiền sử là thông tin người khai + bác sĩ xác nhận/cập nhật, không phải kết quả máy.
-  - Sinh hiệu + II Lý do + V bệnh sử/khám thai + VII Chẩn đoán + VIII Lời dặn → lưu `clinical_record` (JSONB: soap_objective.vitals/kham_thai · soap_subjective.benh_su · chief_complaint · soap_assessment.chan_doan · soap_plan.loi_dan). Prefill khi mở lại.
+  - Sinh hiệu + II Lý do + V bệnh sử/khám thai + VII Chuẩn đoán + VIII Lời dặn → lưu `clinical_record` (JSONB: soap_objective.vitals/kham_thai · soap_subjective.benh_su · chief_complaint · soap_assessment.chan_doan · soap_plan.loi_dan). Prefill khi mở lại.
   - Khóa toàn form nếu visit FINALIZED.
 - **DoctorWorkBoard**: hồ sơ hiện ở **PANEL bên phải** board (đổi từ modal → panel, theo yêu cầu user).
 
@@ -721,7 +721,7 @@ Chuỗi nguyên nhân (gỡ từng lớp):
 - `SplitPane.tsx` (MỚI): 2 cột kéo thanh giữa, width áp bằng INLINE style flex-basis% (Tailwind KHÔNG sinh class `[flex-basis:var()]` động — đã verify), gate desktop bằng matchMedia; mobile xếp dọc.
 - `HomeCheckin.tsx` (MỚI): nút check-in + danh sách hôm nay + SplitPane[danh sách | hồ sơ]. Bấm tên → hồ sơ cột phải. Cả khu resize-y.
 - `ClinicalRecordForm.tsx`: thêm prop `vitalsOnly` (ĐD chỉ sửa Sinh hiệu) + `readOnly` (Lễ tân/QL chỉ xem, ẩn nút Lưu). `roRest` khoá mọi mục trừ Sinh hiệu.
-- `/api/clinical-record` POST: thêm `vitalsOnly` — cho NURSE ghi, MERGE vitals vào soap_objective (không đụng chẩn đoán/lời dặn/tiền sử của bác sĩ); visit nháp tạo bởi ĐD lấy attending = bác sĩ của lịch hẹn.
+- `/api/clinical-record` POST: thêm `vitalsOnly` — cho NURSE ghi, MERGE vitals vào soap_objective (không đụng Chuẩn đoán/lời dặn/tiền sử của bác sĩ); visit nháp tạo bởi ĐD lấy attending = bác sĩ của lịch hẹn.
 - `home/page.tsx`: query check-in hôm nay (đủ trường hành chính) khi canCheckin; render HomeCheckin giữa Ca trực và Lịch hẹn khám.
 
 **Verify:** tsc + eslint + next build (Next 16.2.6) PASS. Verify Tailwind sinh đúng width split-pane (đã đổi sang inline style sau khi phát hiện class arbitrary bị bỏ).
@@ -863,7 +863,7 @@ Ràng buộc: chỉ "Khám xong" được khi đã CONFIRMED/CHECKED_IN (không 
   đã check-in). Chưa thì khoá toàn form + banner "🕓 Chờ lễ tân... check-in". Không
   áp cho vitalsOnly (đó chính là lúc lễ tân ghi sinh hiệu). HomeCheckin đã fetch
   CONFIRMED → lễ tân check-in được (luồng thông).
-- Khi bác sĩ Lưu mà ĐÃ điền đủ **Chẩn đoán (VII) + Lời dặn (VIII)** và đang CHECKED_IN
+- Khi bác sĩ Lưu mà ĐÃ điền đủ **Chuẩn đoán (VII) + Lời dặn (VIII)** và đang CHECKED_IN
   → tự PATCH `complete` → lịch sang COMPLETED (nút đổi chữ "Lưu & Khám xong"). KHÔNG
   đụng FINALIZE (khóa pháp lý riêng). Nút "Khám xong" thủ công vẫn giữ (fallback).
 
@@ -1022,7 +1022,7 @@ Luồng: CSKH "Xác nhận" với khách → **CSKH_CONFIRMED** (chờ bác sĩ)
 > ở cả 5 .env + không cron/worker/vercel-cron + sync_to_supabase.py:1027 tự từ chối).
 
 ### Batch 1 — NỀN ĐỒNG BỘ: ÁP MIGRATION 039-042 (đã verify DB thật) ✅
-- **Chẩn đoán DB thật** (read-only qua DATABASE_URL): 8 bảng RLS-on-NHƯNG-THIẾU-policy
+- **Chuẩn đoán DB thật** (read-only qua DATABASE_URL): 8 bảng RLS-on-NHƯNG-THIẾU-policy
   → board đọc bằng authenticated ra RỖNG dù data ghi đúng: `prescription, cskh_action,
   service_log, staff_task, patient_medical_profile, work_session, work_session_staff,
   event_log`. **Đây là gốc "rối/board trống"**, không phải data sai.
