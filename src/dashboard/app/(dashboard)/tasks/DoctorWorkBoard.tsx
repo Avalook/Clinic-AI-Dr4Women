@@ -1,19 +1,25 @@
 "use client";
 
-// "Công việc của tôi" cho BÁC SĨ — KANBAN theo TRẠNG THÁI (feedback C2):
-//   Chờ xác nhận · Đã xác nhận/Đã đến · Đã khám xong · Từ chối/Hủy.
-// Mỗi thẻ = 1 lịch của bác sĩ. Bấm tên BN → hồ sơ lâm sàng (ClinicalRecordForm)
-// ở cột PHẢI (SplitPane). Nút trên thẻ: Nhận khám / Từ chối (lịch mới). KHÔNG còn
-// nút "Khám xong" thủ công — bác sĩ điền hồ sơ (Chẩn đoán + Lời dặn) rồi Lưu thì
-// lịch TỰ chuyển COMPLETED (xem ClinicalRecordForm.willComplete). Yêu cầu: chỉ khi
-// lễ tân đã check-in (BN đã đến) bác sĩ mới điền được hồ sơ.
-// Badge Khám lần đầu / Tái khám (feedback C3).
+// "Công việc của tôi" cho BÁC SĨ — LỊCH theo NGÀY (như board CSKH): cột Ngày · Giờ
+// · Bệnh nhân · Phân loại · Trạng thái · Hành động; lọc theo KỲ (Hôm nay/Tuần/Tháng)
+// + TRẠNG THÁI. Bấm tên BN → hồ sơ lâm sàng (ClinicalRecordForm) ở cột PHẢI
+// (SplitPane). Nút Hành động: Nhận khám / Từ chối (lịch mới). KHÔNG còn nút "Khám
+// xong" thủ công — bác sĩ điền Chẩn đoán + Lời dặn rồi Lưu thì lịch TỰ COMPLETED.
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Check, X, FileText, Printer } from "lucide-react";
-import { fmtDayTime } from "../../../lib/datetime";
+import { fmtTimeOrNone } from "../../../lib/datetime";
 import { compareQueue } from "../../../lib/queue";
+import {
+  todayVn,
+  currentWeekStartVn,
+  shiftWeek,
+  weekDates,
+  dayLabel,
+  fmtDayMonth,
+} from "../../../lib/roster";
+import { daysInMonth } from "../../../lib/validation";
 import StatusBadge from "../StatusBadge";
 import ClinicalRecordForm from "./ClinicalRecordForm";
 import SplitPane from "../SplitPane";
@@ -44,31 +50,23 @@ export interface DoctorApptRow {
   service: { name: string } | null;
 }
 
-const COLUMNS = [
-  {
-    key: "pending",
-    label: "Chờ xác nhận",
-    // Gồm lịch CSKH đã xác nhận với khách (CSKH_CONFIRMED) — vẫn chờ bác sĩ nhận ca.
-    statuses: ["SCHEDULED", "CSKH_CONFIRMED"],
-    dot: "#2563eb",
-  },
-  {
-    key: "confirmed",
-    label: "Đã xác nhận / Đã đến",
-    statuses: ["CONFIRMED", "CHECKED_IN"],
-    dot: "#16a34a",
-  },
-  { key: "done", label: "Đã khám xong", statuses: ["COMPLETED"], dot: "#71717a" },
-  {
-    key: "off",
-    label: "Từ chối / Hủy",
-    statuses: ["DOCTOR_DECLINED", "CANCELLED", "NO_SHOW"],
-    dot: "#dc2626",
-  },
+const STATUS_GROUPS: { key: string; label: string; statuses: string[] }[] = [
+  { key: "all", label: "Tất cả", statuses: [] },
+  { key: "pending", label: "Chờ xác nhận", statuses: ["SCHEDULED", "CSKH_CONFIRMED"] },
+  { key: "confirmed", label: "Đã xác nhận / đến", statuses: ["CONFIRMED", "CHECKED_IN"] },
+  { key: "done", label: "Đã khám xong", statuses: ["COMPLETED"] },
+  { key: "off", label: "Từ chối / Hủy", statuses: ["DOCTOR_DECLINED", "CANCELLED", "NO_SHOW"] },
+];
+const PERIODS: { key: string; label: string }[] = [
+  { key: "all", label: "Tất cả" },
+  { key: "today", label: "Hôm nay" },
+  { key: "week", label: "Tuần này" },
+  { key: "next", label: "Tuần sau" },
+  { key: "month", label: "Tháng này" },
 ];
 
 function PhanLoai({ value }: { value?: string }) {
-  if (!value) return null;
+  if (!value) return <span className="text-[#c9a3b8]">—</span>;
   const first = value === "Khám lần đầu";
   return (
     <span
@@ -82,6 +80,8 @@ function PhanLoai({ value }: { value?: string }) {
   );
 }
 
+const CELL = "border-b border-r border-[#f3cfe0] px-2 py-1.5 align-top";
+
 export default function DoctorWorkBoard({
   rows,
   staffId,
@@ -93,6 +93,8 @@ export default function DoctorWorkBoard({
   const [openId, setOpenId] = useState<string | null>(null);
   const [busyId, setBusyId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [period, setPeriod] = useState("all");
+  const [statusFilter, setStatusFilter] = useState("all");
 
   const open = rows.find((a) => a.id === openId) ?? null;
 
@@ -112,129 +114,195 @@ export default function DoctorWorkBoard({
     router.refresh();
   }
 
+  // ---- Lọc theo KỲ + TRẠNG THÁI; gom theo NGÀY, trong ngày theo thứ tự khám ----
+  const vnDate = (iso: string) =>
+    new Date(new Date(iso).getTime() + 7 * 3_600_000).toISOString().slice(0, 10);
+  const today = todayVn();
+  const wk = weekDates(currentWeekStartVn());
+  const nwk = weekDates(shiftWeek(currentWeekStartVn(), 1));
+  const monthStart = today.slice(0, 7) + "-01";
+  const monthEnd =
+    today.slice(0, 7) +
+    "-" +
+    String(
+      daysInMonth(Number(today.slice(5, 7)), Number(today.slice(0, 4))),
+    ).padStart(2, "0");
+  const RANGE: Record<string, [string, string] | null> = {
+    all: null,
+    today: [today, today],
+    week: [wk[0], wk[6]],
+    next: [nwk[0], nwk[6]],
+    month: [monthStart, monthEnd],
+  };
+  const statusGroup = STATUS_GROUPS.find((g) => g.key === statusFilter);
+  const range = RANGE[period];
+  const filtered = rows
+    .filter((r) => {
+      const d = vnDate(r.slot_start);
+      if (range && (d < range[0] || d > range[1])) return false;
+      if (
+        statusGroup &&
+        statusGroup.statuses.length &&
+        !statusGroup.statuses.includes(r.status)
+      )
+        return false;
+      return true;
+    })
+    .sort((a, b) => {
+      const da = vnDate(a.slot_start);
+      const db = vnDate(b.slot_start);
+      if (da !== db) return da < db ? -1 : 1;
+      return compareQueue(a, b); // trong ngày: ƯT → số → giờ
+    });
+
   const boardEl = (
-    <div className="h-full max-h-[78vh] overflow-auto rounded-xl border border-[#f3cfe0] bg-white shadow-[0_1px_3px_rgba(236,72,153,0.08)]">
-      <div className="flex min-h-full divide-x divide-[#f6e0ec]">
-        {COLUMNS.map((col) => {
-          const items = rows
-            .filter((r) => col.statuses.includes(r.status))
-            .sort(compareQueue);
-          return (
-            <div key={col.key} className="flex min-w-[220px] flex-1 flex-col">
-              <div className="sticky top-0 z-10 flex items-center gap-2 border-b border-[#f3cfe0] bg-[#fce7f3] px-3 py-2">
-                <span
-                  className="h-2 w-2 rounded-full"
-                  style={{ backgroundColor: col.dot }}
-                />
-                <span className="text-sm font-semibold text-[#171717]">
-                  {col.label}
-                </span>
-                <span className="ml-auto rounded-full bg-white px-2 py-0.5 text-xs text-[#71717a]">
-                  {items.length}
-                </span>
-              </div>
-              <div className="space-y-2 p-2">
-                {items.length === 0 && (
-                  <p className="py-6 text-center text-xs text-[#a1a1aa]">Trống</p>
-                )}
-                {items.map((a) => (
-                  <div
+    <div className="min-w-0 flex-1 space-y-2">
+      {/* Lọc KỲ + TRẠNG THÁI */}
+      <div className="flex flex-wrap items-center gap-1.5">
+        {PERIODS.map((p) => (
+          <button
+            key={p.key}
+            onClick={() => setPeriod(p.key)}
+            className={
+              "rounded-full px-3 py-1 text-xs font-medium transition-colors " +
+              (period === p.key
+                ? "bg-[#ec4899] text-white"
+                : "border border-[#f3cfe0] bg-white text-[#9d2463] hover:bg-[#fdf2f8]")
+            }
+          >
+            {p.label}
+          </button>
+        ))}
+        <span className="px-0.5 text-[#d4d4d8]">·</span>
+        {STATUS_GROUPS.map((g) => (
+          <button
+            key={g.key}
+            onClick={() => setStatusFilter(g.key)}
+            className={
+              "rounded-full px-2.5 py-0.5 text-xs font-medium transition-colors " +
+              (statusFilter === g.key
+                ? "bg-[#9d2463] text-white"
+                : "border border-[#f3cfe0] bg-white text-[#9d2463] hover:bg-[#fdf2f8]")
+            }
+          >
+            {g.label}
+          </button>
+        ))}
+      </div>
+
+      {/* Bảng lịch — khung kéo co dãn + cuộn (co thì cuộn, không vỡ cấu trúc). */}
+      <div className="resize overflow-auto rounded-xl border border-[#f3cfe0] bg-white shadow-[0_1px_3px_rgba(236,72,153,0.08)] max-h-[78vh] min-h-[200px] max-w-full">
+        <table className="w-full min-w-max border-collapse text-xs">
+          <thead className="sticky top-0 z-10 bg-[#fce7f3] text-left text-[10px] font-semibold uppercase tracking-wide text-[#9d2463]">
+            <tr>
+              <th className="border-b border-r border-[#f3cfe0] px-2 py-1.5 min-w-[96px]">Ngày</th>
+              <th className="border-b border-r border-[#f3cfe0] px-2 py-1.5 min-w-[64px]">Giờ</th>
+              <th className="border-b border-r border-[#f3cfe0] px-2 py-1.5 min-w-[190px]">Bệnh nhân</th>
+              <th className="border-b border-r border-[#f3cfe0] px-2 py-1.5 min-w-[96px]">Phân loại</th>
+              <th className="border-b border-r border-[#f3cfe0] px-2 py-1.5 min-w-[110px]">Trạng thái</th>
+              <th className="border-b border-[#f3cfe0] px-2 py-1.5 min-w-[150px]">Hành động</th>
+            </tr>
+          </thead>
+          <tbody>
+            {filtered.length === 0 ? (
+              <tr>
+                <td colSpan={6} className="px-3 py-8 text-center text-xs text-[#a1a1aa]">
+                  Không có lịch trong kỳ / trạng thái đã chọn.
+                </td>
+              </tr>
+            ) : (
+              filtered.map((a, i) => {
+                const d = vnDate(a.slot_start);
+                const newDay = i === 0 || vnDate(filtered[i - 1].slot_start) !== d;
+                const active = openId === a.id;
+                const pending =
+                  a.status === "SCHEDULED" || a.status === "CSKH_CONFIRMED";
+                return (
+                  <tr
                     key={a.id}
-                    className={
-                      "rounded-lg border bg-white p-2.5 transition-colors " +
-                      (openId === a.id
-                        ? "border-[#ec4899] ring-2 ring-[#ec4899]/20"
-                        : "border-[#e4e4e7] hover:border-[#ec4899]/50")
-                    }
+                    className={active ? "bg-[#fce7f3]" : i % 2 ? "bg-[#fdf7fb]" : "bg-white"}
                   >
-                    <button
-                      onClick={() => setOpenId(a.id)}
-                      className="flex w-full items-start gap-2 text-left"
-                    >
-                      <FileText size={15} className="mt-0.5 shrink-0 text-[#ec4899]" />
-                      <span className="min-w-0 flex-1">
-                        <span className="block truncate text-sm font-medium text-[#171717]">
-                          {a.patient?.full_name ?? "—"}
+                    <td className={`${CELL} whitespace-nowrap font-medium text-[#9d2463]`}>
+                      {newDay ? `${dayLabel(d)} · ${fmtDayMonth(d)}` : ""}
+                    </td>
+                    <td className={`${CELL} whitespace-nowrap text-[#171717]`}>
+                      {a.queue_number ? (
+                        <span className="mr-1 rounded-full bg-[#fce7f3] px-1.5 text-[10px] font-medium text-[#9d2463]">
+                          {a.queue_number}
                         </span>
-                        <span className="mt-0.5 block truncate text-[11px] text-[#888888]">
-                          {a.patient?.patient_code}
-                          {a.patient?.phone_primary
-                            ? ` · ${a.patient.phone_primary}`
-                            : ""}
-                        </span>
-                        <span className="mt-1 block text-xs text-[#52525b]">
-                          {a.queue_number ? `Số ${a.queue_number} · ` : ""}
-                          {fmtDayTime(a.slot_start)}
-                          {a.service?.name ? ` · ${a.service.name}` : ""}
-                        </span>
-                      </span>
-                    </button>
-
-                    {(a.phan_loai ||
-                      col.key === "off" ||
-                      a.status === "CSKH_CONFIRMED") && (
-                      <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
-                        <PhanLoai value={a.phan_loai} />
-                        {a.status === "CSKH_CONFIRMED" && (
-                          <span className="inline-block rounded-full bg-[#ccfbf1] px-2 py-0.5 text-[10px] font-medium text-[#0f766e]">
-                            CSKH đã xác nhận
+                      ) : null}
+                      {fmtTimeOrNone(a.slot_start)}
+                    </td>
+                    <td className={`${CELL}`}>
+                      <button
+                        onClick={() => setOpenId(a.id)}
+                        className="flex items-start gap-1.5 text-left"
+                      >
+                        <FileText size={13} className="mt-0.5 shrink-0 text-[#ec4899]" />
+                        <span>
+                          <span className="block font-medium text-[#171717] hover:text-[#ec4899]">
+                            {a.patient?.full_name ?? "—"}
                           </span>
-                        )}
-                        {col.key === "off" && <StatusBadge status={a.status} />}
-                      </div>
-                    )}
-
-                    {(a.status === "SCHEDULED" ||
-                      a.status === "CSKH_CONFIRMED") && (
-                      <div className="mt-2 flex gap-2 border-t border-[#f4f4f5] pt-2">
+                          <span className="block font-mono text-[10px] text-[#888888]">
+                            {a.patient?.patient_code}
+                            {a.patient?.phone_primary ? ` · ${a.patient.phone_primary}` : ""}
+                            {a.service?.name ? ` · ${a.service.name}` : ""}
+                          </span>
+                        </span>
+                      </button>
+                    </td>
+                    <td className={CELL}>
+                      <PhanLoai value={a.phan_loai} />
+                    </td>
+                    <td className={CELL}>
+                      <StatusBadge status={a.status} />
+                    </td>
+                    <td className={`${CELL} whitespace-nowrap`}>
+                      {pending ? (
+                        <span className="flex gap-1">
+                          <button
+                            onClick={() => act(a.id, "confirm")}
+                            disabled={busyId === a.id}
+                            className="inline-flex min-h-8 items-center gap-1 rounded-md bg-[#16a34a] px-2.5 text-xs font-semibold text-white hover:bg-[#15803d] disabled:opacity-50"
+                          >
+                            <Check size={12} /> Nhận
+                          </button>
+                          <button
+                            onClick={() => act(a.id, "decline")}
+                            disabled={busyId === a.id}
+                            className="inline-flex min-h-8 items-center gap-1 rounded-md border border-[#e4e4e7] bg-white px-2.5 text-xs font-medium text-[#dc2626] hover:bg-[#fef2f2] disabled:opacity-50"
+                          >
+                            <X size={12} /> Từ chối
+                          </button>
+                        </span>
+                      ) : a.status === "CHECKED_IN" ? (
                         <button
-                          onClick={() => act(a.id, "confirm")}
-                          disabled={busyId === a.id}
-                          className="inline-flex min-h-8 items-center gap-1 rounded-md bg-[#16a34a] px-3 text-xs font-semibold text-white hover:bg-[#15803d] disabled:opacity-50"
+                          onClick={() => setOpenId(a.id)}
+                          className="inline-flex min-h-8 items-center gap-1 rounded-md bg-[#7c3aed] px-2.5 text-xs font-semibold text-white hover:bg-[#6d28d9]"
                         >
-                          <Check size={13} /> Nhận khám
+                          Mở hồ sơ → khám
                         </button>
-                        <button
-                          onClick={() => act(a.id, "decline")}
-                          disabled={busyId === a.id}
-                          className="inline-flex min-h-8 items-center gap-1 rounded-md border border-[#e4e4e7] bg-white px-3 text-xs font-medium text-[#dc2626] hover:bg-[#fef2f2] disabled:opacity-50"
-                        >
-                          <X size={13} /> Từ chối
-                        </button>
-                      </div>
-                    )}
-
-                    {/* "Khám xong" giờ TỰ ĐỘNG: bác sĩ mở hồ sơ, điền Chẩn đoán +
-                        Lời dặn rồi Lưu → hệ thống tự chuyển COMPLETED. Bỏ nút thủ công. */}
-                    {a.status === "CHECKED_IN" && (
-                      <p className="mt-2 border-t border-[#f4f4f5] pt-2 text-[11px] text-[#7c3aed]">
-                        Mở hồ sơ → điền Chẩn đoán + Lời dặn rồi Lưu để tự động Khám xong.
-                      </p>
-                    )}
-                    {a.status === "CONFIRMED" && (
-                      <p className="mt-2 border-t border-[#f4f4f5] pt-2 text-[11px] text-[#a1a1aa]">
-                        Chờ lễ tân check-in (bệnh nhân đến) mới khám được.
-                      </p>
-                    )}
-                    {/* Đã khám xong → IN PHIẾU "Tóm tắt khám bệnh" (mở tab mới). */}
-                    {a.status === "COMPLETED" && (
-                      <div className="mt-2 border-t border-[#f4f4f5] pt-2">
+                      ) : a.status === "CONFIRMED" ? (
+                        <span className="text-[11px] text-[#a1a1aa]">Chờ lễ tân check-in</span>
+                      ) : a.status === "COMPLETED" ? (
                         <a
                           href={`/print/${a.id}`}
                           target="_blank"
                           rel="noopener noreferrer"
-                          className="inline-flex min-h-8 items-center gap-1 rounded-md border border-[#bbf7d0] bg-white px-3 text-xs font-semibold text-[#15803d] hover:bg-[#f0fdf4]"
+                          className="inline-flex min-h-8 items-center gap-1 rounded-md border border-[#bbf7d0] bg-white px-2.5 text-xs font-semibold text-[#15803d] hover:bg-[#f0fdf4]"
                         >
-                          <Printer size={13} /> In phiếu
+                          <Printer size={12} /> In phiếu
                         </a>
-                      </div>
-                    )}
-                  </div>
-                ))}
-              </div>
-            </div>
-          );
-        })}
+                      ) : (
+                        <span className="text-[11px] text-[#a1a1aa]">—</span>
+                      )}
+                    </td>
+                  </tr>
+                );
+              })
+            )}
+          </tbody>
+        </table>
       </div>
     </div>
   );
@@ -242,7 +310,7 @@ export default function DoctorWorkBoard({
   return (
     <>
       {error && (
-        <div className="rounded-md bg-[#fee2e2] px-3 py-2 text-sm text-[#dc2626]">
+        <div className="mb-2 rounded-md bg-[#fee2e2] px-3 py-2 text-sm text-[#dc2626]">
           {error}
         </div>
       )}

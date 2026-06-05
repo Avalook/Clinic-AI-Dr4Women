@@ -30,9 +30,8 @@ async function DoctorTasks() {
   const supabase = await getSupabaseServer();
   const staffId = await getClinicStaffId();
   const { startUtc } = vnTodayRangeUtc();
-  // Cửa sổ 14 ngày tới: lịch CSKH đặt cho vài ngày sau VẪN hiện ở "Công việc của
-  // tôi" của bác sĩ (feedback B5#6 — trước đây 7 ngày nên lịch xa không thấy).
-  const N = 14;
+  // Cửa sổ 31 ngày tới: đủ cho bộ lọc Tuần này / Tuần sau / Tháng này ở board bác sĩ.
+  const N = 31;
   const endUtc = new Date(new Date(startUtc).getTime() + N * DAY_MS).toISOString();
 
   let q = supabase
