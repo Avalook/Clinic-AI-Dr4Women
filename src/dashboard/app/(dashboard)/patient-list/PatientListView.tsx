@@ -11,6 +11,7 @@ import { fmtDate } from "../../../lib/datetime";
 import { TBL_WRAP, TBL_HEAD, TBL_DIV } from "../form-ui";
 import ClinicalRecordForm from "../tasks/ClinicalRecordForm";
 import type { DoctorApptRow } from "../tasks/DoctorWorkBoard";
+import SplitPane from "../SplitPane";
 
 export interface ExaminedRow {
   clinic_patient_id: string;
@@ -47,9 +48,9 @@ export default function PatientListView({
   enablePopup = false,
 }: {
   rows: ExaminedRow[];
-  /** Lễ tân: bấm tên BN bật popup hồ sơ (chỉ đọc) thay vì chuyển trang. Vai trò
-   *  khác = false → giữ điều hướng /patients/[id] (CSKH/QL còn đặt lịch ở đó;
-   *  bác sĩ giữ guard own-patient). */
+  /** Lễ tân + Bác sĩ: bấm tên BN mở hồ sơ (chỉ đọc) trượt sang phải (SplitPane)
+   *  thay vì chuyển trang. CSKH/Quản lý = false → giữ điều hướng /patients/[id]
+   *  (còn nút đặt lịch ở đó). */
   enablePopup?: boolean;
 }) {
   const [term, setTerm] = useState("");
@@ -80,7 +81,8 @@ export default function PatientListView({
     { key: "return", label: `Tái khám (${nReturn})` },
   ];
 
-  return (
+  // Bảng danh sách (cột TRÁI khi mở hồ sơ). Tách ra để đặt vào SplitPane.
+  const tableEl = (
     <div className="space-y-3">
       <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
         <div className="flex flex-wrap gap-1.5">
@@ -166,28 +168,34 @@ export default function PatientListView({
           </tbody>
         </table>
       </div>
-
-      {/* Popup hồ sơ lâm sàng (CHỈ ĐỌC) — clone panel của bác sĩ. Bấm nền hoặc
-          nút Đóng/✕ để tắt. Lượt khám mở = lần khám gần nhất của BN. */}
-      {openAppt && (
-        <div
-          className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/40 p-4"
-          onClick={() => setOpenAppt(null)}
-        >
-          <div
-            className="w-full max-w-2xl"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <ClinicalRecordForm
-              key={openAppt.id}
-              appt={openAppt}
-              staffId={null}
-              readOnly
-              onClose={() => setOpenAppt(null)}
-            />
-          </div>
-        </div>
-      )}
     </div>
+  );
+
+  if (!openAppt) return tableEl;
+
+  // Mở hồ sơ: bảng TRÁI · hồ sơ lâm sàng (CHỈ ĐỌC) trượt sang PHẢI — y hệt
+  // "Công việc của tôi" của bác sĩ (cùng SplitPane), KHÔNG phải modal nhảy giữa.
+  return (
+    <>
+      <p className="mb-2 text-[11px] text-[#c084a8]">
+        ↔ Kéo thanh hồng ở GIỮA 2 bảng để chỉnh độ rộng (kéo trái: bảng co, hồ
+        sơ rộng ra).
+      </p>
+      <SplitPane
+        className="md:h-[78vh]"
+        initialLeftPct={52}
+        left={tableEl}
+        right={
+          <ClinicalRecordForm
+            key={openAppt.id}
+            appt={openAppt}
+            staffId={null}
+            fill
+            readOnly
+            onClose={() => setOpenAppt(null)}
+          />
+        }
+      />
+    </>
   );
 }
