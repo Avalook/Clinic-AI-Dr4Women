@@ -1059,4 +1059,9 @@ Luồng: CSKH "Xác nhận" với khách → **CSKH_CONFIRMED** (chờ bác sĩ)
 - Phân trang `/customers` (cap 300) — defer (DB trống, chưa chạm ngưỡng days-weeks nữa).
 - "nhập thông tin": validation ngày sinh + hiển thị năm đã xong; chờ user chỉ điểm cụ thể nếu còn.
 - Ops chờ user: gói **Supabase Pro** (Free tự ngủ sau 1 tuần) + chốt mô hình login-chung-cookie-vai-trò.
-- **3 commit phiên này (a63cbf1, 6fbfc93, a7e710f) CHƯA push** (chờ lệnh — §3).
+- **UI ✅** 2 bảng /home (Lịch hẹn khám + Lịch làm việc): bỏ `h-[480px]` + resize → fit nội
+  dung (cap max-h + cuộn), hết "ô trắng khổng lồ"; tuần rỗng → thẻ gọn (commit 3db954b).
+  (ConfirmBoard /tasks là KANBAN `h-[520px]` cuộn trong cột — kiểu hợp lý, để nguyên.)
+- **ĐÃ PUSH origin** 5 commit (a63cbf1 → 3db954b). Vercel (`avalook`) user push tay để deploy.
+- **Re-test chờ user**: đăng nhập xem board hết rỗng + bảng /home gọn + /customers ngày-hẹn,
+  rồi nêu lỗi UI còn lại (nếu có).
