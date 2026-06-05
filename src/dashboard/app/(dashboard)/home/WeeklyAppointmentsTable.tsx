@@ -115,8 +115,8 @@ export default function WeeklyAppointmentsTable({ days }: { days: ApptDay[] }) {
   const totalCols = dayCols.reduce((n, d) => n + d.docs.length * 4, 0);
 
   return (
-    <div className="max-h-[70vh] overflow-auto rounded-xl border border-[#f3cfe0] bg-white shadow-[0_1px_3px_rgba(236,72,153,0.08)]">
-        <table className="min-w-max border-collapse text-xs">
+    <div className="resize overflow-auto rounded-xl border border-[#f3cfe0] bg-white shadow-[0_1px_3px_rgba(236,72,153,0.08)] max-h-[88vh] min-h-[180px] max-w-full">
+        <table className="w-full min-w-max border-collapse text-xs">
           <thead className="sticky top-0 z-10">
             {/* Hàng 1: NGÀY trải ngang (gộp = số bác sĩ × 4 cột con; ngày trống
                 vẫn 4 cột nhờ EMPTY_DOCTOR — lưới đồng đều). */}
