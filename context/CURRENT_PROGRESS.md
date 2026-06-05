@@ -1044,8 +1044,19 @@ Luồng: CSKH "Xác nhận" với khách → **CSKH_CONFIRMED** (chờ bác sĩ)
   không tick → bắt đủ ngày/tháng/năm).
 - Build: `tsc --noEmit` + `eslint` + `next build` PASS (30 route).
 
-### CÒN LẠI (đang làm tiếp — KHÔNG đụng AI)
-- #4 `/customers`: hiện NGÀY-GIỜ HẸN + phân biệt khách theo ngày/tuần (hiện chỉ lọc theo created_at).
-- Phân trang `/customers` (cap 300 → giấu khách sau ~1-2 tuần nhập thật).
-- Lỗi hiển thị UI + logic "nhập thông tin".
-- Ops chờ user: gói Supabase Pro (Free tự ngủ) + chốt mô hình login-chung-cookie-vai-trò.
+### Batch 2-3 (commit 6fbfc93 + a7e710f) — XONG
+- **#4 ✅** `/customers`: mỗi dòng khách hiện LỊCH HẸN đại diện (sắp tới gần nhất, else
+  gần nhất) + số lịch; toggle **"Ngày tạo / Ngày hẹn"** → lọc Hôm nay/Tuần/Tháng theo
+  `slot_start` → phân biệt khách thuộc ngày/tuần nào. Ô chi tiết có dòng "Lịch hẹn sắp tới".
+- **#5 ✅ VERIFY:** BS nhận ca (confirm) → tự thêm `work_roster` cột "Lịch khám" (WIP Batch 1).
+  `/home` nav=`"all"` → bảng "Lịch làm việc" (WorkRosterTable) hiện MỌI vai trò; `work_roster`
+  có SELECT policy → BS tự-thêm hiện cho tất cả. ĐÚNG yêu cầu, không cần sửa thêm.
+- **DOB ✅** `/customers` hết "01/01": lấy `birth_year` → "1990 (chỉ năm)" (mirror PatientsList/Detail).
+
+### CÒN LẠI
+- **Lỗi hiển thị UI KHÁC: chờ user re-test.** Nhiều "rối" cũ là do RLS-board-rỗng (8 bảng) —
+  GIỜ ĐÃ VÁ (mig 042). Đề nghị user đăng nhập xem lại + nêu list lỗi CÒN cụ thể.
+- Phân trang `/customers` (cap 300) — defer (DB trống, chưa chạm ngưỡng days-weeks nữa).
+- "nhập thông tin": validation ngày sinh + hiển thị năm đã xong; chờ user chỉ điểm cụ thể nếu còn.
+- Ops chờ user: gói **Supabase Pro** (Free tự ngủ sau 1 tuần) + chốt mô hình login-chung-cookie-vai-trò.
+- **3 commit phiên này (a63cbf1, 6fbfc93, a7e710f) CHƯA push** (chờ lệnh — §3).
