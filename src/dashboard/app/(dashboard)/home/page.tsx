@@ -222,23 +222,25 @@ export default async function HomePage({
         <HomeCheckin rows={checkinRows} staffId={staffId} />
       )}
 
+      {/* MỘT thanh chọn tuần DÙNG CHUNG cho cả 2 bảng dưới (bỏ lặp 2 nút). */}
+      <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-[#f3cfe0] bg-white px-3 py-2">
+        <span className="text-xs font-medium text-[#9d2463]">
+          Tuần xem · áp dụng cho Lịch hẹn khám + Lịch làm việc
+        </span>
+        <WeekNav week={week} basePath="/home" />
+      </div>
+
       {/* Lịch hẹn khám — giờ ở hàng, cột Khung giờ·Số·Bác sĩ·Thông tin·Phân loại */}
       <section>
-        <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
-          <h2 className="text-sm font-semibold text-[#171717]">
-            Lịch hẹn khám (check đặt lịch)
-          </h2>
-          <WeekNav week={week} basePath="/home" />
-        </div>
+        <h2 className="mb-2 text-sm font-semibold text-[#171717]">
+          Lịch hẹn khám (check đặt lịch)
+        </h2>
         <WeeklyAppointmentsTable days={apptDays} />
       </section>
 
       {/* Lịch làm việc — form theo file "BẢNG LÀM VIỆC" */}
       <section>
-        <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
-          <h2 className="text-sm font-semibold text-[#171717]">Lịch làm việc</h2>
-          <WeekNav week={week} basePath="/home" />
-        </div>
+        <h2 className="mb-2 text-sm font-semibold text-[#171717]">Lịch làm việc</h2>
         <WorkRosterTable dates={dates} rows={rosterRows} />
       </section>
 

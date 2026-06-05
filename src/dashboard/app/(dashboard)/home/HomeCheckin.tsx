@@ -9,6 +9,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { UserCheck, ChevronDown, Search, FileText, Printer } from "lucide-react";
 import { fmtTime, isVnMidnight } from "../../../lib/datetime";
+import { compareQueue } from "../../../lib/queue";
 import SplitPane from "../SplitPane";
 import ClinicalRecordForm from "../tasks/ClinicalRecordForm";
 import type { DoctorApptRow } from "../tasks/DoctorWorkBoard";
@@ -37,7 +38,7 @@ export default function HomeCheckin({
     (r) => r.status === "CHECKED_IN" || r.status === "COMPLETED",
   ).length;
   const term = q.trim().toLowerCase();
-  const shown = term
+  const filtered = term
     ? rows.filter((r) => {
         const p = r.patient;
         return (
@@ -47,6 +48,8 @@ export default function HomeCheckin({
         );
       })
     : rows;
+  // Thứ tự khám: ƯT lên đầu → số → theo giờ.
+  const shown = [...filtered].sort(compareQueue);
   const sel = rows.find((r) => r.id === selId) ?? null;
 
   async function act(id: string, action: "checkin" | "undo_checkin" | "no_show") {

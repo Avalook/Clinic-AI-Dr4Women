@@ -7,6 +7,7 @@
 import { Fragment } from "react";
 import { fmtTimeOrNone } from "../../../lib/datetime";
 import { dayLabel, fmtDayMonth } from "../../../lib/roster";
+import { compareQueue } from "../../../lib/queue";
 
 export interface WeekApptRow {
   id: string;
@@ -79,9 +80,8 @@ export default function WeeklyAppointmentsTable({ days }: { days: ApptDay[] }) {
         </thead>
         <tbody>
           {days.map((day) => {
-            const items = [...day.items].sort((a, b) =>
-              a.slot_start.localeCompare(b.slot_start),
-            );
+            // Thứ tự khám: ƯT lên đầu → số → theo giờ (compareQueue).
+            const items = [...day.items].sort(compareQueue);
             return (
               <Fragment key={day.date}>
                 {/* Dòng tiêu đề NGÀY (gộp cả 5 cột). */}

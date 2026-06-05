@@ -75,13 +75,12 @@ export default function CustomersView({
   initialSelected: string | null;
 }) {
   const router = useRouter();
-  const [sel, setSel] = useState<string | null>(
-    initialSelected ?? rows[0]?.clinic_patient_id ?? null,
-  );
+  // Mặc định KHÔNG chọn ai → chỉ hiện danh sách. Bấm 1 khách mới hiện chi tiết
+  // (trừ khi vừa tạo khách mới → initialSelected để bôi hồng + xem ngay).
+  const [sel, setSel] = useState<string | null>(initialSelected ?? null);
   const [term, setTerm] = useState(q);
 
-  const selected =
-    rows.find((r) => r.clinic_patient_id === sel) ?? rows[0] ?? null;
+  const selected = rows.find((r) => r.clinic_patient_id === sel) ?? null;
   const selectedAppt = selected
     ? apptByPatient[selected.clinic_patient_id]
     : undefined;
@@ -181,13 +180,21 @@ export default function CustomersView({
         </p>
       )}
 
+      {/* Dòng đếm ĐẶT TRÊN cả 2 cột → list + chi tiết bắt đầu cùng 1 mốc (canh đều). */}
+      <div className="text-xs text-[#888888]">
+        {rows.length} khách hàng
+        {rows.length >= 300 && " (300 gần nhất — lọc hẹp hơn nếu cần)"}
+        {selected && (
+          <span className="text-[#9d2463]">
+            {" "}
+            · đang xem 1 khách (bấm khách khác để đổi)
+          </span>
+        )}
+      </div>
+
       <div className="flex flex-col gap-4 lg:flex-row lg:items-start">
         {/* DANH SÁCH (trái) */}
         <div className="min-w-0 flex-1">
-          <div className="mb-1.5 text-xs text-[#888888]">
-            {rows.length} khách hàng
-            {rows.length >= 300 && " (300 gần nhất — lọc hẹp hơn nếu cần)"}
-          </div>
           <div className="h-[560px] max-h-[80vh] overflow-y-auto rounded-xl border border-[#f3cfe0] bg-white shadow-[0_1px_3px_rgba(236,72,153,0.08)]">
             {rows.length === 0 ? (
               <p className="px-4 py-12 text-center text-sm text-[#a1a1aa]">
@@ -250,14 +257,10 @@ export default function CustomersView({
           </div>
         </div>
 
-        {/* CHI TIẾT (phải) */}
-        <aside className="w-full shrink-0 rounded-xl border border-[#f9a8d4] bg-[#fdf2f8] p-4 shadow-[0_1px_3px_rgba(0,0,0,0.06)] lg:sticky lg:top-4 lg:w-[400px]">
-          {!selected ? (
-            <p className="py-10 text-center text-sm text-[#a1a1aa]">
-              Chọn một khách hàng để xem chi tiết.
-            </p>
-          ) : (
-            <>
+        {/* CHI TIẾT (phải) — CHỈ hiện khi đã bấm chọn 1 khách; cùng chiều cao + mốc
+            trên với list cho đều. Bấm X để đóng, về lại chỉ-danh-sách. */}
+        {selected && (
+          <aside className="h-[560px] max-h-[80vh] w-full shrink-0 overflow-y-auto rounded-xl border border-[#f9a8d4] bg-[#fdf2f8] p-4 shadow-[0_1px_3px_rgba(0,0,0,0.06)] lg:w-[400px]">
               <div className="mb-3 flex items-start justify-between gap-2">
                 <div className="min-w-0">
                   <h3 className="truncate text-base font-semibold text-[#9d174d]">
@@ -269,8 +272,8 @@ export default function CustomersView({
                 </div>
                 <button
                   onClick={() => setSel(null)}
-                  aria-label="Bỏ chọn"
-                  className="rounded-md p-1 text-[#9d174d] hover:bg-white/60 lg:hidden"
+                  aria-label="Đóng chi tiết"
+                  className="rounded-md p-1 text-[#9d174d] hover:bg-white/60"
                 >
                   <X size={16} />
                 </button>
@@ -324,9 +327,8 @@ export default function CustomersView({
                   <ExternalLink size={14} /> Hồ sơ & lịch sử khám
                 </Link>
               </div>
-            </>
-          )}
-        </aside>
+          </aside>
+        )}
       </div>
     </div>
   );

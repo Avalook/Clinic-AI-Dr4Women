@@ -13,6 +13,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Check, X, FileText } from "lucide-react";
 import { fmtDayTime } from "../../../lib/datetime";
+import { compareQueue } from "../../../lib/queue";
 import StatusBadge from "../StatusBadge";
 import ClinicalRecordForm from "./ClinicalRecordForm";
 import SplitPane from "../SplitPane";
@@ -115,7 +116,9 @@ export default function DoctorWorkBoard({
     <div className="h-full max-h-[78vh] overflow-auto rounded-xl border border-[#f3cfe0] bg-white shadow-[0_1px_3px_rgba(236,72,153,0.08)]">
       <div className="flex min-h-full divide-x divide-[#f6e0ec]">
         {COLUMNS.map((col) => {
-          const items = rows.filter((r) => col.statuses.includes(r.status));
+          const items = rows
+            .filter((r) => col.statuses.includes(r.status))
+            .sort(compareQueue);
           return (
             <div key={col.key} className="flex min-w-[220px] flex-1 flex-col">
               <div className="sticky top-0 z-10 flex items-center gap-2 border-b border-[#f3cfe0] bg-[#fce7f3] px-3 py-2">
