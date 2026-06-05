@@ -9,6 +9,8 @@ import { useState, useMemo } from "react";
 import Link from "next/link";
 import { fmtDate } from "../../../lib/datetime";
 import { TBL_WRAP, TBL_HEAD, TBL_DIV } from "../form-ui";
+import ClinicalRecordForm from "../tasks/ClinicalRecordForm";
+import type { DoctorApptRow } from "../tasks/DoctorWorkBoard";
 
 export interface ExaminedRow {
   clinic_patient_id: string;
@@ -20,6 +22,8 @@ export interface ExaminedRow {
   visit_count: number;
   latest: string;
   phan_loai: "Khám lần đầu" | "Tái khám";
+  /** Lượt khám GẦN NHẤT — mở popup hồ sơ lâm sàng (chỉ đọc) khi bấm tên BN. */
+  appt: DoctorApptRow;
 }
 
 type Filter = "all" | "first" | "return";
@@ -38,9 +42,20 @@ function PhanLoai({ value }: { value: ExaminedRow["phan_loai"] }) {
   );
 }
 
-export default function PatientListView({ rows }: { rows: ExaminedRow[] }) {
+export default function PatientListView({
+  rows,
+  enablePopup = false,
+}: {
+  rows: ExaminedRow[];
+  /** Lễ tân: bấm tên BN bật popup hồ sơ (chỉ đọc) thay vì chuyển trang. Vai trò
+   *  khác = false → giữ điều hướng /patients/[id] (CSKH/QL còn đặt lịch ở đó;
+   *  bác sĩ giữ guard own-patient). */
+  enablePopup?: boolean;
+}) {
   const [term, setTerm] = useState("");
   const [filter, setFilter] = useState<Filter>("all");
+  // BN đang mở trong popup hồ sơ lâm sàng (chỉ đọc). null = đóng.
+  const [openAppt, setOpenAppt] = useState<DoctorApptRow | null>(null);
 
   const shown = useMemo(() => {
     const t = term.trim().toLowerCase();
@@ -115,12 +130,22 @@ export default function PatientListView({ rows }: { rows: ExaminedRow[] }) {
               shown.map((r) => (
                 <tr key={r.clinic_patient_id} className="hover:bg-[#fdf2f8]">
                   <td className="px-3 py-2">
-                    <Link
-                      href={`/patients/${r.clinic_patient_id}`}
-                      className="font-medium text-[#9d174d] hover:underline"
-                    >
-                      {r.full_name}
-                    </Link>
+                    {enablePopup ? (
+                      // Bật popup hồ sơ lâm sàng (chỉ đọc) — không chuyển trang.
+                      <button
+                        onClick={() => setOpenAppt(r.appt)}
+                        className="text-left font-medium text-[#9d174d] hover:underline"
+                      >
+                        {r.full_name}
+                      </button>
+                    ) : (
+                      <Link
+                        href={`/patients/${r.clinic_patient_id}`}
+                        className="font-medium text-[#9d174d] hover:underline"
+                      >
+                        {r.full_name}
+                      </Link>
+                    )}
                   </td>
                   <td className="px-3 py-2 font-mono text-xs text-[#52525b]">
                     {r.patient_code}
@@ -141,6 +166,28 @@ export default function PatientListView({ rows }: { rows: ExaminedRow[] }) {
           </tbody>
         </table>
       </div>
+
+      {/* Popup hồ sơ lâm sàng (CHỈ ĐỌC) — clone panel của bác sĩ. Bấm nền hoặc
+          nút Đóng/✕ để tắt. Lượt khám mở = lần khám gần nhất của BN. */}
+      {openAppt && (
+        <div
+          className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/40 p-4"
+          onClick={() => setOpenAppt(null)}
+        >
+          <div
+            className="w-full max-w-2xl"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <ClinicalRecordForm
+              key={openAppt.id}
+              appt={openAppt}
+              staffId={null}
+              readOnly
+              onClose={() => setOpenAppt(null)}
+            />
+          </div>
+        </div>
+      )}
     </div>
   );
 }

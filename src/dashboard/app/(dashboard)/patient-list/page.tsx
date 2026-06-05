@@ -1,35 +1,49 @@
 // "Danh sách bệnh nhân" — BN đã khám (lịch hẹn COMPLETED). Gom theo BN để suy
 // "Khám lần đầu" (1 lần) / "Tái khám" (>=2 lần). Đọc qua Supabase RLS.
+//
+// Bấm tên BN: LỄ TÂN → BẬT POPUP hồ sơ lâm sàng kiểu bác sĩ (CHỈ ĐỌC) ngay tại
+// trang (lần khám gần nhất). CSKH/Quản lý/Bác sĩ → vẫn điều hướng sang trang chi
+// tiết (CSKH/QL còn nút đặt lịch ở đó; bác sĩ giữ guard "chỉ BN của mình" ở
+// patients/[id]). Vì vậy server quyết enablePopup theo vai trò.
 
 import { getSupabaseServer } from "../../../lib/supabase-server";
-import { requireNavAccess } from "../../../lib/clinic-session";
+import { requireNavAccess, getClinicRole } from "../../../lib/clinic-session";
+import { isTasksReadOnly } from "../../../lib/roles";
 import PatientListView, { type ExaminedRow } from "./PatientListView";
+import type { DoctorApptRow } from "../tasks/DoctorWorkBoard";
 
 export const dynamic = "force-dynamic";
 
-interface PatientLite {
-  clinic_patient_id: string;
-  patient_code: string;
-  full_name: string;
-  phone_primary: string | null;
-  date_of_birth: string | null;
-  gender: string | null;
-}
+// Đủ trường để dựng hồ sơ lâm sàng (mục I Hành chính) trong popup.
+type PatientFull = NonNullable<DoctorApptRow["patient"]>;
 interface ApptJoin {
-  clinic_patient_id: string;
+  id: string;
+  status: string;
+  queue_number: string | null;
   slot_start: string;
-  patient: PatientLite | PatientLite[] | null;
+  patient: PatientFull | PatientFull[] | null;
+  service: { name: string } | { name: string }[] | null;
 }
 
 const SELECT = `
-  clinic_patient_id, slot_start,
+  id, status, queue_number, slot_start,
   patient:patient!clinic_patient_id (
-    clinic_patient_id, patient_code, full_name, phone_primary, date_of_birth, gender
-  )
+    clinic_patient_id, patient_code, full_name, date_of_birth,
+    phone_primary, phone_secondary, gender, ethnicity, nationality,
+    occupation, patient_objection, address, guardian_name
+  ),
+  service:service_type!service_type_id ( name )
 `;
+
+const one = <T,>(x: T | T[] | null): T | null =>
+  !x ? null : Array.isArray(x) ? (x[0] ?? null) : x;
 
 export default async function PatientListPage() {
   await requireNavAccess("/patient-list");
+  const role = await getClinicRole();
+  // CHỈ Lễ tân bật popup hồ sơ chỉ-đọc. CSKH/Quản lý giữ điều hướng sang trang
+  // chi tiết (còn nút đặt lịch tái khám); bác sĩ giữ guard own-patient ở đó.
+  const enablePopup = isTasksReadOnly(role);
   const supabase = await getSupabaseServer();
 
   // COMPLETED = đã khám xong. Sắp xếp mới→cũ để lần xuất hiện ĐẦU của mỗi BN
@@ -45,7 +59,7 @@ export default async function PatientListPage() {
   const raw = (data as ApptJoin[] | null) ?? [];
   const map = new Map<string, ExaminedRow>();
   for (const a of raw) {
-    const p = Array.isArray(a.patient) ? a.patient[0] : a.patient;
+    const p = one(a.patient);
     if (!p) continue;
     const cur = map.get(p.clinic_patient_id);
     if (cur) {
@@ -61,6 +75,15 @@ export default async function PatientListPage() {
         visit_count: 1,
         latest: a.slot_start, // lần xuất hiện đầu = gần nhất (đã order desc)
         phan_loai: "Khám lần đầu",
+        // Lượt khám GẦN NHẤT — mở trong popup hồ sơ lâm sàng (chỉ đọc).
+        appt: {
+          id: a.id,
+          slot_start: a.slot_start,
+          status: a.status,
+          queue_number: a.queue_number,
+          patient: p,
+          service: one(a.service),
+        },
       });
     }
   }
@@ -86,7 +109,7 @@ export default async function PatientListPage() {
           {error.message}
         </div>
       ) : (
-        <PatientListView rows={rows} />
+        <PatientListView rows={rows} enablePopup={enablePopup} />
       )}
     </div>
   );
