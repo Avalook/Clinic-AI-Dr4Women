@@ -3,6 +3,24 @@
 > File NGUỒN DUY NHẤT cho tiến độ (đã hợp nhất worklog/ + .ai/worklog/ ngày 25/5). CLAUDE.md §1 trỏ vào đây.
 
 ---
+## 2026-06-05 — Review logic đa-agent (48 agents) → fix + quyết định
+**Đã fix & push** (origin/feat/t-transform-01, tsc+eslint PASS):
+- Phân quyền page: `requireNavAccess()` guard server-side cho lab-queue/service-queue/customers/patient-list/appointments (trước chỉ ẩn menu → gõ URL lộ PII/lab).
+- Mất sinh hiệu: bác sĩ lưu hồ sơ giờ READ-MERGE `soap_objective` (không xoá vitals điều dưỡng vừa nhập).
+- Form khám: chặn lưu khi prefill chưa/lỗi (không xoá đơn thuốc + hồ sơ).
+- Phiếu in A4: lab lọc `appointment_id`; lịch chỉ-ngày không in "00:00".
+- Board bác sĩ: cửa sổ đọc lùi về đầu tuần/tháng; giữ busyId tránh double-click 409 ảo.
+- Append-only DB (mig 043): chặn DELETE/TRUNCATE clinical_record/visit/lab_result (mirror 033, ETL có escape hatch).
+- Gate ghi hồ sơ (#21): whitelist OPEN/IN_PROGRESS (chặn cả AMENDED).
+- Mig 032 thêm .down.sql. Import #15: thêm log đếm số lịch/lab/visit bị drop do REVIEW_CONFLICT.
+
+**QUYẾT ĐỊNH (Tuyền chốt):**
+- **#1 role-picker — CHẤP NHẬN RỦI RO TẠM.** Mô hình "đăng nhập chung + tự chọn vai" (kể cả Bác sĩ/Quản lý không cần mật khẩu cá nhân) là thiết kế MVP cho nội bộ tin cậy. **LÝ DO giữ:** siết bằng PIN/login cá nhân = thêm tính năng; team nhỏ tin cậy. **⚠️ NỢ AN TOÀN: PHẢI siết trước khi mở cho nhiều người dùng / đi production rộng** (bỏ role-picker ép /login, hoặc chặn vai trò đặc quyền). Kèm #11 (role đọc cookie không tái xác thực DB, tồn dư 12h) — xử cùng lúc khi siết auth.
+- **#15 import gộp trùng SĐT — GIỮ chính sách "drop + review".** **LÝ DO:** thà mất data còn hơn gộp nhầm hồ sơ 2 người cùng SĐT (nguy hiểm ở phòng khám sản). Chỉ thêm log minh bạch số bị bỏ.
+
+**CÒN NỢ (chưa làm):** #4/#13 ngày sinh chỉ-năm (sửa/in sai) — chờ xác nhận migration 040 đã apply + form sửa BN (ConfirmBoard) chưa gửi "chỉ-năm". #20 RPC `doctor_patient_list` tìm có-dấu lệch bỏ-dấu (cần migration mới). #22 race ĐD↔BS ghi vitals (đã giảm nhờ merge #3). #24 lookup service_type gần như trượt — đúng deferral Phase 2.
+
+---
 ## TRẠNG THÁI HIỆN TẠI
 - Branch: feat/t-transform-01, đã PUSH lên GitHub (github.com/nguyencongtuyenlp/Clinic-AI-Dr4Women), working tree clean.
 - Code clone về Windows (D:\ClinicAI Dr4Women\Clinic-AI-Dr4Women) CHỈ để đọc/sửa, KHÔNG dựng môi trường. Mọi việc CHẠY (migration/test/load) vẫn ở Mac Mini qua Claude Code. Windows pull trước khi sửa, Mac pull trước khi chạy.

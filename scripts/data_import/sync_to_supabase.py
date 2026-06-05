@@ -898,6 +898,34 @@ async def run(
             await _truncate_targets(conn)
             n_pat, rc_ids = await _insert_patients(conn, result, master["location_id"])
             inserted["patient"] = n_pat
+            # #15 — minh bạch khối lượng DROP do REVIEW_CONFLICT (cùng SĐT khác tên).
+            # Chính sách an toàn: KHÔNG load để tránh gộp nhầm hồ sơ 2 người; nhưng
+            # operator PHẢI thấy bao nhiêu con bị bỏ theo BN gốc (trước đây im lặng).
+            if rc_ids:
+                drop_appt = sum(
+                    1 for r in result.appointments if r["clinic_patient_id"] in rc_ids
+                )
+                drop_clin = sum(
+                    1
+                    for r in result.clinical_records
+                    if r["clinic_patient_id"] in rc_ids
+                )
+                drop_lab = sum(
+                    1 for r in result.lab_results if r["clinic_patient_id"] in rc_ids
+                )
+                drop_rx = sum(
+                    1 for r in result.prescriptions if r["clinic_patient_id"] in rc_ids
+                )
+                logger.warning(
+                    "REVIEW_CONFLICT: %d BN giữ lại review (cùng SĐT khác tên) → "
+                    "KHÔNG load %d lịch hẹn, %d visit/hồ sơ khám, %d KQ xét nghiệm, "
+                    "%d đơn thuốc. Rà tay rồi nạp bổ sung nếu cần.",
+                    len(rc_ids),
+                    drop_appt,
+                    drop_clin,
+                    drop_lab,
+                    drop_rx,
+                )
             # skipped count is surfaced via the appointment_load_summary log
             # line inside _insert_appointments; not needed here.
             n_appt, _ = await _insert_appointments(
