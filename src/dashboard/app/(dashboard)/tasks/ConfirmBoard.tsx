@@ -8,9 +8,11 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Check, Pencil, X, Ban, CalendarClock } from "lucide-react";
-import { fmtTimeOrNone, vnLocalToUtcISO } from "../../../lib/datetime";
+import { fmtTimeOrNone, vnLocalToUtcISO, nowMs } from "../../../lib/datetime";
+import { todayVn, clinicHoursForDate, clinicHoursError } from "../../../lib/roster";
 import { digitsOnly, phoneError } from "../../../lib/validation";
 import { INPUT, LABEL, TBL_RESIZE_HINT } from "../form-ui";
+import Time24Input from "../Time24Input";
 import StatusBadge from "../StatusBadge";
 
 export interface Opt {
@@ -114,6 +116,10 @@ export default function ConfirmBoard({
     locations.find((l) => l.id === id)?.label ?? "—";
   // Còn "sống" → hủy / đổi lịch được (gồm CSKH đã xác nhận, chờ bác sĩ).
   const LIVE = ["SCHEDULED", "CSKH_CONFIRMED", "CONFIRMED", "CHECKED_IN"];
+  // Giới hạn giờ đổi lịch theo giờ mở cửa của ngày mới.
+  const rCh = reschedDate ? clinicHoursForDate(reschedDate) : null;
+  const rMinHour = rCh ? Number(rCh.open.slice(0, 2)) : 0;
+  const rMaxHour = rCh ? Number(rCh.close.slice(0, 2)) - 1 : 23;
 
   function select(a: ApptRow) {
     setSelId(a.id);
@@ -189,6 +195,15 @@ export default function ConfirmBoard({
       return;
     }
     const start = new Date(vnLocalToUtcISO(reschedDate, reschedTime));
+    if (start.getTime() < nowMs()) {
+      setError("Không thể đổi sang ngày/giờ trong quá khứ.");
+      return;
+    }
+    const chErr = clinicHoursError(reschedDate, reschedTime);
+    if (chErr) {
+      setError(chErr);
+      return;
+    }
     const end = new Date(start.getTime() + 30 * 60_000);
     const payload: Record<string, unknown> = {
       action: "reschedule",
@@ -421,6 +436,7 @@ export default function ConfirmBoard({
                       <label className={LABEL}>Ngày mới</label>
                       <input
                         type="date"
+                        min={todayVn()}
                         className={INPUT}
                         value={reschedDate}
                         onChange={(e) => setReschedDate(e.target.value)}
@@ -428,12 +444,11 @@ export default function ConfirmBoard({
                     </div>
                     <div>
                       <label className={LABEL}>Giờ mới</label>
-                      <input
-                        type="time"
-                        step={60}
-                        className={INPUT}
+                      <Time24Input
                         value={reschedTime}
-                        onChange={(e) => setReschedTime(e.target.value)}
+                        onChange={setReschedTime}
+                        minHour={rMinHour}
+                        maxHour={rMaxHour}
                       />
                     </div>
                   </div>

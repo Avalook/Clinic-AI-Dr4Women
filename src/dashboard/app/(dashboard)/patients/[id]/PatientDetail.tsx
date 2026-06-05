@@ -134,10 +134,6 @@ export default async function PatientDetail({ id }: { id: string }) {
 
   return (
     <div className="space-y-6">
-      <Link href="/patients" className="text-sm text-[#ec4899] hover:underline">
-        ← Về danh sách BN
-      </Link>
-
       <section className="overflow-hidden rounded-xl border border-[#e4e4e7] bg-white shadow-[0_1px_3px_rgba(0,0,0,0.06)]">
         <div className="flex items-center gap-4 border-b border-[#f4f4f5] bg-gradient-to-r from-[#fdf2f8] to-white p-4 sm:p-6">
           <span className="flex h-14 w-14 shrink-0 items-center justify-center rounded-full bg-[#ec4899] text-xl font-semibold text-white">

@@ -7,7 +7,7 @@
 // Write path = POST /api/appointments (service-role + intake-role guard).
 
 import { useState, type ReactNode } from "react";
-import { vnLocalToUtcISO } from "../../../lib/datetime";
+import { vnLocalToUtcISO, nowMs } from "../../../lib/datetime";
 import { todayVn, clinicHoursForDate, clinicHoursError } from "../../../lib/roster";
 import { INPUT, LABEL, BTN, DURATIONS, CHANNELS } from "../form-ui";
 import Time24Input from "../Time24Input";
@@ -62,7 +62,7 @@ export default function AppointmentBooking({
     // Interpret the picked date+time as Vietnam time (GMT+7), not the browser's.
     const start = new Date(vnLocalToUtcISO(apptDate, apptTime));
     // Logic thời gian thực: KHÔNG cho đặt lịch vào quá khứ.
-    if (start.getTime() < Date.now()) {
+    if (start.getTime() < nowMs()) {
       setError("Không thể đặt lịch trong quá khứ. Chọn ngày/giờ từ hiện tại trở đi.");
       return;
     }
@@ -141,9 +141,7 @@ export default function AppointmentBooking({
           />
         </div>
         <div className="space-y-1">
-          <label className={LABEL}>
-            Giờ * <span className="font-normal text-[#a1a1aa]">(24h)</span>
-          </label>
+          <label className={LABEL}>Giờ *</label>
           <Time24Input
             value={apptTime}
             onChange={setApptTime}

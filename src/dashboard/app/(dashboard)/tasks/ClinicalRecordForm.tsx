@@ -108,6 +108,17 @@ const cleanTestName = (s: string): string => {
   return out || (s ?? "");
 };
 
+// Huyết áp dạng "tâm thu/tâm trương" (vd 120/80). null = hợp lệ; chuỗi = cảnh báo.
+function bloodPressureWarn(v: string): string | null {
+  const m = /^\s*(\d{2,3})\s*\/\s*(\d{2,3})\s*$/.exec(v);
+  if (!m) return "Định dạng: tâm thu/tâm trương, vd 120/80";
+  const s = Number(m[1]);
+  const d = Number(m[2]);
+  if (s < 60 || s > 260 || d < 30 || d > 160 || d >= s)
+    return "Huyết áp bất thường (tâm thu 60–260 > tâm trương 30–160)";
+  return null;
+}
+
 function readDraft(d: Data["draft"]): Fields {
   const o = objOf(d.objective);
   const v = objOf(o.vitals);
@@ -501,10 +512,17 @@ export default function ClinicalRecordForm({
               ["bmi", "BMI", "number", "0.1", 5, 80],
             ] as [keyof Fields, string, string, string | undefined, number, number][]).map(
               ([k, lbl, ty, st, lo, hi]) => {
-                const n =
-                  ty === "number" && f[k].trim() !== "" ? Number(f[k]) : null;
-                const oor =
-                  n != null && Number.isFinite(n) && (n < lo || n > hi);
+                // Cảnh báo: ô số → ngoài ngưỡng; Huyết áp → sai định dạng/bất thường.
+                let warn: string | null = null;
+                const v = f[k].trim();
+                if (v !== "") {
+                  if (k === "huyet_ap") warn = bloodPressureWarn(v);
+                  else if (ty === "number") {
+                    const n = Number(v);
+                    if (!Number.isFinite(n)) warn = "Phải là số";
+                    else if (n < lo || n > hi) warn = `Nên trong ${lo}–${hi}`;
+                  }
+                }
                 return (
                   <div key={k}>
                     <label className={LABEL}>{lbl}</label>
@@ -514,15 +532,14 @@ export default function ClinicalRecordForm({
                       inputMode={ty === "number" ? "decimal" : undefined}
                       min={ty === "number" ? lo : undefined}
                       max={ty === "number" ? hi : undefined}
-                      className={INPUT + (oor ? " border-[#dc2626]" : "")}
+                      placeholder={k === "huyet_ap" ? "vd 120/80" : undefined}
+                      className={INPUT + (warn ? " border-[#dc2626]" : "")}
                       value={f[k]}
                       disabled={ro}
                       onChange={(e) => set(k, e.target.value)}
                     />
-                    {oor && (
-                      <p className="mt-0.5 text-[11px] text-[#dc2626]">
-                        Nên trong {lo}–{hi}
-                      </p>
+                    {warn && (
+                      <p className="mt-0.5 text-[11px] text-[#dc2626]">{warn}</p>
                     )}
                   </div>
                 );

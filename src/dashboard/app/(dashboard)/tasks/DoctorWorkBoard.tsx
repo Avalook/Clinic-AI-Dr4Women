@@ -11,7 +11,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { Check, X, FileText } from "lucide-react";
+import { Check, X, FileText, Printer } from "lucide-react";
 import { fmtDayTime } from "../../../lib/datetime";
 import { compareQueue } from "../../../lib/queue";
 import StatusBadge from "../StatusBadge";
@@ -215,6 +215,19 @@ export default function DoctorWorkBoard({
                       <p className="mt-2 border-t border-[#f4f4f5] pt-2 text-[11px] text-[#a1a1aa]">
                         Chờ lễ tân check-in (bệnh nhân đến) mới khám được.
                       </p>
+                    )}
+                    {/* Đã khám xong → IN PHIẾU "Tóm tắt khám bệnh" (mở tab mới). */}
+                    {a.status === "COMPLETED" && (
+                      <div className="mt-2 border-t border-[#f4f4f5] pt-2">
+                        <a
+                          href={`/print/${a.id}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="inline-flex min-h-8 items-center gap-1 rounded-md border border-[#bbf7d0] bg-white px-3 text-xs font-semibold text-[#15803d] hover:bg-[#f0fdf4]"
+                        >
+                          <Printer size={13} /> In phiếu
+                        </a>
+                      </div>
                     )}
                   </div>
                 ))}

@@ -30,18 +30,20 @@ export default function Time24Input({
   });
   const emit = (nh: string, nm: string) =>
     onChange(!nh && !nm ? "" : `${nh || String(minHour).padStart(2, "0")}:${nm || "00"}`);
-  // Icon đồng hồ → mở bộ chọn giờ native (giá trị vẫn là HH:MM 24h).
-  const nativeRef = useRef<HTMLInputElement>(null);
-  const openNative = () => {
+  // Icon đồng hồ → MỞ DROPDOWN GIỜ 24h (showPicker trên <select>). KHÔNG dùng
+  // input type=time native vì native hiện AM/PM theo locale máy (không ép 24h được).
+  const hourRef = useRef<HTMLSelectElement>(null);
+  const openPicker = () => {
     try {
-      nativeRef.current?.showPicker?.();
+      hourRef.current?.showPicker?.();
     } catch {
-      /* trình duyệt cũ không hỗ trợ showPicker — bỏ qua */
+      /* trình duyệt cũ không hỗ trợ showPicker — bỏ qua, vẫn bấm dropdown được */
     }
   };
   return (
-    <div className="relative flex items-center gap-2">
+    <div className="flex items-center gap-2">
       <select
+        ref={hourRef}
         value={h ?? ""}
         onChange={(e) => emit(e.target.value, m ?? "")}
         className={INPUT}
@@ -68,24 +70,15 @@ export default function Time24Input({
           </option>
         ))}
       </select>
-      {/* Icon đồng hồ → bộ chọn giờ native (vẫn lưu HH:MM 24h). */}
+      {/* Icon đồng hồ → mở dropdown giờ 24h (không AM/PM). */}
       <button
         type="button"
-        onClick={openNative}
-        aria-label="Chọn giờ từ đồng hồ"
+        onClick={openPicker}
+        aria-label="Mở bảng chọn giờ"
         className="shrink-0 rounded-lg border border-[#e4e4e7] bg-white p-2 text-[#71717a] hover:bg-[#f4f4f5]"
       >
         <Clock size={16} />
       </button>
-      <input
-        ref={nativeRef}
-        type="time"
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
-        tabIndex={-1}
-        aria-hidden
-        className="pointer-events-none absolute h-0 w-0 opacity-0"
-      />
     </div>
   );
 }

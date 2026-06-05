@@ -12,7 +12,7 @@ export interface HasQueue {
 
 /** Khóa sắp xếp: [nhóm, số trong nhóm, giờ]. Nhóm 0 = ưu tiên, 1 = số, 2 = trống. */
 export function queueRank(
-  queueNumber: string | null,
+  queueNumber: string | null | undefined,
   slotStart: string,
 ): [number, number, string] {
   const s = (queueNumber ?? "").trim();

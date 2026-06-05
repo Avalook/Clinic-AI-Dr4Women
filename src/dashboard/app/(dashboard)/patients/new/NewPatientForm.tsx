@@ -10,7 +10,7 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { UserRound, CalendarClock, CalendarDays } from "lucide-react";
 import type { Option } from "../AppointmentBooking";
-import { vnLocalToUtcISO } from "../../../../lib/datetime";
+import { vnLocalToUtcISO, nowMs } from "../../../../lib/datetime";
 import {
   todayVn,
   clinicHoursForDate,
@@ -238,7 +238,7 @@ export default function NewPatientForm({
     // Lịch khám (không phải vãng lai): KHÔNG cho đặt vào quá khứ — thời gian thực.
     if (!walkin && wantsAppointment) {
       const startTs = new Date(vnLocalToUtcISO(apptDate, apptTime)).getTime();
-      if (startTs < Date.now()) {
+      if (startTs < nowMs()) {
         setError("Không thể đặt lịch khám trong quá khứ. Chọn ngày/giờ từ hiện tại trở đi.");
         return;
       }
@@ -589,9 +589,7 @@ export default function NewPatientForm({
             />
           </div>
           <div>
-            <label className={LABEL}>
-              Giờ <span className="font-normal text-[#a1a1aa]">(24h)</span>
-            </label>
+            <label className={LABEL}>Giờ</label>
             <Time24Input
               value={apptTime}
               onChange={setApptTime}

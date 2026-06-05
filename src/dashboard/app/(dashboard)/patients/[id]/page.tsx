@@ -81,16 +81,16 @@ export default async function PatientDetailPage({
   return (
     <div className="space-y-6">
       <header>
-        <h1 className="text-xl font-semibold text-[#171717]">Hồ sơ khách hàng</h1>
+        <h1 className="text-xl font-semibold text-[#171717]">Hồ sơ bệnh nhân</h1>
         <p className="text-sm text-[#888888]">
-          Thông tin hành chính khách hàng + lịch hẹn. CCCD KHÔNG hiển thị (bảo mật
+          Thông tin hành chính bệnh nhân + lịch hẹn. CCCD KHÔNG hiển thị (bảo mật
           D-identity). · Hồ sơ khám bệnh (tóm tắt khám) do bác sĩ xem ở mục “Công
           việc của tôi”.
         </p>
       </header>
       {isNew && (
         <div className="rounded-lg border border-[#bbf7d0] bg-[#f0fdf4] px-4 py-3 text-sm text-[#15803d]">
-          ✓ Đã tạo hồ sơ khách hàng
+          ✓ Đã tạo hồ sơ bệnh nhân
           {code ? (
             <>
               {" "}

@@ -7,6 +7,7 @@
 //    the full nav list, role switch, and logout.
 
 import { useEffect, useState } from "react";
+import Image from "next/image";
 import { usePathname } from "next/navigation";
 import { X } from "lucide-react";
 import Nav from "./Nav";
@@ -44,7 +45,13 @@ export default function Shell({
     <>
       <div className="mb-6 flex items-center justify-between px-3">
         <h1 className="flex items-center gap-2 text-base font-medium text-white">
-          <span className="h-2 w-2 rounded-full bg-[#ec4899]" />
+          <Image
+            src="/logo.png"
+            alt="Dr4Women"
+            width={24}
+            height={24}
+            className="rounded-full object-contain"
+          />
           Dr4Women
         </h1>
         <button
@@ -78,7 +85,13 @@ export default function Shell({
       {/* Mobile top bar (brand only). Hidden on ≥md. */}
       <header className="fixed inset-x-0 top-0 z-20 flex h-12 items-center justify-center border-b border-[#1f1f1f] bg-[#0a0a0a] px-3 md:hidden">
         <span className="flex items-center gap-2 text-sm font-medium text-white">
-          <span className="h-2 w-2 rounded-full bg-[#ec4899]" />
+          <Image
+            src="/logo.png"
+            alt="Dr4Women"
+            width={24}
+            height={24}
+            className="rounded-full object-contain"
+          />
           Dr4Women
         </span>
       </header>

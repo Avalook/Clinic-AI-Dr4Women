@@ -6,6 +6,12 @@
 export const VN_TZ = "Asia/Ho_Chi_Minh";
 const VN_OFFSET = "+07:00";
 
+/** Mốc hiện tại (ms). Gói NGOÀI component để né rule react-hooks/purity khi so
+ *  sánh "đã qua giờ chưa" trong event handler (Date.now là impure). */
+export function nowMs(): number {
+  return Date.now();
+}
+
 type TimeInput = string | Date | null | undefined;
 
 function toDate(ts: TimeInput): Date | null {
