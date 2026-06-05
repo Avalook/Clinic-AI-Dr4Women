@@ -19,6 +19,7 @@ export interface CustomerRow {
   patient_code: string;
   full_name: string;
   date_of_birth: string | null;
+  birth_year: number | null;
   phone_primary: string | null;
   phone_secondary: string | null;
   gender: string | null;
@@ -299,12 +300,7 @@ export default function CustomersView({
               </div>
 
               <dl className="space-y-1.5 text-sm">
-                <Row
-                  label="Ngày sinh"
-                  value={
-                    selected.date_of_birth ? fmtDate(selected.date_of_birth) : null
-                  }
-                />
+                <Row label="Ngày sinh" value={dobDisplay(selected)} />
                 <Row label="Giới tính" value={selected.gender} />
                 <Row label="SĐT chính" value={selected.phone_primary} />
                 <Row label="SĐT người nhà" value={selected.phone_secondary} />
@@ -343,4 +339,11 @@ function Row({ label, value }: { label: string; value?: string | null }) {
       <dd className="min-w-0 break-words text-[#171717]">{value || "—"}</dd>
     </div>
   );
+}
+
+/** Ngày sinh hiển thị: chỉ-năm (birth_year) → "1990 (chỉ năm)"; else ngày sinh thật
+ *  (tránh hiện "01/01" gây hiểu nhầm cho khách chỉ nhớ năm). */
+function dobDisplay(r: CustomerRow): string | null {
+  if (r.birth_year) return `${r.birth_year} (chỉ năm)`;
+  return r.date_of_birth ? fmtDate(r.date_of_birth) : null;
 }
