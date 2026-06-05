@@ -1,6 +1,6 @@
-// Điều hướng TUẦN (← tuần trước · tuần này · tuần sau →) — dùng cho 2 bảng trang
-// chủ (Lịch hẹn khám + Lịch làm việc) để xem cả quá khứ lẫn tương lai. Chỉ là các
-// Link đổi ?week=… nên là Server Component (không cần "use client").
+// Điều hướng TUẦN (← tuần trước · tuần này · tuần sau →) cho 1 bảng. Mỗi bảng
+// dùng THAM SỐ RIÊNG (`param`, vd weekAppt / weekRoster) nên bấm nút bảng nào CHỈ
+// đổi tuần bảng đó; `others` giữ nguyên tham số của bảng kia. Chỉ là Link → Server.
 
 import Link from "next/link";
 import {
@@ -16,14 +16,24 @@ const BTN =
 export default function WeekNav({
   week,
   basePath,
+  param,
+  others = {},
 }: {
   week: string;
   basePath: string;
+  /** Tên tham số tuần của RIÊNG bảng này (vd "weekAppt" / "weekRoster"). */
+  param: string;
+  /** Tham số tuần của bảng KIA — giữ nguyên khi đổi tuần bảng này. */
+  others?: Record<string, string>;
 }) {
   const dates = weekDates(week);
   const label = `${fmtDayMonth(dates[0])} – ${fmtDayMonth(dates[6])}`;
   const cur = currentWeekStartVn();
-  const href = (w: string) => `${basePath}?week=${w}`;
+  const href = (w: string) => {
+    const sp = new URLSearchParams(others);
+    sp.set(param, w);
+    return `${basePath}?${sp.toString()}`;
+  };
   return (
     <div className="flex flex-wrap items-center gap-2">
       <Link href={href(shiftWeek(week, -1))} className={BTN}>
