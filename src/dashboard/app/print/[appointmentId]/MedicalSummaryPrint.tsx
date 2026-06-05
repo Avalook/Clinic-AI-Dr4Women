@@ -104,7 +104,7 @@ export default function MedicalSummaryPrint({ initial }: { initial: FormData }) 
           .screen-bg { background: #fff !important; padding: 0 !important; min-height: auto !important; }
           .sheet { box-shadow: none !important; width: auto !important; min-height: auto !important; padding: 0 !important; margin: 0 !important; }
           .no-print { display: none !important; }
-          input, textarea { border-bottom: none !important; }
+          input, textarea { border-bottom: none !important; resize: none !important; }
         }
       `}</style>
 
@@ -464,7 +464,7 @@ function Area({
         ...fieldStyle,
         width: "100%",
         borderBottom: "none",
-        resize: "vertical",
+        resize: "none", // bỏ tay nắm kéo giãn — nó bị in ra làm hỏng phiếu
         lineHeight: 1.45,
         whiteSpace: "pre-wrap",
       }}
