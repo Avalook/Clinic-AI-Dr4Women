@@ -356,8 +356,12 @@ export async function PATCH(request: Request) {
       fromStatuses = ["CHECKED_IN"];
     }
   } else if (action === "checkin") {
+    // Lễ tân CHỈ check-in khi BÁC SĨ ĐÃ NHẬN CA (CONFIRMED). Trước đây cho check-in
+    // từ SCHEDULED/CSKH_CONFIRMED → vô tình BỎ QUA bước bác sĩ xác nhận (mặc định
+    // bắt bác sĩ khám) + bác sĩ không lên Lịch làm việc. Giờ BN đến rồi vẫn phải
+    // chờ bác sĩ nhận ca mới khám.
     newStatus = "CHECKED_IN";
-    fromStatuses = ["SCHEDULED", "CSKH_CONFIRMED", "CONFIRMED"];
+    fromStatuses = ["CONFIRMED"];
   } else if (action === "cskh_confirm") {
     // CSKH gọi xác nhận lịch với khách → SCHEDULED → CSKH_CONFIRMED. Lịch VẪN
     // chờ bác sĩ nhận ca (xác nhận 2 bước), nên vẫn nằm ở "Chờ xác nhận" của bác sĩ.

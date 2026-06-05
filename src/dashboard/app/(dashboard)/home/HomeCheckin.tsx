@@ -98,6 +98,9 @@ export default function HomeCheckin({
           {shown.map((r) => {
             const checkedIn = r.status === "CHECKED_IN";
             const completed = r.status === "COMPLETED";
+            // CHỈ check-in được khi BÁC SĨ ĐÃ nhận ca (CONFIRMED). Lịch còn chờ bác
+            // sĩ (SCHEDULED/CSKH_CONFIRMED) → "Chờ bác sĩ xác nhận", không check-in.
+            const confirmed = r.status === "CONFIRMED";
             const active = selId === r.id;
             return (
               <li
@@ -166,7 +169,7 @@ export default function HomeCheckin({
                     </span>
                     Hoàn tác
                   </button>
-                ) : (
+                ) : confirmed ? (
                   <div className="flex shrink-0 flex-col items-end gap-1">
                     <button
                       onClick={() => act(r.id, "checkin")}
@@ -175,6 +178,20 @@ export default function HomeCheckin({
                     >
                       {busyId === r.id ? "..." : "Check-in"}
                     </button>
+                    <button
+                      onClick={() => act(r.id, "no_show")}
+                      disabled={busyId === r.id}
+                      className="text-[11px] text-[#a1a1aa] hover:text-[#dc2626] disabled:opacity-50"
+                    >
+                      Không đến
+                    </button>
+                  </div>
+                ) : (
+                  // Bác sĩ CHƯA nhận ca → CHƯA check-in được; chỉ đánh "Không đến".
+                  <div className="flex shrink-0 flex-col items-end gap-1">
+                    <span className="rounded-full bg-[#fef9c3] px-2.5 py-0.5 text-center text-[10px] font-medium text-[#a16207]">
+                      Chờ bác sĩ xác nhận
+                    </span>
                     <button
                       onClick={() => act(r.id, "no_show")}
                       disabled={busyId === r.id}
