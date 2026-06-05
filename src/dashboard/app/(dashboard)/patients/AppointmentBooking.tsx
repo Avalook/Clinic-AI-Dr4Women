@@ -8,7 +8,8 @@
 
 import { useState, type ReactNode } from "react";
 import { vnLocalToUtcISO } from "../../../lib/datetime";
-import { INPUT, LABEL, BTN, DURATIONS } from "../form-ui";
+import { todayVn } from "../../../lib/roster";
+import { INPUT, LABEL, BTN, DURATIONS, CHANNELS } from "../form-ui";
 
 export interface Option {
   id: string;
@@ -53,9 +54,14 @@ export default function AppointmentBooking({
 
   async function book() {
     setError(null);
-    setSubmitting(true);
     // Interpret the picked date+time as Vietnam time (GMT+7), not the browser's.
     const start = new Date(vnLocalToUtcISO(apptDate, apptTime));
+    // Logic thời gian thực: KHÔNG cho đặt lịch vào quá khứ.
+    if (start.getTime() < Date.now()) {
+      setError("Không thể đặt lịch trong quá khứ. Chọn ngày/giờ từ hiện tại trở đi.");
+      return;
+    }
+    setSubmitting(true);
     const end = new Date(start.getTime() + duration * 60_000);
     const res = await fetch("/api/appointments", {
       method: "POST",
@@ -117,6 +123,7 @@ export default function AppointmentBooking({
           <label className={LABEL}>Ngày *</label>
           <input
             type="date"
+            min={todayVn()}
             value={apptDate}
             onChange={(e) => setApptDate(e.target.value)}
             className={INPUT}
@@ -171,12 +178,18 @@ export default function AppointmentBooking({
         </div>
         <div className="space-y-1">
           <label className={LABEL}>Kênh đặt</label>
-          <input
+          <select
             value={channel}
             onChange={(e) => setChannel(e.target.value)}
             className={INPUT}
-            placeholder="VD: Zalo, Hotline, Facebook… (tuỳ chọn)"
-          />
+          >
+            <option value="">— Chọn kênh —</option>
+            {CHANNELS.map((c) => (
+              <option key={c.id} value={c.id}>
+                {c.label}
+              </option>
+            ))}
+          </select>
         </div>
       </div>
 

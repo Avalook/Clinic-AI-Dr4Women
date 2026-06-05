@@ -3,13 +3,15 @@
 // "Công việc của tôi" cho BÁC SĨ — KANBAN theo TRẠNG THÁI (feedback C2):
 //   Chờ xác nhận · Đã xác nhận/Đã đến · Đã khám xong · Từ chối/Hủy.
 // Mỗi thẻ = 1 lịch của bác sĩ. Bấm tên BN → hồ sơ lâm sàng (ClinicalRecordForm)
-// ở cột PHẢI (SplitPane). Nút trên thẻ: Nhận khám / Từ chối (lịch mới),
-// Khám xong (đã xác nhận / đã đến) — GIỮ 3 nút, chỉ đổi chữ cho rõ (feedback C1).
+// ở cột PHẢI (SplitPane). Nút trên thẻ: Nhận khám / Từ chối (lịch mới). KHÔNG còn
+// nút "Khám xong" thủ công — bác sĩ điền hồ sơ (Chẩn đoán + Lời dặn) rồi Lưu thì
+// lịch TỰ chuyển COMPLETED (xem ClinicalRecordForm.willComplete). Yêu cầu: chỉ khi
+// lễ tân đã check-in (BN đã đến) bác sĩ mới điền được hồ sơ.
 // Badge Khám lần đầu / Tái khám (feedback C3).
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { Check, CheckCheck, X, FileText } from "lucide-react";
+import { Check, X, FileText } from "lucide-react";
 import { fmtDayTime } from "../../../lib/datetime";
 import StatusBadge from "../StatusBadge";
 import ClinicalRecordForm from "./ClinicalRecordForm";
@@ -93,7 +95,7 @@ export default function DoctorWorkBoard({
 
   const open = rows.find((a) => a.id === openId) ?? null;
 
-  async function act(id: string, action: "confirm" | "decline" | "complete") {
+  async function act(id: string, action: "confirm" | "decline") {
     setBusyId(id);
     setError(null);
     const res = await fetch("/api/appointments", {
@@ -199,22 +201,16 @@ export default function DoctorWorkBoard({
                       </div>
                     )}
 
-                    {/* Khám xong CHỈ khi lễ tân ĐÃ check-in (BN đã đến). Lịch mới
-                        CONFIRMED (bác sĩ nhận ca, BN chưa tới) → chưa cho khám xong. */}
+                    {/* "Khám xong" giờ TỰ ĐỘNG: bác sĩ mở hồ sơ, điền Chẩn đoán +
+                        Lời dặn rồi Lưu → hệ thống tự chuyển COMPLETED. Bỏ nút thủ công. */}
                     {a.status === "CHECKED_IN" && (
-                      <div className="mt-2 flex gap-2 border-t border-[#f4f4f5] pt-2">
-                        <button
-                          onClick={() => act(a.id, "complete")}
-                          disabled={busyId === a.id}
-                          className="inline-flex min-h-8 items-center gap-1 rounded-md bg-[#7c3aed] px-3 text-xs font-semibold text-white hover:bg-[#6d28d9] disabled:opacity-50"
-                        >
-                          <CheckCheck size={13} /> Khám xong
-                        </button>
-                      </div>
+                      <p className="mt-2 border-t border-[#f4f4f5] pt-2 text-[11px] text-[#7c3aed]">
+                        Mở hồ sơ → điền Chẩn đoán + Lời dặn rồi Lưu để tự động Khám xong.
+                      </p>
                     )}
                     {a.status === "CONFIRMED" && (
                       <p className="mt-2 border-t border-[#f4f4f5] pt-2 text-[11px] text-[#a1a1aa]">
-                        Chờ lễ tân check-in (bệnh nhân đến) mới “Khám xong” được.
+                        Chờ lễ tân check-in (bệnh nhân đến) mới khám được.
                       </p>
                     )}
                   </div>

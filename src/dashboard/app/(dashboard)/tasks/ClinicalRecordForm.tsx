@@ -488,17 +488,33 @@ export default function ClinicalRecordForm({
 
         <Section no="" title="Sinh hiệu" editorLabel="lễ tân/điều dưỡng điền">
           <div className="grid grid-cols-2 gap-2">
+            {/* Ô SỐ bắt buộc số (type=number); riêng Huyết áp là CHỮ vì dạng "120/80". */}
             {([
-              ["mach", "Mạch (l/p)"], ["nhiet_do", "Nhiệt độ (°C)"],
-              ["huyet_ap", "Huyết áp"], ["nhip_tho", "Nhịp thở (l/p)"],
-              ["spo2", "SpO2 (%)"], ["can_nang", "Cân nặng (kg)"],
-              ["chieu_cao", "Chiều cao (cm)"], ["bmi", "BMI"],
-            ] as [keyof Fields, string][]).map(([k, lbl]) => (
-              <div key={k}>
-                <label className={LABEL}>{lbl}</label>
-                <input className={INPUT} value={f[k]} disabled={ro} onChange={(e) => set(k, e.target.value)} />
-              </div>
-            ))}
+              ["mach", "Mạch (l/p)", "number", "1"],
+              ["nhiet_do", "Nhiệt độ (°C)", "number", "0.1"],
+              ["huyet_ap", "Huyết áp", "text", undefined],
+              ["nhip_tho", "Nhịp thở (l/p)", "number", "1"],
+              ["spo2", "SpO2 (%)", "number", "1"],
+              ["can_nang", "Cân nặng (kg)", "number", "0.1"],
+              ["chieu_cao", "Chiều cao (cm)", "number", "0.1"],
+              ["bmi", "BMI", "number", "0.1"],
+            ] as [keyof Fields, string, string, string | undefined][]).map(
+              ([k, lbl, ty, st]) => (
+                <div key={k}>
+                  <label className={LABEL}>{lbl}</label>
+                  <input
+                    type={ty}
+                    step={ty === "number" ? st : undefined}
+                    inputMode={ty === "number" ? "decimal" : undefined}
+                    min={ty === "number" ? "0" : undefined}
+                    className={INPUT}
+                    value={f[k]}
+                    disabled={ro}
+                    onChange={(e) => set(k, e.target.value)}
+                  />
+                </div>
+              ),
+            )}
           </div>
         </Section>
 
@@ -559,15 +575,28 @@ export default function ClinicalRecordForm({
             </dl>
           )}
           <div className="mt-2 grid grid-cols-2 gap-2">
+            {/* Dự kiến sinh = ngày; Tuổi thai/Cao TC/Tim thai = SỐ (bắt buộc số). */}
             {([
               ["tuoi_thai", "Tuổi thai (tuần)"], ["du_kien_sinh", "Dự kiến sinh"],
               ["chieu_cao_tc", "Cao TC/VB (cm)"], ["nhip_tim_thai", "Tim thai (l/p)"],
-            ] as [keyof Fields, string][]).map(([k, lbl]) => (
-              <div key={k}>
-                <label className={LABEL}>{lbl}</label>
-                <input type={k === "du_kien_sinh" ? "date" : "text"} className={INPUT} value={f[k]} disabled={roRest} onChange={(e) => set(k, e.target.value)} />
-              </div>
-            ))}
+            ] as [keyof Fields, string][]).map(([k, lbl]) => {
+              const ty = k === "du_kien_sinh" ? "date" : "number";
+              return (
+                <div key={k}>
+                  <label className={LABEL}>{lbl}</label>
+                  <input
+                    type={ty}
+                    step={ty === "number" ? (k === "chieu_cao_tc" ? "0.1" : "1") : undefined}
+                    inputMode={ty === "number" ? "decimal" : undefined}
+                    min={ty === "number" ? "0" : undefined}
+                    className={INPUT}
+                    value={f[k]}
+                    disabled={roRest}
+                    onChange={(e) => set(k, e.target.value)}
+                  />
+                </div>
+              );
+            })}
           </div>
         </Section>
 

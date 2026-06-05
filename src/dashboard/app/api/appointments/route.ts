@@ -41,6 +41,58 @@ interface Body {
   queue_number?: string;
 }
 
+type DbClient = NonNullable<ReturnType<typeof getSupabaseService>>;
+
+// Tìm lịch của bác sĩ ĐANG TRÙNG khung giờ [slotStart, slotEnd) (bỏ CANCELLED/
+// NO_SHOW; loại trừ chính lịch đang sửa). Có trùng → trả câu báo RÕ "bận khung
+// giờ HH:MM–HH:MM ngày dd/mm" + tên bác sĩ; không trùng → null. Best-effort: lỗi
+// truy vấn trả null để rơi về thông báo chung (ràng buộc DB vẫn là chốt chặn cuối).
+async function doctorConflictMessage(
+  db: DbClient,
+  doctorId: string,
+  slotStart: string,
+  slotEnd: string,
+  excludeId?: string,
+): Promise<string | null> {
+  try {
+    let q = db
+      .from("appointment")
+      .select("id, slot_start, slot_end, status")
+      .eq("doctor_id", doctorId)
+      .lt("slot_start", slotEnd)
+      .gt("slot_end", slotStart);
+    if (excludeId) q = q.neq("id", excludeId);
+    const { data } = await q;
+    const c = (
+      (data as
+        | { slot_start: string; slot_end: string; status: string }[]
+        | null) ?? []
+    ).find((r) => r.status !== "CANCELLED" && r.status !== "NO_SHOW");
+    if (!c) return null;
+    const { data: doc } = await db
+      .from("staff")
+      .select("full_name")
+      .eq("id", doctorId)
+      .maybeSingle();
+    const name = (doc as { full_name: string } | null)?.full_name;
+    const hhmm = (iso: string) =>
+      new Date(iso).toLocaleTimeString("vi-VN", {
+        timeZone: "Asia/Ho_Chi_Minh",
+        hour: "2-digit",
+        minute: "2-digit",
+        hour12: false,
+      });
+    const day = new Date(c.slot_start).toLocaleDateString("vi-VN", {
+      timeZone: "Asia/Ho_Chi_Minh",
+      day: "2-digit",
+      month: "2-digit",
+    });
+    return `Bác sĩ${name ? ` ${name}` : ""} đang bận khung giờ ${hhmm(c.slot_start)}–${hhmm(c.slot_end)} ngày ${day}. Vui lòng chọn khung giờ khác.`;
+  } catch {
+    return null;
+  }
+}
+
 export async function POST(request: Request) {
   const caller = await getSupabaseServer();
   const {
@@ -93,6 +145,13 @@ export async function POST(request: Request) {
   const booking_channel = (body.booking_channel ?? "").trim() || "WALK_IN";
   const queue_number = (body.queue_number ?? "").trim() || null;
 
+  // Chặn TRÙNG GIỜ bác sĩ NGAY (báo rõ khung giờ bận) — không để khách đặt được
+  // rồi mới văng lỗi. Ràng buộc DB (appointment_no_doctor_overlap) vẫn là chốt cuối.
+  if (doctor_id) {
+    const busy = await doctorConflictMessage(db, doctor_id, slot_start, slot_end);
+    if (busy) return NextResponse.json({ error: busy }, { status: 409 });
+  }
+
   const { data, error } = await db
     .from("appointment")
     .insert({
@@ -110,10 +169,13 @@ export async function POST(request: Request) {
     .single();
 
   if (error) {
-    // 23P01 = exclusion_violation (doctor slot overlap).
+    // 23P01 = exclusion_violation (doctor slot overlap) — đua ghi: báo rõ giờ bận.
     if (error.code === "23P01") {
+      const busy = doctor_id
+        ? await doctorConflictMessage(db, doctor_id, slot_start, slot_end)
+        : null;
       return NextResponse.json(
-        { error: "Bác sĩ đã có lịch trùng khung giờ này." },
+        { error: busy ?? "Bác sĩ đã có lịch trùng khung giờ này." },
         { status: 409 },
       );
     }
@@ -355,6 +417,14 @@ export async function PATCH(request: Request) {
     // Chỉ đổi bác sĩ khi field doctor_id được gửi (rỗng = bỏ phân bác sĩ).
     if (body.doctor_id !== undefined) {
       patch.doctor_id = (body.doctor_id ?? "").trim() || null;
+    }
+    // Chặn TRÙNG GIỜ khi đổi lịch (báo rõ khung giờ bận) — loại trừ chính lịch này.
+    const newDoctor = ("doctor_id" in patch
+      ? patch.doctor_id
+      : appt.doctor_id) as string | null;
+    if (newDoctor) {
+      const busy = await doctorConflictMessage(db, newDoctor, ss, se, id);
+      if (busy) return NextResponse.json({ error: busy }, { status: 409 });
     }
   }
 

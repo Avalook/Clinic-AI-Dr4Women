@@ -11,6 +11,7 @@ import Link from "next/link";
 import { UserRound, CalendarClock } from "lucide-react";
 import type { Option } from "../AppointmentBooking";
 import { vnLocalToUtcISO } from "../../../../lib/datetime";
+import { todayVn } from "../../../../lib/roster";
 import { digitsOnly, phoneError, cccdError } from "../../../../lib/validation";
 import {
   INPUT,
@@ -19,6 +20,7 @@ import {
   BTN_GHOST,
   CARD,
   DURATIONS,
+  CHANNELS,
 } from "../../form-ui";
 
 export type { Option };
@@ -71,6 +73,9 @@ export default function NewPatientForm({
 }) {
   const walkin = variant === "walkin";
   const router = useRouter();
+  // Logic thời gian thực: năm sinh ≤ hôm nay; ngày khám ≥ hôm nay (giờ VN).
+  const TODAY = todayVn();
+  const CUR_YEAR = Number(TODAY.slice(0, 4));
 
   // Patient
   const [fullName, setFullName] = useState("");
@@ -179,8 +184,8 @@ export default function NewPatientForm({
     // KHÔNG tick → phải điền ĐỦ ngày/tháng/năm.
     if (dobYearOnly) {
       const y = Number(birthYear);
-      if (!birthYear.trim() || !Number.isFinite(y) || y < 1900 || y > 2100) {
-        setError("Nhập năm sinh (1900–2100), hoặc bỏ tick “Chỉ biết năm”.");
+      if (!birthYear.trim() || !Number.isFinite(y) || y < 1900 || y > CUR_YEAR) {
+        setError(`Nhập năm sinh (1900–${CUR_YEAR}), hoặc bỏ tick “Chỉ biết năm”.`);
         return;
       }
     } else if (!dob.trim()) {
@@ -188,6 +193,18 @@ export default function NewPatientForm({
         "Phải điền đầy đủ ngày/tháng/năm sinh. Nếu chỉ biết năm, hãy tick “Chỉ biết năm”.",
       );
       return;
+    } else if (dob > TODAY) {
+      // Năm sinh không thể ở tương lai (so chuỗi yyyy-mm-dd là đủ).
+      setError("Ngày sinh không thể ở tương lai.");
+      return;
+    }
+    // Lịch khám (không phải vãng lai): KHÔNG cho đặt vào quá khứ — thời gian thực.
+    if (!walkin && wantsAppointment) {
+      const startTs = new Date(vnLocalToUtcISO(apptDate, apptTime)).getTime();
+      if (startTs < Date.now()) {
+        setError("Không thể đặt lịch khám trong quá khứ. Chọn ngày/giờ từ hiện tại trở đi.");
+        return;
+      }
     }
     setSubmitting(true);
     const res = await fetch("/api/patients", {
@@ -271,7 +288,7 @@ export default function NewPatientForm({
                 type="number"
                 inputMode="numeric"
                 min={1900}
-                max={2100}
+                max={CUR_YEAR}
                 value={birthYear}
                 onChange={(e) => setBirthYear(e.target.value)}
                 className={INPUT}
@@ -280,6 +297,7 @@ export default function NewPatientForm({
             ) : (
               <input
                 type="date"
+                max={TODAY}
                 value={dob}
                 onChange={(e) => setDob(e.target.value)}
                 className={INPUT}
@@ -470,6 +488,7 @@ export default function NewPatientForm({
             <label className={LABEL}>Ngày khám</label>
             <input
               type="date"
+              min={TODAY}
               value={apptDate}
               onChange={(e) => setApptDate(e.target.value)}
               className={INPUT}
@@ -510,12 +529,18 @@ export default function NewPatientForm({
           </div>
           <div>
             <label className={LABEL}>Kênh đặt</label>
-            <input
+            <select
               value={channel}
               onChange={(e) => setChannel(e.target.value)}
               className={INPUT}
-              placeholder="VD: Zalo, Hotline, Facebook, Khách quen… (tuỳ chọn)"
-            />
+            >
+              <option value="">— Chọn kênh —</option>
+              {CHANNELS.map((c) => (
+                <option key={c.id} value={c.id}>
+                  {c.label}
+                </option>
+              ))}
+            </select>
           </div>
         </div>
       </section>
