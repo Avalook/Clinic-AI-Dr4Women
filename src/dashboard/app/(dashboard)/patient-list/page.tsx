@@ -1,10 +1,10 @@
 // "Danh sách bệnh nhân" — BN đã khám (lịch hẹn COMPLETED). Gom theo BN để suy
 // "Khám lần đầu" (1 lần) / "Tái khám" (>=2 lần). Đọc qua Supabase RLS.
 //
-// Bấm tên BN: LỄ TÂN + BÁC SĨ → BẬT POPUP hồ sơ lâm sàng (CHỈ ĐỌC) trượt sang
-// PHẢI bảng (SplitPane, y hệt "Công việc của tôi" của bác sĩ), lần khám gần nhất.
-// CSKH/Quản lý → vẫn điều hướng sang trang chi tiết (còn nút đặt lịch ở đó). Vì
-// vậy server quyết enablePopup theo vai trò.
+// Bấm tên BN: LỄ TÂN + BÁC SĨ + CSKH → BẬT POPUP hồ sơ lâm sàng (CHỈ ĐỌC lâm
+// sàng, SỬA được mục I Hành chính) trượt sang PHẢI bảng (SplitPane, y hệt "Công
+// việc của tôi" của bác sĩ), lần khám gần nhất. Quản lý → vẫn điều hướng sang
+// trang chi tiết (còn nút đặt lịch ở đó). Server quyết enablePopup theo vai trò.
 
 import { getSupabaseServer } from "../../../lib/supabase-server";
 import { requireNavAccess, getClinicRole } from "../../../lib/clinic-session";
@@ -41,10 +41,11 @@ const one = <T,>(x: T | T[] | null): T | null =>
 export default async function PatientListPage() {
   await requireNavAccess("/patient-list");
   const role = await getClinicRole();
-  // Lễ tân + Bác sĩ: bấm BN bật popup hồ sơ (chỉ đọc) trượt sang phải — y hệt
-  // "Công việc của tôi" của bác sĩ. CSKH/Quản lý giữ điều hướng sang trang chi
-  // tiết (còn nút đặt lịch tái khám ở đó).
-  const enablePopup = isTasksReadOnly(role) || isDoctorRole(role);
+  // Lễ tân + Bác sĩ + CSKH: bấm BN bật popup hồ sơ (chỉ đọc lâm sàng, sửa được
+  // hành chính) trượt sang phải — y hệt nhau. Quản lý giữ điều hướng sang trang
+  // chi tiết (còn nút đặt lịch tái khám ở đó; trang đó cũng đã sửa được hành chính).
+  const enablePopup =
+    isTasksReadOnly(role) || isDoctorRole(role) || role === "CSKH";
   const supabase = await getSupabaseServer();
 
   // COMPLETED = đã khám xong. Sắp xếp mới→cũ để lần xuất hiện ĐẦU của mỗi BN
