@@ -242,7 +242,9 @@ export default function ConfirmBoard({
     setForm((f) => (f ? { ...f, [k]: v } : f));
 
   // ---- Lọc theo KỲ (tuần này/sau, tháng) + TRẠNG THÁI; sắp theo giờ ----
-  const [period, setPeriod] = useState("week");
+  // Mặc định "Tất cả" để KHÔNG ẩn lịch tuần/tháng khác (CSKH không sót lịch cần
+  // xác nhận); người dùng tự lọc Tuần này/Tuần sau/Tháng nếu muốn gọn.
+  const [period, setPeriod] = useState("all");
   const [statusFilter, setStatusFilter] = useState("all");
   const vnDate = (iso: string) =>
     new Date(new Date(iso).getTime() + 7 * 3_600_000).toISOString().slice(0, 10);
