@@ -11,7 +11,7 @@ import {
 } from "../../../lib/datetime";
 import { currentWeekStartVn } from "../../../lib/roster";
 import { getClinicRole, getClinicStaffId } from "../../../lib/clinic-session";
-import { isDoctorRole, canManageAppt } from "../../../lib/roles";
+import { isDoctorRole, canManageAppt, isTasksReadOnly } from "../../../lib/roles";
 import ConfirmBoard, { type ApptRow, type Opt } from "./ConfirmBoard";
 import CskhActionBoard, { type CskhActionRow } from "./CskhActionBoard";
 import DoctorWorkBoard, { type DoctorApptRow } from "./DoctorWorkBoard";
@@ -31,7 +31,11 @@ const DOCTOR_SELECT = `
   service:service_type!service_type_id ( name )
 `;
 
-async function DoctorTasks() {
+// readOnly = LỄ TÂN xem clone giao diện board bác sĩ ở chế độ CHỈ ĐỌC. Lễ tân
+// VẪN có clinic_staff_id (cookie set cho mọi vai trò) nhưng KHÔNG phải bác sĩ →
+// khi readOnly ta BỎ lọc doctor_id để thấy lịch của MỌI bác sĩ (góc nhìn front
+// desk). Nếu lọc theo staffId của lễ tân thì board sẽ rỗng (không lịch nào của họ).
+async function DoctorTasks(readOnly = false) {
   const supabase = await getSupabaseServer();
   const staffId = await getClinicStaffId();
   const { startUtc } = vnTodayRangeUtc();
@@ -54,7 +58,8 @@ async function DoctorTasks() {
     .lt("slot_start", endUtc)
     .order("slot_start", { ascending: true })
     .limit(400);
-  if (staffId) q = q.eq("doctor_id", staffId);
+  // Bác sĩ: chỉ lịch của MÌNH. Lễ tân (readOnly): KHÔNG lọc → mọi bác sĩ.
+  if (staffId && !readOnly) q = q.eq("doctor_id", staffId);
   const { data, error } = await q;
   const rows = (data as DoctorApptRow[] | null) ?? [];
 
@@ -98,13 +103,23 @@ async function DoctorTasks() {
     <div className="space-y-4">
       <header>
         <h1 className="text-xl font-semibold text-[#171717]">Công việc của tôi</h1>
+        {readOnly && (
+          <p className="mt-0.5 inline-flex items-center gap-1.5 text-sm text-[#9d2463]">
+            <span className="rounded bg-[#fce7f3] px-1.5 py-0.5 text-[11px] font-medium">
+              👁 Chế độ chỉ xem
+            </span>
+            <span className="text-[#888888]">
+              Lễ tân xem lịch & hồ sơ của tất cả bác sĩ — không chỉnh sửa.
+            </span>
+          </p>
+        )}
       </header>
       {error ? (
         <div className="rounded-md bg-[#fee2e2] px-3 py-2 text-sm text-[#dc2626]">
           {error.message}
         </div>
       ) : (
-        <DoctorWorkBoard rows={withPhanLoai} staffId={staffId} />
+        <DoctorWorkBoard rows={withPhanLoai} staffId={staffId} readOnly={readOnly} />
       )}
     </div>
   );
@@ -125,6 +140,8 @@ export default async function TasksPage() {
   // Bác sĩ thấy board lâm sàng riêng; CSKH/Quản lý thấy board lịch hẹn cũ.
   const role = await getClinicRole();
   if (isDoctorRole(role)) return DoctorTasks();
+  // Lễ tân: CLONE Y HỆT board bác sĩ nhưng CHỈ ĐỌC (khóa mọi nút sửa).
+  if (isTasksReadOnly(role)) return DoctorTasks(true);
 
   const supabase = await getSupabaseServer();
   const { startUtc } = vnTodayRangeUtc();

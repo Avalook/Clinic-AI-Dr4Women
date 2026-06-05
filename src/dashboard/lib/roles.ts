@@ -75,6 +75,13 @@ export function canManageAppt(role: ClinicRole | null): boolean {
   return role === "CSKH" || role === "MANAGEMENT";
 }
 
+/** Lễ tân xem "Công việc của tôi" (board bác sĩ) nhưng CHỈ ĐỌC — mọi nút
+ *  Nhận/Từ chối/Lưu hồ sơ/Chỉ định XN đều bị khóa. Dùng để clone giao diện
+ *  bác sĩ cho front desk mà không cấp quyền ghi. */
+export function isTasksReadOnly(role: ClinicRole | null): boolean {
+  return role === "RECEPTION";
+}
+
 /** Landing path after a role is picked. */
 export function roleLanding(role: ClinicRole | null): string {
   if (isDoctorRole(role)) return "/tasks";
@@ -107,14 +114,18 @@ const NAV_ROLES: Record<string, "all" | ClinicRole[]> = {
   "/appointments": ["MANAGEMENT"],
   // Thông tin khách hàng (danh bạ + chi tiết + tra cứu tên/mã/SĐT) — CSKH/Lễ tân/QL.
   "/customers": ["CSKH", "RECEPTION", "MANAGEMENT"],
-  // Danh sách bệnh nhân ĐÃ KHÁM (lần đầu / tái khám) — CSKH/Lễ tân/QL.
-  "/patient-list": ["CSKH", "RECEPTION", "MANAGEMENT"],
+  // Danh sách bệnh nhân ĐÃ KHÁM (lần đầu / tái khám) — CSKH/Lễ tân/QL + BÁC SĨ.
+  // Bác sĩ thấy TOÀN BỘ BN đã khám (như front desk); mở hồ sơ vẫn bị guard
+  // patients/[id] (chỉ mở được BN của mình) — đúng mô hình quyền hiện tại.
+  "/patient-list": ["CSKH", "RECEPTION", "MANAGEMENT", ...DOCTOR_ROLES_LIST],
   // Tra cứu BN đầy đủ (phân trang) — Quản lý. CSKH/Lễ tân dùng /customers.
   "/patients": ["MANAGEMENT"],
   // Điều dưỡng cũng nhập được (khách vãng lai).
   "/patients/new": ["CSKH", "RECEPTION", "MANAGEMENT", "NURSE_ULTRASOUND"],
   // /checkin đã chuyển hẳn lên Trang chủ (HomeCheckin) — route cũ đã xóa.
-  "/tasks": ["CSKH", "MANAGEMENT", ...DOCTOR_ROLES_LIST],
+  // Lễ tân được THÊM vào: thấy "Công việc của tôi" nhưng ở chế độ CHỈ XEM
+  // (clone giao diện board bác sĩ, khóa mọi nút sửa — xem isTasksReadOnly).
+  "/tasks": ["CSKH", "MANAGEMENT", "RECEPTION", ...DOCTOR_ROLES_LIST],
   // Hàng đợi XN + Dịch vụ: điều dưỡng/KTV thực hiện (+ Quản lý xem).
   "/lab-queue": ["NURSE_ULTRASOUND", "MANAGEMENT"],
   "/service-queue": ["NURSE_ULTRASOUND", "MANAGEMENT"],

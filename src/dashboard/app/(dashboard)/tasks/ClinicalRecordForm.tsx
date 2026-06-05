@@ -172,6 +172,7 @@ export default function ClinicalRecordForm({
   onClose,
   vitalsOnly = false,
   fill = false,
+  readOnly = false,
 }: {
   appt: DoctorApptRow;
   staffId: string | null;
@@ -180,6 +181,9 @@ export default function ClinicalRecordForm({
   vitalsOnly?: boolean;
   /** Lấp đầy CHIỀU CAO của khung cha (md+) — dùng khi đặt trong SplitPane. */
   fill?: boolean;
+  /** readOnly = LỄ TÂN xem hồ sơ trong "Công việc của tôi": khóa MỌI ô +
+   *  ẩn nút Lưu / Chỉ định XN / Thêm thuốc. Chỉ xem, không ghi. */
+  readOnly?: boolean;
 }) {
   const router = useRouter();
   const p = appt.patient;
@@ -288,6 +292,7 @@ export default function ClinicalRecordForm({
   }
 
   async function save() {
+    if (readOnly) return; // Lễ tân chỉ-đọc: chặn ghi ngay tầng UI (server cũng chặn).
     if (vitalsOnly) return saveVitals();
     // Chưa tải xong / tải LỖI (data=null) → KHÔNG lưu: form còn rỗng sẽ ghi đè
     // xoá đơn thuốc + tiền sử + chẩn đoán cũ của lượt khám (backend thay toàn bộ).
@@ -406,9 +411,9 @@ export default function ClinicalRecordForm({
 
   const preg = data?.pregnancy;
   const labs = data?.labs ?? [];
-  // khoá khi: hồ sơ đã chốt / đang lưu / (bác sĩ) BN chưa check-in / đang tải prefill
-  // (chưa tải xong mà sửa+lưu sẽ ghi đè rỗng — xem guard trong save()).
-  const ro = locked || saving || arrivalPending || loading;
+  // khoá khi: LỄ TÂN chỉ-đọc / hồ sơ đã chốt / đang lưu / (bác sĩ) BN chưa check-in
+  // / đang tải prefill (chưa tải xong mà sửa+lưu sẽ ghi đè rỗng — xem guard save()).
+  const ro = readOnly || locked || saving || arrivalPending || loading;
   const roRest = ro || vitalsOnly; // đón-khám (vitalsOnly): mọi mục khác chỉ xem
 
   return (
@@ -442,12 +447,17 @@ export default function ClinicalRecordForm({
       </div>
 
       <div className="min-h-0 flex-1 space-y-4 overflow-y-auto px-4 py-3">
+        {readOnly && (
+          <p className="rounded-md bg-[#fce7f3] px-3 py-1.5 text-xs text-[#9d2463]">
+            👁 Chế độ chỉ xem — Lễ tân không chỉnh sửa hồ sơ.
+          </p>
+        )}
         {locked && (
           <p className="rounded-md bg-[#fee2e2] px-3 py-1.5 text-xs text-[#dc2626]">
             🔒 Hồ sơ đã chốt (FINALIZED) — luật cấm sửa, chỉ xem.
           </p>
         )}
-        {arrivalPending && (
+        {arrivalPending && !readOnly && (
           <p className="rounded-md bg-[#fef9c3] px-3 py-1.5 text-xs text-[#a16207]">
             🕓 Chờ lễ tân xác nhận bệnh nhân đã đến (check-in) — chưa khám được.
           </p>
@@ -680,7 +690,7 @@ export default function ClinicalRecordForm({
               ))}
             </ul>
           )}
-          {!vitalsOnly && (
+          {!vitalsOnly && !readOnly && (
             <div className="mt-2 flex items-center gap-2">
               <input
                 className={INPUT}
@@ -779,23 +789,35 @@ export default function ClinicalRecordForm({
       </div>
 
       <div className="flex items-center justify-between gap-2 border-t border-[#e4e4e7] px-4 py-3">
-        <span className={"text-xs " + (msg?.startsWith("Đã lưu") ? "text-[#15803d]" : "text-[#dc2626]")}>
-          {msg ?? ""}
+        <span
+          className={
+            "text-xs " +
+            (readOnly
+              ? "text-[#9d2463]"
+              : msg?.startsWith("Đã lưu")
+                ? "text-[#15803d]"
+                : "text-[#dc2626]")
+          }
+        >
+          {readOnly ? "👁 Chỉ xem — không có quyền sửa." : (msg ?? "")}
         </span>
         <div className="flex gap-2">
-          <button
-            onClick={save}
-            disabled={ro}
-            className="min-h-10 rounded-lg bg-[#ec4899] px-4 text-sm font-semibold text-white hover:bg-[#db2777] disabled:opacity-50"
-          >
-            {saving
-              ? "Đang lưu…"
-              : vitalsOnly
-                ? "Lưu sinh hiệu"
-                : willComplete
-                  ? "Lưu & Khám xong"
-                  : "Lưu hồ sơ"}
-          </button>
+          {/* Lễ tân chỉ-đọc: ẨN nút Lưu hoàn toàn (không chỉ disable). */}
+          {!readOnly && (
+            <button
+              onClick={save}
+              disabled={ro}
+              className="min-h-10 rounded-lg bg-[#ec4899] px-4 text-sm font-semibold text-white hover:bg-[#db2777] disabled:opacity-50"
+            >
+              {saving
+                ? "Đang lưu…"
+                : vitalsOnly
+                  ? "Lưu sinh hiệu"
+                  : willComplete
+                    ? "Lưu & Khám xong"
+                    : "Lưu hồ sơ"}
+            </button>
+          )}
           <button onClick={onClose} className="min-h-10 rounded-lg border border-[#e4e4e7] bg-white px-4 text-sm text-[#52525b] hover:bg-[#f4f4f5]">
             Đóng
           </button>

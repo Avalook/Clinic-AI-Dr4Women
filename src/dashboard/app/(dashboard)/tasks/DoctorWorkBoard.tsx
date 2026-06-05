@@ -85,9 +85,13 @@ const CELL = "border-b border-r border-[#f3cfe0] px-2 py-1.5 align-top";
 export default function DoctorWorkBoard({
   rows,
   staffId,
+  readOnly = false,
 }: {
   rows: DoctorApptRow[];
   staffId: string | null;
+  /** Lễ tân: clone giao diện bác sĩ nhưng CHỈ XEM — ẩn Nhận/Từ chối, hồ sơ
+   *  mở ở chế độ chỉ-đọc. Mặc định false (bác sĩ thao tác bình thường). */
+  readOnly?: boolean;
 }) {
   const router = useRouter();
   const [openId, setOpenId] = useState<string | null>(null);
@@ -99,6 +103,7 @@ export default function DoctorWorkBoard({
   const open = rows.find((a) => a.id === openId) ?? null;
 
   async function act(id: string, action: "confirm" | "decline") {
+    if (readOnly) return; // Lễ tân chỉ-đọc: không gọi API ghi (phòng vệ tầng UI).
     setBusyId(id);
     setError(null);
     const res = await fetch("/api/appointments", {
@@ -260,7 +265,27 @@ export default function DoctorWorkBoard({
                       <StatusBadge status={a.status} />
                     </td>
                     <td className={`${CELL} whitespace-nowrap`}>
-                      {pending ? (
+                      {readOnly ? (
+                        // LỄ TÂN chỉ-đọc: không Nhận/Từ chối/khám. Xem hồ sơ + In phiếu (đều read-only).
+                        <span className="flex gap-1">
+                          <button
+                            onClick={() => setOpenId(a.id)}
+                            className="inline-flex min-h-8 items-center gap-1 rounded-md border border-[#f3cfe0] bg-white px-2.5 text-xs font-medium text-[#9d2463] hover:bg-[#fdf2f8]"
+                          >
+                            <FileText size={12} /> Xem hồ sơ
+                          </button>
+                          {a.status === "COMPLETED" && (
+                            <a
+                              href={`/print/${a.id}`}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="inline-flex min-h-8 items-center gap-1 rounded-md border border-[#bbf7d0] bg-white px-2.5 text-xs font-semibold text-[#15803d] hover:bg-[#f0fdf4]"
+                            >
+                              <Printer size={12} /> In phiếu
+                            </a>
+                          )}
+                        </span>
+                      ) : pending ? (
                         <span className="flex gap-1">
                           <button
                             onClick={() => act(a.id, "confirm")}
@@ -333,6 +358,7 @@ export default function DoctorWorkBoard({
                 appt={open}
                 staffId={staffId}
                 fill
+                readOnly={readOnly}
                 onClose={() => setOpenId(null)}
               />
             }

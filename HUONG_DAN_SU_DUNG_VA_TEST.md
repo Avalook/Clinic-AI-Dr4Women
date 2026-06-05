@@ -39,8 +39,8 @@ Mỗi vai trò chỉ thấy phần việc của mình. Bảng dưới = các m�
 | **Trang chủ** | ✅ | ✅ | ✅ | ✅ | ✅ |
 | **Nhập thông tin khách hàng mới** *(ĐD: "khách vãng lai")* | ✅ | ✅ | ✅ | — | ✅ |
 | **Thông tin khách hàng** | ✅ | ✅ | — | — | ✅ |
-| **Danh sách bệnh nhân** | ✅ | ✅ | — | — | ✅ |
-| **Công việc của tôi** | — | ✅ | — | ✅ | ✅ |
+| **Danh sách bệnh nhân** | ✅ | ✅ | — | ✅ | ✅ |
+| **Công việc của tôi** | ✅ *(chỉ xem)* | ✅ | — | ✅ | ✅ |
 | **Hàng đợi xét nghiệm** | — | — | ✅ | — | ✅ |
 | **Hàng đợi dịch vụ** | — | — | ✅ | — | ✅ |
 | **Lịch làm việc (ca trực)** | ✅ | — | ✅ | ✅ | ✅ |
@@ -49,6 +49,10 @@ Mỗi vai trò chỉ thấy phần việc của mình. Bảng dưới = các m�
 | **Báo cáo · Cài đặt** | — | — | — | — | ✅ |
 | **Khu Check-in** *(ở Trang chủ)* | ✅ | — | ✅ | — | ✅ |
 
+> 👁 **Lễ tân — "Công việc của tôi" CHỈ XEM:** Lễ tân thấy lịch & hồ sơ của **tất cả bác sĩ** (giống màn hình bác sĩ) nhưng **không** Nhận/Từ chối/Lưu/kê đơn — mọi nút sửa bị khóa, chỉ xem để theo dõi.
+>
+> 🩺 **Bác sĩ — "Danh sách bệnh nhân":** bác sĩ thấy **toàn bộ** BN đã khám của phòng khám; nhưng **mở hồ sơ chỉ được với BN của chính mình** (BN khác → tự đẩy đi).
+>
 > 🔒 **Test phân quyền:** nếu gõ thẳng địa chỉ một trang **ngoài quyền** (ví dụ Lễ tân gõ `…/lab-queue`) → hệ thống **tự đẩy về Trang chủ**. (Xem Mục 5.)
 
 ---
