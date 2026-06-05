@@ -7,7 +7,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { UserCheck, ChevronDown, Search, FileText } from "lucide-react";
+import { UserCheck, ChevronDown, Search, FileText, Printer } from "lucide-react";
 import { fmtTime, isVnMidnight } from "../../../lib/datetime";
 import SplitPane from "../SplitPane";
 import ClinicalRecordForm from "../tasks/ClinicalRecordForm";
@@ -137,11 +137,21 @@ export default function HomeCheckin({
                   </span>
                 </button>
                 {completed ? (
-                  // Đã khám xong — KHÔNG xoá khỏi danh sách + không có thao tác
-                  // (bác sĩ đã chốt). Vẫn click tên mở hồ sơ ở cột phải được.
-                  <span className="shrink-0 rounded-full bg-[#f4f4f5] px-2.5 py-0.5 text-[10px] font-medium text-[#52525b]">
-                    Đã khám xong
-                  </span>
+                  // Đã khám xong — giữ trong danh sách. Lễ tân IN PHIẾU "Tóm tắt
+                  // khám bệnh" cho BN (mở tab mới → Xuất PDF). Click tên vẫn mở hồ sơ.
+                  <div className="flex shrink-0 flex-col items-end gap-1">
+                    <span className="rounded-full bg-[#f4f4f5] px-2.5 py-0.5 text-[10px] font-medium text-[#52525b]">
+                      Đã khám xong
+                    </span>
+                    <a
+                      href={`/print/${r.id}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex min-h-8 items-center gap-1 rounded-lg border border-[#bbf7d0] bg-white px-2.5 text-xs font-semibold text-[#15803d] hover:bg-[#f0fdf4]"
+                    >
+                      <Printer size={13} /> In phiếu
+                    </a>
+                  </div>
                 ) : checkedIn ? (
                   <button
                     onClick={() => act(r.id, "undo_checkin")}
