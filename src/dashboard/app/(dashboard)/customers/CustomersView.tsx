@@ -1,16 +1,17 @@
 "use client";
 
 // "Thông tin khách hàng" — DANH BẠ khách đã nhập, dạng master-detail:
-//   • Trái: danh sách (lọc Hôm nay/Tuần/Tháng/Tất cả + tìm tên/mã/SĐT).
+//   • Trái: danh sách (lọc Hôm nay/Tuần/Tháng/Tất cả theo NGÀY TẠO hoặc NGÀY HẸN
+//     + tìm tên/mã/SĐT). Mỗi dòng hiện LỊCH HẸN sắp tới của khách.
 //   • Phải: thông tin chi tiết của khách đang chọn (bôi HỒNG ở list).
 // Sau khi tạo khách mới, NewPatientForm điều hướng /customers?selected=<id> →
-// khách đó tự được chọn + bôi hồng (feedback: "thông tin sau nhập trả về").
-// Lọc + tìm = điều hướng searchParams (server lọc lại); CHỌN = state client.
+// khách đó tự được chọn + bôi hồng. Lọc/tìm = điều hướng searchParams (server lọc
+// lại); CHỌN = state client.
 
 import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Search, ExternalLink, X } from "lucide-react";
+import { Search, ExternalLink, X, CalendarClock } from "lucide-react";
 import { fmtDate, fmtDateTimeOrDate } from "../../../lib/datetime";
 
 export interface CustomerRow {
@@ -29,11 +30,19 @@ export interface CustomerRow {
   location_id: string | null;
   created_at: string | null;
 }
+/** Lịch hẹn "đại diện" của 1 khách (sắp tới gần nhất, else gần nhất quá khứ). */
+export interface ApptInfo {
+  slot_start: string;
+  status: string;
+  upcoming: boolean;
+  count: number;
+}
 export interface Opt {
   id: string;
   label: string;
 }
 export type Period = "today" | "week" | "month" | "all";
+export type ByDim = "created" | "appt";
 
 const PERIODS: { key: Period; label: string }[] = [
   { key: "today", label: "Hôm nay" },
@@ -42,17 +51,26 @@ const PERIODS: { key: Period; label: string }[] = [
   { key: "all", label: "Tất cả" },
 ];
 
+const BY_OPTS: { key: ByDim; label: string }[] = [
+  { key: "created", label: "Ngày tạo" },
+  { key: "appt", label: "Ngày hẹn" },
+];
+
 export default function CustomersView({
   rows,
+  apptByPatient,
   locations,
   q,
   period,
+  by,
   initialSelected,
 }: {
   rows: CustomerRow[];
+  apptByPatient: Record<string, ApptInfo>;
   locations: Opt[];
   q: string;
   period: Period;
+  by: ByDim;
   initialSelected: string | null;
 }) {
   const router = useRouter();
@@ -63,13 +81,17 @@ export default function CustomersView({
 
   const selected =
     rows.find((r) => r.clinic_patient_id === sel) ?? rows[0] ?? null;
+  const selectedAppt = selected
+    ? apptByPatient[selected.clinic_patient_id]
+    : undefined;
   const locName = (id: string | null) =>
     locations.find((l) => l.id === id)?.label ?? "—";
 
-  function go(nextPeriod: Period, nextQ: string) {
+  function go(nextPeriod: Period, nextQ: string, nextBy: ByDim) {
     const p = new URLSearchParams();
     if (nextQ.trim()) p.set("q", nextQ.trim());
     if (nextPeriod !== "all") p.set("period", nextPeriod);
+    if (nextBy !== "created") p.set("by", nextBy);
     const qs = p.toString();
     router.push(`/customers${qs ? `?${qs}` : ""}`);
   }
@@ -78,11 +100,29 @@ export default function CustomersView({
     <div className="space-y-3">
       {/* Bộ lọc + tìm kiếm */}
       <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-        <div className="flex flex-wrap gap-1.5">
+        <div className="flex flex-wrap items-center gap-1.5">
+          {/* Chiều lọc: theo ngày TẠO hay ngày HẸN */}
+          <div className="inline-flex rounded-full border border-[#f3cfe0] bg-white p-0.5">
+            {BY_OPTS.map((b) => (
+              <button
+                key={b.key}
+                onClick={() => go(period, term, b.key)}
+                className={
+                  "rounded-full px-2.5 py-0.5 text-xs font-medium transition-colors " +
+                  (by === b.key
+                    ? "bg-[#9d2463] text-white"
+                    : "text-[#9d2463] hover:bg-[#fdf2f8]")
+                }
+              >
+                {b.label}
+              </button>
+            ))}
+          </div>
+          <span className="px-0.5 text-[#d4d4d8]">·</span>
           {PERIODS.map((p) => (
             <button
               key={p.key}
-              onClick={() => go(p.key, term)}
+              onClick={() => go(p.key, term, by)}
               className={
                 "rounded-full px-3 py-1 text-xs font-medium transition-colors " +
                 (period === p.key
@@ -97,7 +137,7 @@ export default function CustomersView({
         <form
           onSubmit={(e) => {
             e.preventDefault();
-            go(period, term);
+            go(period, term, by);
           }}
           className="flex items-center gap-2"
         >
@@ -124,7 +164,7 @@ export default function CustomersView({
               type="button"
               onClick={() => {
                 setTerm("");
-                go(period, "");
+                go(period, "", by);
               }}
               className="min-h-9 rounded-lg border border-[#e4e4e7] bg-white px-3 text-sm text-[#52525b] hover:bg-[#f4f4f5]"
             >
@@ -134,31 +174,39 @@ export default function CustomersView({
         </form>
       </div>
 
+      {by === "appt" && period !== "all" && (
+        <p className="text-xs text-[#9d2463]">
+          Đang xem khách có <b>lịch hẹn</b> trong kỳ đã chọn.
+        </p>
+      )}
+
       <div className="flex flex-col gap-4 lg:flex-row lg:items-start">
         {/* DANH SÁCH (trái) */}
         <div className="min-w-0 flex-1">
           <div className="mb-1.5 text-xs text-[#888888]">
             {rows.length} khách hàng
+            {rows.length >= 300 && " (300 gần nhất — lọc hẹp hơn nếu cần)"}
           </div>
           <div className="h-[560px] max-h-[80vh] overflow-y-auto rounded-xl border border-[#f3cfe0] bg-white shadow-[0_1px_3px_rgba(236,72,153,0.08)]">
             {rows.length === 0 ? (
               <p className="px-4 py-12 text-center text-sm text-[#a1a1aa]">
-                Chưa có khách hàng nào trong khoảng lọc này. Nhập ở “Nhập thông
-                tin khách hàng mới”.
+                {by === "appt"
+                  ? "Không có khách nào có lịch hẹn trong kỳ này."
+                  : "Chưa có khách hàng nào trong khoảng lọc này. Nhập ở “Nhập thông tin khách hàng mới”."}
               </p>
             ) : (
               <ul className="divide-y divide-[#f6e0ec]">
                 {rows.map((r) => {
-                  const active = r.clinic_patient_id === selected?.clinic_patient_id;
+                  const active =
+                    r.clinic_patient_id === selected?.clinic_patient_id;
+                  const ap = apptByPatient[r.clinic_patient_id];
                   return (
                     <li key={r.clinic_patient_id}>
                       <button
                         onClick={() => setSel(r.clinic_patient_id)}
                         className={
                           "flex w-full flex-col items-start px-3 py-2.5 text-left transition-colors " +
-                          (active
-                            ? "bg-[#fce7f3]"
-                            : "hover:bg-[#fdf2f8]")
+                          (active ? "bg-[#fce7f3]" : "hover:bg-[#fdf2f8]")
                         }
                       >
                         <span
@@ -173,6 +221,25 @@ export default function CustomersView({
                           {r.patient_code}
                           {r.phone_primary ? ` · ${r.phone_primary}` : ""}
                         </span>
+                        {ap ? (
+                          <span
+                            className={
+                              "mt-0.5 inline-flex items-center gap-1 truncate text-[11px] " +
+                              (ap.upcoming
+                                ? "font-medium text-[#9d2463]"
+                                : "text-[#a1a1aa]")
+                            }
+                          >
+                            <CalendarClock size={11} />
+                            {ap.upcoming ? "Hẹn" : "Gần nhất"}:{" "}
+                            {fmtDateTimeOrDate(ap.slot_start)}
+                            {ap.count > 1 ? ` · ${ap.count} lịch` : ""}
+                          </span>
+                        ) : (
+                          <span className="mt-0.5 truncate text-[11px] text-[#c4c4c8]">
+                            Chưa có lịch hẹn
+                          </span>
+                        )}
                       </button>
                     </li>
                   );
@@ -208,8 +275,36 @@ export default function CustomersView({
                 </button>
               </div>
 
+              {/* Lịch hẹn nổi bật (yêu cầu 05/06: thấy ngày-giờ hẹn ngay) */}
+              <div className="mb-3 flex items-center gap-2 rounded-lg border border-[#f3cfe0] bg-white px-3 py-2">
+                <CalendarClock size={15} className="shrink-0 text-[#ec4899]" />
+                {selectedAppt ? (
+                  <span className="text-sm text-[#171717]">
+                    <span className="text-[#888888]">
+                      {selectedAppt.upcoming ? "Lịch hẹn sắp tới: " : "Lịch gần nhất: "}
+                    </span>
+                    <b>{fmtDateTimeOrDate(selectedAppt.slot_start)}</b>
+                    {selectedAppt.count > 1 && (
+                      <span className="text-[#888888]">
+                        {" "}
+                        · {selectedAppt.count} lịch
+                      </span>
+                    )}
+                  </span>
+                ) : (
+                  <span className="text-sm text-[#a1a1aa]">
+                    Chưa có lịch hẹn nào.
+                  </span>
+                )}
+              </div>
+
               <dl className="space-y-1.5 text-sm">
-                <Row label="Ngày sinh" value={selected.date_of_birth ? fmtDate(selected.date_of_birth) : null} />
+                <Row
+                  label="Ngày sinh"
+                  value={
+                    selected.date_of_birth ? fmtDate(selected.date_of_birth) : null
+                  }
+                />
                 <Row label="Giới tính" value={selected.gender} />
                 <Row label="SĐT chính" value={selected.phone_primary} />
                 <Row label="SĐT người nhà" value={selected.phone_secondary} />
@@ -219,7 +314,10 @@ export default function CustomersView({
                 <Row label="Đối tượng" value={selected.patient_objection} />
                 <Row label="Địa chỉ" value={selected.address} />
                 <Row label="Cơ sở" value={locName(selected.location_id)} />
-                <Row label="Ngày tạo" value={fmtDateTimeOrDate(selected.created_at)} />
+                <Row
+                  label="Ngày tạo"
+                  value={fmtDateTimeOrDate(selected.created_at)}
+                />
               </dl>
 
               <div className="mt-4 flex flex-wrap gap-2">
