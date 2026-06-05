@@ -9,7 +9,6 @@
 import { Fragment } from "react";
 import { fmtTimeOrNone } from "../../../lib/datetime";
 import { dayLabel, fmtDayMonth } from "../../../lib/roster";
-import { TBL_RESIZE, TBL_RESIZE_HINT } from "../form-ui";
 
 export interface WeekApptRow {
   id: string;
@@ -80,6 +79,15 @@ const EMPTY_CELL = "border-b border-r border-[#f3cfe0] bg-[#f6f6f7]";
 const EMPTY_DOCTOR = "__EMPTY__";
 
 export default function WeeklyAppointmentsTable({ days }: { days: ApptDay[] }) {
+  // Cả tuần KHÔNG có lịch → thẻ rỗng GỌN (không dựng khung ma trận cao trống huơ).
+  if (days.every((d) => d.items.length === 0)) {
+    return (
+      <div className="rounded-xl border border-dashed border-[#f3cfe0] bg-white px-4 py-10 text-center text-sm text-[#c084a8] shadow-[0_1px_3px_rgba(236,72,153,0.08)]">
+        Chưa có lịch hẹn nào trong tuần này.
+      </div>
+    );
+  }
+
   // Dựng cấu trúc ngày → bác sĩ → lịch (giữ thứ tự xuất hiện; "chưa phân" cuối).
   const dayCols: DayCol[] = days.map((day) => {
     const groups = new Map<string, WeekApptRow[]>();
@@ -107,10 +115,7 @@ export default function WeeklyAppointmentsTable({ days }: { days: ApptDay[] }) {
   const totalCols = dayCols.reduce((n, d) => n + d.docs.length * 4, 0);
 
   return (
-    <>
-      <div
-        className={`${TBL_RESIZE} h-[480px] rounded-xl border border-[#f3cfe0] bg-white shadow-[0_1px_3px_rgba(236,72,153,0.08)]`}
-      >
+    <div className="max-h-[70vh] overflow-auto rounded-xl border border-[#f3cfe0] bg-white shadow-[0_1px_3px_rgba(236,72,153,0.08)]">
         <table className="min-w-max border-collapse text-xs">
           <thead className="sticky top-0 z-10">
             {/* Hàng 1: NGÀY trải ngang (gộp = số bác sĩ × 4 cột con; ngày trống
@@ -253,8 +258,6 @@ export default function WeeklyAppointmentsTable({ days }: { days: ApptDay[] }) {
             )}
           </tbody>
         </table>
-      </div>
-      <p className="mt-1 text-[11px] text-[#c084a8]">{TBL_RESIZE_HINT}</p>
-    </>
+    </div>
   );
 }
