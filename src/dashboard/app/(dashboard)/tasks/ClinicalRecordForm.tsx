@@ -12,6 +12,7 @@ import { useRouter } from "next/navigation";
 import { X, Plus } from "lucide-react";
 import { fmtDate, fmtDateTimeOrDate } from "../../../lib/datetime";
 import { INPUT, LABEL } from "../form-ui";
+import PatientAdminEditor from "../PatientAdminEditor";
 import type { DoctorApptRow } from "./DoctorWorkBoard";
 
 interface Profile {
@@ -173,6 +174,7 @@ export default function ClinicalRecordForm({
   vitalsOnly = false,
   fill = false,
   readOnly = false,
+  canEditAdmin = false,
 }: {
   appt: DoctorApptRow;
   staffId: string | null;
@@ -184,6 +186,9 @@ export default function ClinicalRecordForm({
   /** readOnly = LỄ TÂN xem hồ sơ trong "Công việc của tôi": khóa MỌI ô +
    *  ẩn nút Lưu / Chỉ định XN / Thêm thuốc. Chỉ xem, không ghi. */
   readOnly?: boolean;
+  /** canEditAdmin = cho SỬA mục I Hành chính (PATCH /api/patients) — độc lập với
+   *  readOnly (Lễ tân chỉ-đọc lâm sàng nhưng vẫn sửa được hành chính). */
+  canEditAdmin?: boolean;
 }) {
   const router = useRouter();
   const p = appt.patient;
@@ -463,18 +468,42 @@ export default function ClinicalRecordForm({
           </p>
         )}
 
-        <Section no="I" title="Hành chính" synced>
-          <dl className="grid gap-x-4 gap-y-1.5 sm:grid-cols-2">
-            <AdminRow label="Họ tên" value={p?.full_name} />
-            <AdminRow label="Ngày sinh" value={p?.date_of_birth ? fmtDate(p.date_of_birth) : null} />
-            <AdminRow label="Giới tính" value={p?.gender} />
-            <AdminRow label="Dân tộc" value={p?.ethnicity} />
-            <AdminRow label="Quốc tịch" value={p?.nationality} />
-            <AdminRow label="Nghề nghiệp" value={p?.occupation} />
-            <AdminRow label="Đối tượng" value={p?.patient_objection} />
-            <AdminRow label="SĐT" value={p?.phone_primary} />
-            <AdminRow label="Địa chỉ" value={p?.address} />
-          </dl>
+        <Section
+          no="I"
+          title="Hành chính"
+          synced={!canEditAdmin}
+          editorLabel="có thể sửa"
+        >
+          {canEditAdmin && p ? (
+            <PatientAdminEditor
+              patient={{
+                clinic_patient_id: p.clinic_patient_id,
+                full_name: p.full_name,
+                date_of_birth: p.date_of_birth,
+                phone_primary: p.phone_primary,
+                phone_secondary: p.phone_secondary,
+                gender: p.gender,
+                ethnicity: p.ethnicity,
+                nationality: p.nationality,
+                occupation: p.occupation,
+                patient_objection: p.patient_objection,
+                address: p.address,
+                guardian_name: p.guardian_name,
+              }}
+            />
+          ) : (
+            <dl className="grid gap-x-4 gap-y-1.5 sm:grid-cols-2">
+              <AdminRow label="Họ tên" value={p?.full_name} />
+              <AdminRow label="Ngày sinh" value={p?.date_of_birth ? fmtDate(p.date_of_birth) : null} />
+              <AdminRow label="Giới tính" value={p?.gender} />
+              <AdminRow label="Dân tộc" value={p?.ethnicity} />
+              <AdminRow label="Quốc tịch" value={p?.nationality} />
+              <AdminRow label="Nghề nghiệp" value={p?.occupation} />
+              <AdminRow label="Đối tượng" value={p?.patient_objection} />
+              <AdminRow label="SĐT" value={p?.phone_primary} />
+              <AdminRow label="Địa chỉ" value={p?.address} />
+            </dl>
+          )}
         </Section>
 
         {(data?.history?.length ?? 0) > 0 && (

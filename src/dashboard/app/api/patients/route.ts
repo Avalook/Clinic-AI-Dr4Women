@@ -11,7 +11,7 @@ import { NextResponse } from "next/server";
 import { getSupabaseServer } from "../../../lib/supabase-server";
 import { getSupabaseService } from "../../../lib/supabase-service";
 import { getClinicRole, getClinicStaffId } from "../../../lib/clinic-session";
-import { canWriteIntake } from "../../../lib/roles";
+import { canWriteIntake, canEditPatient } from "../../../lib/roles";
 import { PHONE_RE, CCCD_RE } from "../../../lib/validation";
 import { logEvent } from "../../../lib/event-log";
 
@@ -255,7 +255,9 @@ export async function PATCH(request: Request) {
   } = await caller.auth.getUser();
   if (!user) return NextResponse.json({ error: "Unauthorised" }, { status: 401 });
   const role = await getClinicRole();
-  if (!canWriteIntake(role)) {
+  // SỬA hồ sơ hành chính: intake (CSKH/Lễ tân/QL/ĐD) + BÁC SĨ. (Tạo mới = POST
+  // vẫn chỉ canWriteIntake — bác sĩ không tạo BN, chỉ sửa.)
+  if (!canEditPatient(role)) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 

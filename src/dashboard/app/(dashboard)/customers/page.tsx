@@ -4,7 +4,8 @@
 // (CustomersView) lo chọn + bôi hồng.
 
 import { getSupabaseServer } from "../../../lib/supabase-server";
-import { requireNavAccess } from "../../../lib/clinic-session";
+import { requireNavAccess, getClinicRole } from "../../../lib/clinic-session";
+import { canWriteIntake } from "../../../lib/roles";
 import {
   vnTodayRangeUtc,
   vnMonthStartUtc,
@@ -56,7 +57,7 @@ function windowFor(period: Period): { start: string; end: string } | null {
 const SELECT = `
   clinic_patient_id, patient_code, full_name, date_of_birth, birth_year,
   phone_primary, phone_secondary, gender, ethnicity, nationality,
-  occupation, patient_objection, address, location_id, created_at
+  occupation, patient_objection, address, guardian_name, location_id, created_at
 `;
 
 export default async function CustomersPage({
@@ -70,6 +71,8 @@ export default async function CustomersPage({
   }>;
 }) {
   await requireNavAccess("/customers");
+  // CSKH / Lễ tân / Quản lý: được SỬA thông tin hành chính ngay trong panel.
+  const canEdit = canWriteIntake(await getClinicRole());
   const sp = await searchParams;
   const q = (sp.q ?? "").trim();
   const period: Period = (["today", "week", "month", "all"].includes(
@@ -188,6 +191,7 @@ export default async function CustomersPage({
           period={period}
           by={by}
           initialSelected={selected}
+          canEdit={canEdit}
         />
       )}
     </div>

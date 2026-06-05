@@ -119,7 +119,14 @@ async function DoctorTasks(readOnly = false) {
           {error.message}
         </div>
       ) : (
-        <DoctorWorkBoard rows={withPhanLoai} staffId={staffId} readOnly={readOnly} />
+        <DoctorWorkBoard
+          rows={withPhanLoai}
+          staffId={staffId}
+          readOnly={readOnly}
+          /* Lễ tân (readOnly): khóa lâm sàng nhưng ĐƯỢC sửa hành chính mục I.
+             Bác sĩ (readOnly=false): không bật sửa hành chính ở đây. */
+          canEditAdmin={readOnly}
+        />
       )}
     </div>
   );

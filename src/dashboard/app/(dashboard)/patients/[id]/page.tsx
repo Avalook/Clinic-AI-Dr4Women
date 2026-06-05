@@ -10,7 +10,7 @@ import PatientBooking from "./PatientBooking";
 import PatientCskhLog from "./PatientCskhLog";
 import { getSupabaseServer } from "../../../../lib/supabase-server";
 import { getClinicRole, getClinicStaffId } from "../../../../lib/clinic-session";
-import { canWriteIntake, isDoctorRole } from "../../../../lib/roles";
+import { canWriteIntake, isDoctorRole, canEditPatient } from "../../../../lib/roles";
 import type { Option } from "../AppointmentBooking";
 
 export const dynamic = "force-dynamic";
@@ -45,6 +45,9 @@ export default async function PatientDetailPage({
   // Booking is an intake action (CSKH / Lễ tân / Quản lý). Only those roles see
   // the form, so only load its dropdown options when they will be used.
   const canBook = canWriteIntake(role);
+  // Sửa thông tin hành chính: intake + bác sĩ (canEditPatient) — vd CSKH mở từ
+  // "Danh sách bệnh nhân" sửa tại trang chi tiết.
+  const canEdit = canEditPatient(role);
 
   let services: Option[] = [];
   let doctors: Option[] = [];
@@ -103,7 +106,7 @@ export default async function PatientDetailPage({
           . Thông tin vừa nhập & lịch hẹn hiển thị bên dưới.
         </div>
       )}
-      <PatientDetail id={id} />
+      <PatientDetail id={id} canEdit={canEdit} />
       {canBook && (
         <PatientBooking
           clinicPatientId={id}

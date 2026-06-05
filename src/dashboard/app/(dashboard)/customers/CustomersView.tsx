@@ -13,6 +13,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Search, ExternalLink, X, CalendarClock } from "lucide-react";
 import { fmtDate, fmtDateTimeOrDate } from "../../../lib/datetime";
+import PatientAdminEditor from "../PatientAdminEditor";
 
 export interface CustomerRow {
   clinic_patient_id: string;
@@ -28,6 +29,7 @@ export interface CustomerRow {
   occupation: string | null;
   patient_objection: string | null;
   address: string | null;
+  guardian_name: string | null;
   location_id: string | null;
   created_at: string | null;
 }
@@ -65,6 +67,7 @@ export default function CustomersView({
   period,
   by,
   initialSelected,
+  canEdit = false,
 }: {
   rows: CustomerRow[];
   apptByPatient: Record<string, ApptInfo>;
@@ -73,6 +76,8 @@ export default function CustomersView({
   period: Period;
   by: ByDim;
   initialSelected: string | null;
+  /** CSKH/Lễ tân/QL: sửa thông tin hành chính ngay trong panel chi tiết. */
+  canEdit?: boolean;
 }) {
   const router = useRouter();
   // Mặc định KHÔNG chọn ai → chỉ hiện danh sách. Bấm 1 khách mới hiện chi tiết
@@ -302,22 +307,52 @@ export default function CustomersView({
                 )}
               </div>
 
-              <dl className="space-y-1.5 text-sm">
-                <Row label="Ngày sinh" value={dobDisplay(selected)} />
-                <Row label="Giới tính" value={selected.gender} />
-                <Row label="SĐT chính" value={selected.phone_primary} />
-                <Row label="SĐT người nhà" value={selected.phone_secondary} />
-                <Row label="Dân tộc" value={selected.ethnicity} />
-                <Row label="Quốc tịch" value={selected.nationality} />
-                <Row label="Nghề nghiệp" value={selected.occupation} />
-                <Row label="Đối tượng" value={selected.patient_objection} />
-                <Row label="Địa chỉ" value={selected.address} />
-                <Row label="Cơ sở" value={locName(selected.location_id)} />
-                <Row
-                  label="Ngày tạo"
-                  value={fmtDateTimeOrDate(selected.created_at)}
-                />
-              </dl>
+              {canEdit ? (
+                <>
+                  {/* key = remount editor khi đổi khách (state cur theo từng BN). */}
+                  <PatientAdminEditor
+                    key={selected.clinic_patient_id}
+                    patient={{
+                      clinic_patient_id: selected.clinic_patient_id,
+                      full_name: selected.full_name,
+                      date_of_birth: selected.date_of_birth,
+                      phone_primary: selected.phone_primary,
+                      phone_secondary: selected.phone_secondary,
+                      gender: selected.gender,
+                      ethnicity: selected.ethnicity,
+                      nationality: selected.nationality,
+                      occupation: selected.occupation,
+                      patient_objection: selected.patient_objection,
+                      address: selected.address,
+                      guardian_name: selected.guardian_name,
+                    }}
+                  />
+                  <dl className="mt-2 space-y-1.5 text-sm">
+                    <Row label="Cơ sở" value={locName(selected.location_id)} />
+                    <Row
+                      label="Ngày tạo"
+                      value={fmtDateTimeOrDate(selected.created_at)}
+                    />
+                  </dl>
+                </>
+              ) : (
+                <dl className="space-y-1.5 text-sm">
+                  <Row label="Ngày sinh" value={dobDisplay(selected)} />
+                  <Row label="Giới tính" value={selected.gender} />
+                  <Row label="SĐT chính" value={selected.phone_primary} />
+                  <Row label="SĐT người nhà" value={selected.phone_secondary} />
+                  <Row label="Dân tộc" value={selected.ethnicity} />
+                  <Row label="Quốc tịch" value={selected.nationality} />
+                  <Row label="Nghề nghiệp" value={selected.occupation} />
+                  <Row label="Đối tượng" value={selected.patient_objection} />
+                  <Row label="Địa chỉ" value={selected.address} />
+                  <Row label="Cơ sở" value={locName(selected.location_id)} />
+                  <Row
+                    label="Ngày tạo"
+                    value={fmtDateTimeOrDate(selected.created_at)}
+                  />
+                </dl>
+              )}
 
               <div className="mt-4 flex flex-wrap gap-2">
                 <Link

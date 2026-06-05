@@ -110,7 +110,13 @@ export default async function PatientListPage() {
           {error.message}
         </div>
       ) : (
-        <PatientListView rows={rows} enablePopup={enablePopup} />
+        // canEditAdmin = enablePopup: Lễ tân + Bác sĩ vừa mở popup vừa sửa được
+        // mục I Hành chính (PATCH /api/patients, server gate canEditPatient).
+        <PatientListView
+          rows={rows}
+          enablePopup={enablePopup}
+          canEditAdmin={enablePopup}
+        />
       )}
     </div>
   );

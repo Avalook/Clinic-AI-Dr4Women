@@ -46,12 +46,15 @@ function PhanLoai({ value }: { value: ExaminedRow["phan_loai"] }) {
 export default function PatientListView({
   rows,
   enablePopup = false,
+  canEditAdmin = false,
 }: {
   rows: ExaminedRow[];
   /** Lễ tân + Bác sĩ: bấm tên BN mở hồ sơ (chỉ đọc) trượt sang phải (SplitPane)
    *  thay vì chuyển trang. CSKH/Quản lý = false → giữ điều hướng /patients/[id]
    *  (còn nút đặt lịch ở đó). */
   enablePopup?: boolean;
+  /** Cho sửa mục I Hành chính trong popup hồ sơ (Lễ tân + Bác sĩ). */
+  canEditAdmin?: boolean;
 }) {
   const [term, setTerm] = useState("");
   const [filter, setFilter] = useState<Filter>("all");
@@ -192,6 +195,7 @@ export default function PatientListView({
             staffId={null}
             fill
             readOnly
+            canEditAdmin={canEditAdmin}
             onClose={() => setOpenAppt(null)}
           />
         }

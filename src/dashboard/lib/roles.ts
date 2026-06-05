@@ -75,6 +75,13 @@ export function canManageAppt(role: ClinicRole | null): boolean {
   return role === "CSKH" || role === "MANAGEMENT";
 }
 
+/** Roles được SỬA thông tin hành chính BN (mục I): nhóm intake (CSKH/Lễ tân/QL/ĐD)
+ *  + BÁC SĨ. Bác sĩ KHÔNG tạo BN (canWriteIntake) nhưng được sửa hồ sơ hành chính
+ *  (vd trong "Danh sách bệnh nhân"). KHÔNG đụng CCCD/định danh. */
+export function canEditPatient(role: ClinicRole | null): boolean {
+  return canWriteIntake(role) || isDoctorRole(role);
+}
+
 /** Lễ tân xem "Công việc của tôi" (board bác sĩ) nhưng CHỈ ĐỌC — mọi nút
  *  Nhận/Từ chối/Lưu hồ sơ/Chỉ định XN đều bị khóa. Dùng để clone giao diện
  *  bác sĩ cho front desk mà không cấp quyền ghi. */

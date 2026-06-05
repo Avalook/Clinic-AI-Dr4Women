@@ -86,12 +86,15 @@ export default function DoctorWorkBoard({
   rows,
   staffId,
   readOnly = false,
+  canEditAdmin = false,
 }: {
   rows: DoctorApptRow[];
   staffId: string | null;
   /** Lễ tân: clone giao diện bác sĩ nhưng CHỈ XEM — ẩn Nhận/Từ chối, hồ sơ
    *  mở ở chế độ chỉ-đọc. Mặc định false (bác sĩ thao tác bình thường). */
   readOnly?: boolean;
+  /** Cho sửa mục I Hành chính trong hồ sơ (vd Lễ tân) — độc lập với readOnly. */
+  canEditAdmin?: boolean;
 }) {
   const router = useRouter();
   const [openId, setOpenId] = useState<string | null>(null);
@@ -359,6 +362,7 @@ export default function DoctorWorkBoard({
                 staffId={staffId}
                 fill
                 readOnly={readOnly}
+                canEditAdmin={canEditAdmin}
                 onClose={() => setOpenId(null)}
               />
             }

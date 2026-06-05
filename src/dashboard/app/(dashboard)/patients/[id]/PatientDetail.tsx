@@ -5,6 +5,7 @@
 
 import Link from "next/link";
 import StatusBadge from "../../StatusBadge";
+import PatientAdminEditor from "../../PatientAdminEditor";
 import { getSupabaseServer } from "../../../../lib/supabase-server";
 import { fmtDateTimeOrDate } from "../../../../lib/datetime";
 
@@ -76,7 +77,14 @@ function Field({ label, value }: { label: string; value: React.ReactNode }) {
   );
 }
 
-export default async function PatientDetail({ id }: { id: string }) {
+export default async function PatientDetail({
+  id,
+  canEdit = false,
+}: {
+  id: string;
+  /** CSKH/Lễ tân/QL/Bác sĩ: sửa thông tin hành chính ngay tại đây. */
+  canEdit?: boolean;
+}) {
   const supabase = await getSupabaseServer();
 
   const [patientRes, apptRes] = await Promise.all([
@@ -148,27 +156,49 @@ export default async function PatientDetail({ id }: { id: string }) {
             </p>
           </div>
         </div>
-        <dl className="grid grid-cols-2 gap-x-4 gap-y-4 p-4 sm:grid-cols-4 sm:gap-x-6 sm:p-6">
-          <Field label="Ngày sinh" value={dobLabel(patient)} />
-          <Field label="Tuổi" value={ageFromDob(patient.date_of_birth, patient.birth_year)} />
-          <Field label="Giới tính" value={patient.gender ?? "—"} />
-          <Field label="SĐT" value={patient.phone_primary ?? "—"} />
-          <Field label="SĐT người nhà" value={patient.phone_secondary ?? "—"} />
-          <Field label="Dân tộc" value={patient.ethnicity ?? "—"} />
-          <Field label="Quốc tịch" value={patient.nationality ?? "—"} />
-          <Field label="Nghề nghiệp" value={patient.occupation ?? "—"} />
-          <Field label="Đối tượng" value={patient.patient_objection ?? "—"} />
-          <Field
-            label="Số lịch hẹn"
-            value={appointments.length >= 20 ? "20+" : String(appointments.length)}
-          />
-          <div className="col-span-2 sm:col-span-4">
-            <dt className="text-[12px] text-[#888888]">Địa chỉ</dt>
-            <dd className="mt-0.5 text-[14px] text-[#171717]">
-              {patient.address ?? "—"}
-            </dd>
+        {canEdit ? (
+          // CSKH/Lễ tân/QL/Bác sĩ: sửa hành chính tại chỗ (PATCH /api/patients).
+          <div className="p-4 sm:p-6">
+            <PatientAdminEditor
+              patient={{
+                clinic_patient_id: patient.clinic_patient_id,
+                full_name: patient.full_name,
+                date_of_birth: patient.date_of_birth,
+                phone_primary: patient.phone_primary,
+                phone_secondary: patient.phone_secondary,
+                gender: patient.gender,
+                ethnicity: patient.ethnicity,
+                nationality: patient.nationality,
+                occupation: patient.occupation,
+                patient_objection: patient.patient_objection,
+                address: patient.address,
+                guardian_name: patient.guardian_name,
+              }}
+            />
           </div>
-        </dl>
+        ) : (
+          <dl className="grid grid-cols-2 gap-x-4 gap-y-4 p-4 sm:grid-cols-4 sm:gap-x-6 sm:p-6">
+            <Field label="Ngày sinh" value={dobLabel(patient)} />
+            <Field label="Tuổi" value={ageFromDob(patient.date_of_birth, patient.birth_year)} />
+            <Field label="Giới tính" value={patient.gender ?? "—"} />
+            <Field label="SĐT" value={patient.phone_primary ?? "—"} />
+            <Field label="SĐT người nhà" value={patient.phone_secondary ?? "—"} />
+            <Field label="Dân tộc" value={patient.ethnicity ?? "—"} />
+            <Field label="Quốc tịch" value={patient.nationality ?? "—"} />
+            <Field label="Nghề nghiệp" value={patient.occupation ?? "—"} />
+            <Field label="Đối tượng" value={patient.patient_objection ?? "—"} />
+            <Field
+              label="Số lịch hẹn"
+              value={appointments.length >= 20 ? "20+" : String(appointments.length)}
+            />
+            <div className="col-span-2 sm:col-span-4">
+              <dt className="text-[12px] text-[#888888]">Địa chỉ</dt>
+              <dd className="mt-0.5 text-[14px] text-[#171717]">
+                {patient.address ?? "—"}
+              </dd>
+            </div>
+          </dl>
+        )}
       </section>
 
       <section className="space-y-3">
