@@ -154,6 +154,11 @@ export default function NewPatientForm({
   const apptCh = apptDate ? clinicHoursForDate(apptDate) : null;
   const apptMinHour = apptCh ? Number(apptCh.open.slice(0, 2)) : 0;
   const apptMaxHour = apptCh ? Number(apptCh.close.slice(0, 2)) - 1 : 23;
+  // Lỗi nhỏ ngay cạnh ô SĐT/CCCD (live) — rõ ô NÀO sai (chính/người nhà/CCCD),
+  // không chờ submit + không còn 1 câu lỗi chung gây khó hiểu.
+  const phoneErr = phoneError(phone);
+  const phone2Err = phoneError(phone2);
+  const cccdErr = cccdError(cccd);
 
   async function bookFor(clinicPatientId: string): Promise<boolean> {
     if (!wantsAppointment) return true;
@@ -403,33 +408,42 @@ export default function NewPatientForm({
             <input
               value={phone}
               onChange={(e) => setPhone(digitsOnly(e.target.value).slice(0, 10))}
-              className={INPUT}
+              className={INPUT + (phoneErr ? " border-[#dc2626]" : "")}
               placeholder="10 chữ số, vd 0901234567"
               inputMode="numeric"
               maxLength={10}
             />
+            {phoneErr && (
+              <p className="mt-1 text-[12px] text-[#dc2626]">{phoneErr}</p>
+            )}
           </div>
           <div>
             <label className={LABEL}>SĐT người nhà (nếu có)</label>
             <input
               value={phone2}
               onChange={(e) => setPhone2(digitsOnly(e.target.value).slice(0, 10))}
-              className={INPUT}
+              className={INPUT + (phone2Err ? " border-[#dc2626]" : "")}
               placeholder="10 chữ số"
               inputMode="numeric"
               maxLength={10}
             />
+            {phone2Err && (
+              <p className="mt-1 text-[12px] text-[#dc2626]">{phone2Err}</p>
+            )}
           </div>
           <div>
             <label className={LABEL}>CCCD (nếu cung cấp)</label>
             <input
               value={cccd}
               onChange={(e) => setCccd(digitsOnly(e.target.value).slice(0, 12))}
-              className={INPUT}
+              className={INPUT + (cccdErr ? " border-[#dc2626]" : "")}
               placeholder="12 chữ số"
               inputMode="numeric"
               maxLength={12}
             />
+            {cccdErr && (
+              <p className="mt-1 text-[12px] text-[#dc2626]">{cccdErr}</p>
+            )}
           </div>
           <div>
             <label className={LABEL}>
