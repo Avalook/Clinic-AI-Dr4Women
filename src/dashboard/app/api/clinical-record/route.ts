@@ -278,9 +278,15 @@ export async function POST(request: Request) {
   }
 
   let visitId = existing?.visit_id ?? null;
-  if (existing && existing.status === "FINALIZED") {
+  // Chỉ cho ghi vào lượt khám ĐANG MỞ. FINALIZED *và* AMENDED đều bất biến theo
+  // TT13 — sửa phải qua visit_amendment, KHÔNG ghi đè trực tiếp (whitelist thay vì
+  // chỉ chặn FINALIZED, tránh lọt AMENDED).
+  const WRITABLE_VISIT_STATUSES = ["OPEN", "IN_PROGRESS"];
+  if (existing && !WRITABLE_VISIT_STATUSES.includes(existing.status)) {
     return NextResponse.json(
-      { error: "Hồ sơ đã chốt (FINALIZED) — luật cấm sửa, phải đính chính." },
+      {
+        error: `Hồ sơ đã chốt (${existing.status}) — luật cấm sửa, phải đính chính.`,
+      },
       { status: 409 },
     );
   }
@@ -322,9 +328,9 @@ export async function POST(request: Request) {
         if (!again) {
           return NextResponse.json({ error: vErr.message }, { status: 500 });
         }
-        if (again.status === "FINALIZED") {
+        if (!WRITABLE_VISIT_STATUSES.includes(again.status)) {
           return NextResponse.json(
-            { error: "Hồ sơ đã chốt (FINALIZED) — luật cấm sửa." },
+            { error: `Hồ sơ đã chốt (${again.status}) — luật cấm sửa.` },
             { status: 409 },
           );
         }
