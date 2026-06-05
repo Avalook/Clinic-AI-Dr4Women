@@ -9,8 +9,17 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Check, Pencil, X, Ban, CalendarClock } from "lucide-react";
 import { fmtTimeOrNone, vnLocalToUtcISO, nowMs } from "../../../lib/datetime";
-import { todayVn, clinicHoursForDate, clinicHoursError } from "../../../lib/roster";
-import { digitsOnly, phoneError } from "../../../lib/validation";
+import {
+  todayVn,
+  clinicHoursForDate,
+  clinicHoursError,
+  currentWeekStartVn,
+  shiftWeek,
+  weekDates,
+  dayLabel,
+  fmtDayMonth,
+} from "../../../lib/roster";
+import { digitsOnly, phoneError, daysInMonth } from "../../../lib/validation";
 import { INPUT, LABEL } from "../form-ui";
 import Time24Input from "../Time24Input";
 import StatusBadge from "../StatusBadge";
@@ -47,26 +56,21 @@ export interface ApptRow {
   service: { name: string } | null;
 }
 
-// Board "Tình trạng lịch hẹn" — 4 cột theo appointment.status, 1 lịch ở 1 cột:
-// Chờ xác nhận → Đã xác nhận → Đã khám xong → Đã huỷ / Từ chối. Cột cuối để CSKH
-// THẤY lịch bác sĩ TỪ CHỐI (DOCTOR_DECLINED) + hủy + không đến (trước đây tàng hình).
-const COLUMNS = [
-  { key: "pending", label: "Chờ xác nhận", statuses: ["SCHEDULED"], dot: "#2563eb" },
-  {
-    key: "confirmed",
-    label: "Đã xác nhận",
-    // CSKH_CONFIRMED = CSKH đã xác nhận với khách (chờ bác sĩ nhận ca);
-    // CONFIRMED = bác sĩ đã nhận ca; CHECKED_IN = khách đã đến.
-    statuses: ["CSKH_CONFIRMED", "CONFIRMED", "CHECKED_IN"],
-    dot: "#16a34a",
-  },
-  { key: "done", label: "Đã khám xong", statuses: ["COMPLETED"], dot: "#71717a" },
-  {
-    key: "off",
-    label: "Đã huỷ / Từ chối",
-    statuses: ["CANCELLED", "DOCTOR_DECLINED", "NO_SHOW"],
-    dot: "#dc2626",
-  },
+// Board "Tình trạng lịch hẹn" — dạng LỊCH theo NGÀY (thay 4 cột trạng thái cũ):
+// cột Ngày · Giờ · Bệnh nhân · Dịch vụ · Bác sĩ · Trạng thái; lọc theo KỲ + TRẠNG THÁI.
+const STATUS_GROUPS: { key: string; label: string; statuses: string[] }[] = [
+  { key: "all", label: "Tất cả", statuses: [] },
+  { key: "pending", label: "Chờ xác nhận", statuses: ["SCHEDULED"] },
+  { key: "confirmed", label: "Đã xác nhận", statuses: ["CSKH_CONFIRMED", "CONFIRMED", "CHECKED_IN"] },
+  { key: "done", label: "Đã khám xong", statuses: ["COMPLETED"] },
+  { key: "off", label: "Huỷ / Từ chối", statuses: ["CANCELLED", "DOCTOR_DECLINED", "NO_SHOW"] },
+];
+const PERIODS: { key: string; label: string }[] = [
+  { key: "all", label: "Tất cả" },
+  { key: "today", label: "Hôm nay" },
+  { key: "week", label: "Tuần này" },
+  { key: "next", label: "Tuần sau" },
+  { key: "month", label: "Tháng này" },
 ];
 
 interface Form {
@@ -237,69 +241,147 @@ export default function ConfirmBoard({
   const set = (k: keyof Form, v: string) =>
     setForm((f) => (f ? { ...f, [k]: v } : f));
 
+  // ---- Lọc theo KỲ (tuần này/sau, tháng) + TRẠNG THÁI; sắp theo giờ ----
+  const [period, setPeriod] = useState("week");
+  const [statusFilter, setStatusFilter] = useState("all");
+  const vnDate = (iso: string) =>
+    new Date(new Date(iso).getTime() + 7 * 3_600_000).toISOString().slice(0, 10);
+  const today = todayVn();
+  const wk = weekDates(currentWeekStartVn());
+  const nwk = weekDates(shiftWeek(currentWeekStartVn(), 1));
+  const monthStart = today.slice(0, 7) + "-01";
+  const monthEnd =
+    today.slice(0, 7) +
+    "-" +
+    String(
+      daysInMonth(Number(today.slice(5, 7)), Number(today.slice(0, 4))),
+    ).padStart(2, "0");
+  const RANGE: Record<string, [string, string] | null> = {
+    all: null,
+    today: [today, today],
+    week: [wk[0], wk[6]],
+    next: [nwk[0], nwk[6]],
+    month: [monthStart, monthEnd],
+  };
+  const statusGroup = STATUS_GROUPS.find((g) => g.key === statusFilter);
+  const range = RANGE[period];
+  const filtered = rows
+    .filter((r) => {
+      const d = vnDate(r.slot_start);
+      if (range && (d < range[0] || d > range[1])) return false;
+      if (
+        statusGroup &&
+        statusGroup.statuses.length &&
+        !statusGroup.statuses.includes(r.status)
+      )
+        return false;
+      return true;
+    })
+    .sort((a, b) => a.slot_start.localeCompare(b.slot_start));
+
   return (
     <>
     <div className="flex flex-col gap-4 lg:flex-row lg:items-start">
-      {/* MỘT bảng — các cột trạng thái chung trong 1 khung */}
-      <div className="flex h-[520px] min-h-0 min-w-0 max-h-[88vh] flex-1 resize-y flex-col overflow-hidden rounded-xl border border-[#f3cfe0] bg-white shadow-[0_1px_3px_rgba(236,72,153,0.08)]">
-        <div className="grid min-h-0 flex-1 grid-cols-1 divide-x divide-[#f6e0ec] sm:grid-cols-2 lg:grid-cols-4">
-          {COLUMNS.map((col) => {
-            const items = rows.filter((r) => col.statuses.includes(r.status));
-            return (
-              <div key={col.key} className="flex min-h-0 min-w-0 flex-col">
-                <div className="flex items-center gap-2 border-b border-[#f3cfe0] bg-[#fce7f3] px-3 py-2">
-                  <span
-                    className="h-2 w-2 rounded-full"
-                    style={{ backgroundColor: col.dot }}
-                  />
-                  <span className="text-sm font-semibold text-[#171717]">
-                    {col.label}
-                  </span>
-                  <span className="ml-auto rounded-full bg-white px-2 py-0.5 text-xs text-[#71717a]">
-                    {items.length}
-                  </span>
-                </div>
-                <div className="min-h-0 flex-1 space-y-2 overflow-y-auto p-2">
-                  {items.length === 0 && (
-                    <p className="py-6 text-center text-xs text-[#a1a1aa]">
-                      Trống
-                    </p>
-                  )}
-                  {items.map((a) => (
-                    <button
+      {/* LỊCH theo NGÀY (thay 4 cột trạng thái): Ngày · Giờ · BN · Dịch vụ · Bác
+          sĩ · Trạng thái. Lọc KỲ + TRẠNG THÁI; bấm dòng → panel chi tiết bên phải. */}
+      <div className="min-w-0 flex-1 space-y-2">
+        <div className="flex flex-wrap items-center gap-1.5">
+          {PERIODS.map((p) => (
+            <button
+              key={p.key}
+              onClick={() => setPeriod(p.key)}
+              className={
+                "rounded-full px-3 py-1 text-xs font-medium transition-colors " +
+                (period === p.key
+                  ? "bg-[#ec4899] text-white"
+                  : "border border-[#f3cfe0] bg-white text-[#9d2463] hover:bg-[#fdf2f8]")
+              }
+            >
+              {p.label}
+            </button>
+          ))}
+          <span className="px-0.5 text-[#d4d4d8]">·</span>
+          {STATUS_GROUPS.map((g) => (
+            <button
+              key={g.key}
+              onClick={() => setStatusFilter(g.key)}
+              className={
+                "rounded-full px-2.5 py-0.5 text-xs font-medium transition-colors " +
+                (statusFilter === g.key
+                  ? "bg-[#9d2463] text-white"
+                  : "border border-[#f3cfe0] bg-white text-[#9d2463] hover:bg-[#fdf2f8]")
+              }
+            >
+              {g.label}
+            </button>
+          ))}
+        </div>
+
+        {/* Khung kéo co dãn + cuộn: bảng co thì CUỘN, không vỡ cấu trúc. */}
+        <div className="resize overflow-auto rounded-xl border border-[#f3cfe0] bg-white shadow-[0_1px_3px_rgba(236,72,153,0.08)] max-h-[80vh] min-h-[200px] max-w-full">
+          <table className="w-full min-w-max border-collapse text-xs">
+            <thead className="sticky top-0 z-10 bg-[#fce7f3] text-left text-[10px] font-semibold uppercase tracking-wide text-[#9d2463]">
+              <tr>
+                <th className="border-b border-r border-[#f3cfe0] px-2 py-1.5 min-w-[96px]">Ngày</th>
+                <th className="border-b border-r border-[#f3cfe0] px-2 py-1.5 min-w-[60px]">Giờ</th>
+                <th className="border-b border-r border-[#f3cfe0] px-2 py-1.5 min-w-[180px]">Bệnh nhân</th>
+                <th className="border-b border-r border-[#f3cfe0] px-2 py-1.5 min-w-[120px]">Dịch vụ</th>
+                <th className="border-b border-r border-[#f3cfe0] px-2 py-1.5 min-w-[110px]">Bác sĩ</th>
+                <th className="border-b border-[#f3cfe0] px-2 py-1.5 min-w-[110px]">Trạng thái</th>
+              </tr>
+            </thead>
+            <tbody>
+              {filtered.length === 0 ? (
+                <tr>
+                  <td colSpan={6} className="px-3 py-8 text-center text-xs text-[#a1a1aa]">
+                    Không có lịch trong kỳ / trạng thái đã chọn.
+                  </td>
+                </tr>
+              ) : (
+                filtered.map((a, i) => {
+                  const d = vnDate(a.slot_start);
+                  const newDay = i === 0 || vnDate(filtered[i - 1].slot_start) !== d;
+                  const active = selId === a.id;
+                  return (
+                    <tr
                       key={a.id}
                       onClick={() => select(a)}
                       className={
-                        "w-full rounded-lg border bg-white p-2.5 text-left transition-colors " +
-                        (selId === a.id
-                          ? "border-[#ec4899] ring-2 ring-[#ec4899]/20"
-                          : "border-[#e4e4e7] hover:border-[#ec4899]/50")
+                        "cursor-pointer border-b border-[#f3cfe0] " +
+                        (active
+                          ? "bg-[#fce7f3]"
+                          : (i % 2 ? "bg-[#fdf7fb]" : "bg-white") +
+                            " hover:bg-[#fdf2f8]")
                       }
                     >
-                      <span className="block truncate text-sm font-medium text-[#171717]">
-                        {a.patient?.full_name ?? "—"}
-                      </span>
-                      <span className="mt-0.5 block truncate font-mono text-[11px] text-[#888888]">
-                        {a.patient?.patient_code}
-                        {a.patient?.phone_primary
-                          ? ` · ${a.patient.phone_primary}`
-                          : ""}
-                      </span>
-                      <span className="mt-1 block text-xs text-[#52525b]">
+                      <td className="border-r border-[#f3cfe0] px-2 py-1.5 whitespace-nowrap font-medium text-[#9d2463]">
+                        {newDay ? `${dayLabel(d)} · ${fmtDayMonth(d)}` : ""}
+                      </td>
+                      <td className="border-r border-[#f3cfe0] px-2 py-1.5 whitespace-nowrap text-[#171717]">
                         {fmtTimeOrNone(a.slot_start)}
-                        {a.service?.name ? ` · ${a.service.name}` : ""}
-                      </span>
-                      {col.key === "off" && (
-                        <span className="mt-1.5 block">
-                          <StatusBadge status={a.status} />
+                      </td>
+                      <td className="border-r border-[#f3cfe0] px-2 py-1.5 text-[#171717]">
+                        <span className="block">{a.patient?.full_name ?? "—"}</span>
+                        <span className="block font-mono text-[10px] text-[#888888]">
+                          {a.patient?.patient_code}
+                          {a.patient?.phone_primary ? ` · ${a.patient.phone_primary}` : ""}
                         </span>
-                      )}
-                    </button>
-                  ))}
-                </div>
-              </div>
-            );
-          })}
+                      </td>
+                      <td className="border-r border-[#f3cfe0] px-2 py-1.5 text-[#52525b]">
+                        {a.service?.name ?? "—"}
+                      </td>
+                      <td className="border-r border-[#f3cfe0] px-2 py-1.5 whitespace-nowrap text-[#52525b]">
+                        {a.doctor?.full_name ?? "—"}
+                      </td>
+                      <td className="px-2 py-1.5">
+                        <StatusBadge status={a.status} />
+                      </td>
+                    </tr>
+                  );
+                })
+              )}
+            </tbody>
+          </table>
         </div>
       </div>
 
