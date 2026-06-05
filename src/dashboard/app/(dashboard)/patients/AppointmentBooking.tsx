@@ -10,6 +10,7 @@ import { useState, type ReactNode } from "react";
 import { vnLocalToUtcISO } from "../../../lib/datetime";
 import { todayVn } from "../../../lib/roster";
 import { INPUT, LABEL, BTN, DURATIONS, CHANNELS } from "../form-ui";
+import Time24Input from "../Time24Input";
 
 export interface Option {
   id: string;
@@ -130,14 +131,8 @@ export default function AppointmentBooking({
           />
         </div>
         <div className="space-y-1">
-          <label className={LABEL}>Giờ *</label>
-          <input
-            type="time"
-            step={60}
-            value={apptTime}
-            onChange={(e) => setApptTime(e.target.value)}
-            className={INPUT}
-          />
+          <label className={LABEL}>Giờ * <span className="font-normal text-[#a1a1aa]">(24h)</span></label>
+          <Time24Input value={apptTime} onChange={setApptTime} />
         </div>
         <div className="space-y-1">
           <label className={LABEL}>Số khám</label>

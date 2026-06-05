@@ -12,7 +12,13 @@ import { UserRound, CalendarClock } from "lucide-react";
 import type { Option } from "../AppointmentBooking";
 import { vnLocalToUtcISO } from "../../../../lib/datetime";
 import { todayVn } from "../../../../lib/roster";
-import { digitsOnly, phoneError, cccdError } from "../../../../lib/validation";
+import {
+  digitsOnly,
+  phoneError,
+  cccdError,
+  dmyToIso,
+  dobError,
+} from "../../../../lib/validation";
 import {
   INPUT,
   LABEL,
@@ -22,6 +28,7 @@ import {
   DURATIONS,
   CHANNELS,
 } from "../../form-ui";
+import Time24Input from "../../Time24Input";
 
 export type { Option };
 
@@ -79,10 +86,17 @@ export default function NewPatientForm({
 
   // Patient
   const [fullName, setFullName] = useState("");
-  const [dob, setDob] = useState("");
+  // Ngày sinh dd/mm/yyyy (3 ô) — có logic lịch (không 30/2; 29/2 chỉ năm nhuận)
+  // + không ở tương lai (validation.ts).
+  const [dobDay, setDobDay] = useState("");
+  const [dobMonth, setDobMonth] = useState("");
+  const [dobYear, setDobYear] = useState("");
   // Năm sinh-only (feedback B5#4): BN chỉ nhớ năm → bật toggle, nhập năm.
   const [dobYearOnly, setDobYearOnly] = useState(false);
   const [birthYear, setBirthYear] = useState("");
+  // Suy ra ISO + lỗi nhỏ ngày sinh (chỉ khi KHÔNG dùng năm-only).
+  const dobIso = dmyToIso(dobDay, dobMonth, dobYear);
+  const dobErr = dobYearOnly ? null : dobError(dobDay, dobMonth, dobYear, TODAY);
   const [phone, setPhone] = useState("");
   const [phone2, setPhone2] = useState("");
   const [cccd, setCccd] = useState("");
@@ -188,14 +202,13 @@ export default function NewPatientForm({
         setError(`Nhập năm sinh (1900–${CUR_YEAR}), hoặc bỏ tick “Chỉ biết năm”.`);
         return;
       }
-    } else if (!dob.trim()) {
+    } else if (!dobDay && !dobMonth && !dobYear) {
       setError(
         "Phải điền đầy đủ ngày/tháng/năm sinh. Nếu chỉ biết năm, hãy tick “Chỉ biết năm”.",
       );
       return;
-    } else if (dob > TODAY) {
-      // Năm sinh không thể ở tương lai (so chuỗi yyyy-mm-dd là đủ).
-      setError("Ngày sinh không thể ở tương lai.");
+    } else if (dobErr) {
+      setError(dobErr);
       return;
     }
     // Lịch khám (không phải vãng lai): KHÔNG cho đặt vào quá khứ — thời gian thực.
@@ -212,7 +225,7 @@ export default function NewPatientForm({
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         full_name: fullName,
-        date_of_birth: dobYearOnly ? "" : dob,
+        date_of_birth: dobYearOnly ? "" : dobIso,
         birth_year: dobYearOnly ? birthYear : undefined,
         phone_primary: phone,
         phone_secondary: phone2,
@@ -295,13 +308,46 @@ export default function NewPatientForm({
                 placeholder="VD: 1990"
               />
             ) : (
-              <input
-                type="date"
-                max={TODAY}
-                value={dob}
-                onChange={(e) => setDob(e.target.value)}
-                className={INPUT}
-              />
+              <div>
+                <div className="flex items-center gap-2">
+                  <input
+                    type="number"
+                    inputMode="numeric"
+                    min={1}
+                    max={31}
+                    value={dobDay}
+                    onChange={(e) => setDobDay(digitsOnly(e.target.value).slice(0, 2))}
+                    className={INPUT}
+                    placeholder="Ngày"
+                    aria-label="Ngày sinh — ngày"
+                  />
+                  <input
+                    type="number"
+                    inputMode="numeric"
+                    min={1}
+                    max={12}
+                    value={dobMonth}
+                    onChange={(e) => setDobMonth(digitsOnly(e.target.value).slice(0, 2))}
+                    className={INPUT}
+                    placeholder="Tháng"
+                    aria-label="Ngày sinh — tháng"
+                  />
+                  <input
+                    type="number"
+                    inputMode="numeric"
+                    min={1900}
+                    max={CUR_YEAR}
+                    value={dobYear}
+                    onChange={(e) => setDobYear(digitsOnly(e.target.value).slice(0, 4))}
+                    className={INPUT}
+                    placeholder="Năm"
+                    aria-label="Ngày sinh — năm"
+                  />
+                </div>
+                {dobErr && (
+                  <p className="mt-1 text-[12px] text-[#dc2626]">{dobErr}</p>
+                )}
+              </div>
             )}
           </div>
           <div>
@@ -495,14 +541,10 @@ export default function NewPatientForm({
             />
           </div>
           <div>
-            <label className={LABEL}>Giờ</label>
-            <input
-              type="time"
-              step={60}
-              value={apptTime}
-              onChange={(e) => setApptTime(e.target.value)}
-              className={INPUT}
-            />
+            <label className={LABEL}>
+              Giờ <span className="font-normal text-[#a1a1aa]">(24h)</span>
+            </label>
+            <Time24Input value={apptTime} onChange={setApptTime} />
           </div>
           <div>
             <label className={LABEL}>Số khám</label>
