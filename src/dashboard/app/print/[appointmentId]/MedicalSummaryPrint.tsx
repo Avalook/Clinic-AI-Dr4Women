@@ -99,10 +99,13 @@ export default function MedicalSummaryPrint({ initial }: { initial: FormData }) 
     >
       {/* CSS in ấn khổ A4 */}
       <style>{`
-        @page { size: A4; margin: 12mm; }
+        @page { size: A4; margin: 9mm; }
+        /* textarea TỰ CO theo nội dung (Chrome) → hết khoảng trắng thừa, gọn 1 trang. */
+        textarea { field-sizing: content; }
         @media print {
           .screen-bg { background: #fff !important; padding: 0 !important; min-height: auto !important; }
-          .sheet { box-shadow: none !important; width: auto !important; min-height: auto !important; padding: 0 !important; margin: 0 !important; }
+          .sheet { box-shadow: none !important; width: auto !important; min-height: auto !important;
+                   padding: 0 !important; margin: 0 !important; font-size: 11px !important; line-height: 1.22 !important; }
           .no-print { display: none !important; }
           input, textarea { border-bottom: none !important; resize: none !important; }
         }
@@ -144,10 +147,10 @@ export default function MedicalSummaryPrint({ initial }: { initial: FormData }) 
           minHeight: 1123,
           margin: "0 auto",
           background: "#fff",
-          padding: "34px 44px",
+          padding: "20px 32px",
           boxShadow: "0 2px 12px rgba(0,0,0,.25)",
-          fontSize: 13,
-          lineHeight: 1.5,
+          fontSize: 12,
+          lineHeight: 1.3,
         }}
       >
         {/* ===== HEADER ===== */}
@@ -196,11 +199,11 @@ export default function MedicalSummaryPrint({ initial }: { initial: FormData }) 
         </div>
 
         {/* ===== TITLE ===== */}
-        <div style={{ textAlign: "center", margin: "14px 0 10px" }}>
-          <div style={{ fontWeight: 700, fontSize: 18, letterSpacing: 1 }}>
+        <div style={{ textAlign: "center", margin: "8px 0 6px" }}>
+          <div style={{ fontWeight: 700, fontSize: 17, letterSpacing: 1 }}>
             TÓM TẮT KHÁM BỆNH
           </div>
-          <div style={{ fontWeight: 700, fontStyle: "italic", fontSize: 14 }}>
+          <div style={{ fontWeight: 700, fontStyle: "italic", fontSize: 13 }}>
             MEDICAL SUMMARY
           </div>
         </div>
@@ -310,7 +313,7 @@ export default function MedicalSummaryPrint({ initial }: { initial: FormData }) 
           <span>PARA: </span>
           <Field d={d} set={set} k="para" width={60} />
           <div style={{ paddingLeft: 28 }}>
-            <Area d={d} set={set} k="tienSu" rows={4} />
+            <Area d={d} set={set} k="tienSu" rows={2} />
           </div>
         </div>
 
@@ -370,7 +373,7 @@ export default function MedicalSummaryPrint({ initial }: { initial: FormData }) 
             Hướng xử lý và lời dặn (Solution and instruction):
           </span>
           <div style={{ paddingLeft: 28 }}>
-            <Area d={d} set={set} k="huongXuLy" rows={4} />
+            <Area d={d} set={set} k="huongXuLy" rows={2} />
           </div>
         </div>
 
