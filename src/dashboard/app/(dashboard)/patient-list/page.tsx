@@ -77,10 +77,6 @@ export default async function PatientListPage() {
         <h1 className="text-xl font-semibold text-[#171717]">
           Danh sách bệnh nhân
         </h1>
-        <p className="text-sm text-[#888888]">
-          Bệnh nhân đã khám xong · Khám lần đầu = khám 1 lần, Tái khám = từ lần
-          thứ 2 trở đi.
-        </p>
       </header>
 
       {error ? (

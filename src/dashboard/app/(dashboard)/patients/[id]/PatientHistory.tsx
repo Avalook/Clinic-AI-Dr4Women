@@ -54,23 +54,39 @@ const VISIT_COLUMNS = `
   )
 `;
 
-// SOAP fields are JSONB — may be a string, or an object of strings. Flatten
-// to readable text without assuming a fixed shape.
+// SOAP là JSONB — chuỗi HOẶC object LỒNG (vd objective = {vitals:{...},
+// kham_thai:{...}}). Flatten ĐỆ QUY thành "Nhãn: giá trị · …" (KHÔNG để lòi JSON
+// thô như trước — đó chính là lỗi hiển thị "thông số" ở Lịch sử khám).
+const KV_LABEL: Record<string, string> = {
+  mach: "Mạch", nhiet_do: "Nhiệt độ", huyet_ap: "Huyết áp", nhip_tho: "Nhịp thở",
+  spo2: "SpO2", can_nang: "Cân nặng", chieu_cao: "Chiều cao", bmi: "BMI",
+  tuoi_thai: "Tuổi thai", du_kien_sinh: "Dự kiến sinh", chieu_cao_tc: "Cao TC/VB",
+  nhip_tim_thai: "Tim thai", benh_su: "Bệnh sử", chan_doan: "Chẩn đoán",
+  loi_dan: "Lời dặn",
+};
+function kvPairs(v: unknown): string[] {
+  if (v == null) return [];
+  if (typeof v !== "object") {
+    const s = String(v).trim();
+    return s ? [s] : [];
+  }
+  if (Array.isArray(v)) return v.flatMap(kvPairs);
+  const out: string[] = [];
+  for (const [k, val] of Object.entries(v as Record<string, unknown>)) {
+    if (val == null) continue;
+    if (typeof val === "object") {
+      out.push(...kvPairs(val)); // nhóm lồng (vitals/kham_thai) → trải nội dung
+    } else {
+      const s = String(val).trim();
+      if (s) out.push(`${KV_LABEL[k] ?? k}: ${s}`);
+    }
+  }
+  return out;
+}
 function asText(v: unknown): string {
   if (v == null) return "";
   if (typeof v === "string") return v.trim();
-  if (typeof v === "object") {
-    const parts = Object.values(v as Record<string, unknown>)
-      .filter((x): x is string => typeof x === "string" && x.trim() !== "")
-      .map((x) => x.trim());
-    if (parts.length) return parts.join(" · ");
-    try {
-      return JSON.stringify(v);
-    } catch {
-      return "";
-    }
-  }
-  return String(v);
+  return kvPairs(v).join(" · ");
 }
 
 function firstRecord(

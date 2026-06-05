@@ -50,11 +50,6 @@ export default async function NewPatientPage() {
         <h1 className="text-xl font-semibold text-[#171717]">
           {nurse ? "Nhập thông tin khách vãng lai" : "Nhập thông tin khách hàng"}
         </h1>
-        <p className="text-sm text-[#888888]">
-          {nurse
-            ? "Ghi khách vãng lai + dịch vụ/bác sĩ → tạo lượt khám hôm nay."
-            : "Tạo hồ sơ và đặt lịch hẹn trong một bước."}
-        </p>
       </header>
       <NewPatientForm
         locations={locations}

@@ -80,13 +80,6 @@ export default function SelfRosterForm({
       <h2 className="mb-3 text-sm font-semibold text-[#171717]">
         Đăng ký ca của tôi
       </h2>
-      <p className="mb-3 text-xs text-[#888888]">
-        Vị trí làm việc tự suy từ chức danh của bạn —{" "}
-        <span className="font-medium text-[#9d2463]">
-          {STATION_LABEL[defaultStation] ?? defaultStation}
-        </span>
-        . Chỉ cần chọn ngày + ca.
-      </p>
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
         <div>
           <label className={LABEL}>Ngày</label>

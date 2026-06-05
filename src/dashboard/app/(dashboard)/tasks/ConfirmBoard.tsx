@@ -11,7 +11,7 @@ import { Check, Pencil, X, Ban, CalendarClock } from "lucide-react";
 import { fmtTimeOrNone, vnLocalToUtcISO, nowMs } from "../../../lib/datetime";
 import { todayVn, clinicHoursForDate, clinicHoursError } from "../../../lib/roster";
 import { digitsOnly, phoneError } from "../../../lib/validation";
-import { INPUT, LABEL, TBL_RESIZE_HINT } from "../form-ui";
+import { INPUT, LABEL } from "../form-ui";
 import Time24Input from "../Time24Input";
 import StatusBadge from "../StatusBadge";
 
@@ -239,7 +239,6 @@ export default function ConfirmBoard({
 
   return (
     <>
-    <p className="mb-2 text-[11px] text-[#c084a8]">{TBL_RESIZE_HINT}</p>
     <div className="flex flex-col gap-4 lg:flex-row lg:items-start">
       {/* MỘT bảng — các cột trạng thái chung trong 1 khung */}
       <div className="flex h-[520px] min-h-0 min-w-0 max-h-[88vh] flex-1 resize-y flex-col overflow-hidden rounded-xl border border-[#f3cfe0] bg-white shadow-[0_1px_3px_rgba(236,72,153,0.08)]">

@@ -11,7 +11,7 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { ExternalLink, X, Plus } from "lucide-react";
 import { fmtDateTimeOrDate } from "../../../lib/datetime";
-import { INPUT, LABEL, TBL_RESIZE_HINT } from "../form-ui";
+import { INPUT, LABEL } from "../form-ui";
 
 export interface CskhActionRow {
   id: string;
@@ -112,7 +112,6 @@ export default function CskhActionBoard({ rows }: { rows: CskhActionRow[] }) {
 
   return (
     <>
-    <p className="mb-2 text-[11px] text-[#c084a8]">{TBL_RESIZE_HINT}</p>
     <div className="flex flex-col gap-4 lg:flex-row lg:items-start">
       <div className="min-w-0 flex-1 h-[520px] min-h-[260px] max-h-[88vh] resize-y overflow-x-auto overflow-y-hidden rounded-xl border border-[#f3cfe0] bg-white shadow-[0_1px_3px_rgba(236,72,153,0.08)]">
         <div className="flex h-full divide-x divide-[#f6e0ec]">

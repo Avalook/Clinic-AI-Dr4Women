@@ -86,10 +86,6 @@ async function DoctorTasks() {
     <div className="space-y-4">
       <header>
         <h1 className="text-xl font-semibold text-[#171717]">Công việc của tôi</h1>
-        <p className="text-sm text-[#888888]">
-          Lịch khám của bạn theo trạng thái · bấm tên bệnh nhân để mở hồ sơ lâm
-          sàng.
-        </p>
       </header>
       {error ? (
         <div className="rounded-md bg-[#fee2e2] px-3 py-2 text-sm text-[#dc2626]">

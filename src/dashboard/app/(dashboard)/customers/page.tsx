@@ -171,11 +171,6 @@ export default async function CustomersPage({
         <h1 className="text-xl font-semibold text-[#171717]">
           Thông tin khách hàng
         </h1>
-        <p className="text-sm text-[#888888]">
-          Danh bạ khách đã nhập · kèm lịch hẹn sắp tới. Lọc theo{" "}
-          <b>ngày tạo</b> hoặc <b>ngày hẹn</b> để biết khách thuộc ngày/tuần nào.
-          Khách vừa nhập sẽ tự được chọn.
-        </p>
       </header>
 
       {error ? (
