@@ -175,6 +175,20 @@ export default function NewPatientForm({
       setError(ve);
       return;
     }
+    // Ngày sinh (yêu cầu 04/06): tick "Chỉ biết năm" → CHỈ cần NĂM (1900–2100);
+    // KHÔNG tick → phải điền ĐỦ ngày/tháng/năm.
+    if (dobYearOnly) {
+      const y = Number(birthYear);
+      if (!birthYear.trim() || !Number.isFinite(y) || y < 1900 || y > 2100) {
+        setError("Nhập năm sinh (1900–2100), hoặc bỏ tick “Chỉ biết năm”.");
+        return;
+      }
+    } else if (!dob.trim()) {
+      setError(
+        "Phải điền đầy đủ ngày/tháng/năm sinh. Nếu chỉ biết năm, hãy tick “Chỉ biết năm”.",
+      );
+      return;
+    }
     setSubmitting(true);
     const res = await fetch("/api/patients", {
       method: "POST",

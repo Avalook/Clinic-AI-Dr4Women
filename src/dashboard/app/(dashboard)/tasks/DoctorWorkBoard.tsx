@@ -199,7 +199,9 @@ export default function DoctorWorkBoard({
                       </div>
                     )}
 
-                    {(a.status === "CONFIRMED" || a.status === "CHECKED_IN") && (
+                    {/* Khám xong CHỈ khi lễ tân ĐÃ check-in (BN đã đến). Lịch mới
+                        CONFIRMED (bác sĩ nhận ca, BN chưa tới) → chưa cho khám xong. */}
+                    {a.status === "CHECKED_IN" && (
                       <div className="mt-2 flex gap-2 border-t border-[#f4f4f5] pt-2">
                         <button
                           onClick={() => act(a.id, "complete")}
@@ -209,6 +211,11 @@ export default function DoctorWorkBoard({
                           <CheckCheck size={13} /> Khám xong
                         </button>
                       </div>
+                    )}
+                    {a.status === "CONFIRMED" && (
+                      <p className="mt-2 border-t border-[#f4f4f5] pt-2 text-[11px] text-[#a1a1aa]">
+                        Chờ lễ tân check-in (bệnh nhân đến) mới “Khám xong” được.
+                      </p>
                     )}
                   </div>
                 ))}

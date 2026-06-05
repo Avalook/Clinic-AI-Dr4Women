@@ -1013,3 +1013,39 @@ Luồng: CSKH "Xác nhận" với khách → **CSKH_CONFIRMED** (chờ bác sĩ)
 - **Operator**: apply migration 041 trên Supabase (chưa apply → luồng 2 bước chưa chạy).
 - **Chờ lệnh**: commit + push (chưa commit). Verify UI có đăng nhập (cần Supabase login).
 - File `CskhActionBoard.tsx` + route `/api/cskh-action` thành mồ côi — xoá hẳn khi user chốt bỏ.
+
+## === PHIÊN 05/06 — CẦM TRỊCH ỔN ĐỊNH MVP NHẬP TAY ===
+> Executor: Claude Code (Opus 4.8). User chốt hướng: **MVP nhập tay**, AI orchestrator
+> (FastAPI/LangGraph/MPI/lab_triage) NGỦ ĐÔNG (Phase 2). Đã xác minh dashboard = code
+> cứng 100%, KHÔNG gọi backend AI. DB reset trống (phiên khác chạy reset_clinical_data.sql),
+> seed nguyên. An toàn: data nhập tay KHÔNG bị xoá tự động (CLINIC_ALLOW_NOTION_SYNC tắt
+> ở cả 5 .env + không cron/worker/vercel-cron + sync_to_supabase.py:1027 tự từ chối).
+
+### Batch 1 — NỀN ĐỒNG BỘ: ÁP MIGRATION 039-042 (đã verify DB thật) ✅
+- **Chẩn đoán DB thật** (read-only qua DATABASE_URL): 8 bảng RLS-on-NHƯNG-THIẾU-policy
+  → board đọc bằng authenticated ra RỖNG dù data ghi đúng: `prescription, cskh_action,
+  service_log, staff_task, patient_medical_profile, work_session, work_session_staff,
+  event_log`. **Đây là gốc "rối/board trống"**, không phải data sai.
+- Migration 042 GỐC sót `work_session_staff` (đúng lỗi audit) → ĐÃ THÊM vào 042 (.sql + .down.sql).
+- Áp **039** (visit UNIQUE appointment_id + unaccent search) + **040** (patient.birth_year)
+  + **041** (status CSKH_CONFIRMED — NỢ "apply 041" ở trên GIỜ XONG) + **042** (RLS read 8 bảng)
+  trên DB TRỐNG (zero risk constraint). Backfill `schema_migrations` 021-038 (14 row, schema có sẵn).
+  → `schema_migrations` 24 → **42 row** (hết "ghi log sót"). File gói tay:
+  `scripts/maintenance/apply_039_042_blank_db.sql` (idempotent, dán Supabase SQL Editor được).
+- **Verify DB thật:** 8 SELECT policy ✓ · `uq_visit_appointment_id` ✓ · `birth_year` ✓
+  · `full_name_unaccent` ✓ · `CSKH_CONFIRMED` allowed ✓. Áp qua asyncpg + DATABASE_URL,
+  user duyệt thủ công (harness chặn prod-write — đúng §3).
+
+### WIP commit kèm (việc tốt đang lửng lơ, đã build-verify)
+- `appointments/route.ts` + `DoctorWorkBoard.tsx`: gate "Khám xong" CHỈ khi đã CHECKED_IN
+  (BN đã đến) — không cho từ CONFIRMED. + BS nhận ca (confirm) → TỰ THÊM vào `work_roster`
+  cột "Lịch khám" đúng ngày hẹn (hiện trên bảng Lịch làm việc mọi vai trò).
+- `NewPatientForm.tsx`: validation ngày sinh (tick "Chỉ biết năm" → cần năm 1900-2100;
+  không tick → bắt đủ ngày/tháng/năm).
+- Build: `tsc --noEmit` + `eslint` + `next build` PASS (30 route).
+
+### CÒN LẠI (đang làm tiếp — KHÔNG đụng AI)
+- #4 `/customers`: hiện NGÀY-GIỜ HẸN + phân biệt khách theo ngày/tuần (hiện chỉ lọc theo created_at).
+- Phân trang `/customers` (cap 300 → giấu khách sau ~1-2 tuần nhập thật).
+- Lỗi hiển thị UI + logic "nhập thông tin".
+- Ops chờ user: gói Supabase Pro (Free tự ngủ) + chốt mô hình login-chung-cookie-vai-trò.

@@ -28,6 +28,7 @@ import {
   canCheckin,
 } from "../../../lib/roles";
 import { logEvent } from "../../../lib/event-log";
+import { weekStartOf } from "../../../lib/roster";
 
 interface Body {
   clinic_patient_id?: string;
@@ -286,9 +287,11 @@ export async function PATCH(request: Request) {
       newStatus = "DOCTOR_DECLINED";
       fromStatuses = ["SCHEDULED", "CSKH_CONFIRMED"];
     } else {
-      // Khám xong: đã xác nhận / đã đến → COMPLETED.
+      // Khám xong: BN PHẢI đã đến (lễ tân check-in) → COMPLETED. KHÔNG cho khám
+      // xong khi mới CONFIRMED (bác sĩ nhận ca nhưng BN chưa tới quầy/chưa
+      // check-in) — đúng vòng đời: …→CONFIRMED→CHECKED_IN→COMPLETED.
       newStatus = "COMPLETED";
-      fromStatuses = ["CONFIRMED", "CHECKED_IN"];
+      fromStatuses = ["CHECKED_IN"];
     }
   } else if (action === "checkin") {
     newStatus = "CHECKED_IN";
@@ -519,6 +522,44 @@ export async function PATCH(request: Request) {
       { onConflict: "source_ref" },
     );
     if (caErr) console.error("cskh_action upsert (complete) lỗi:", caErr.message);
+  }
+
+  // Bác sĩ NHẬN CA (confirm) → TỰ THÊM lịch bác sĩ vào "Lịch làm việc" (work_roster)
+  // cột "Lịch khám" của ĐÚNG ngày hẹn: bác sĩ có khám hôm đó → hiện trên bảng Lịch
+  // làm việc tuần. Chống trùng (1 bác sĩ / 1 ngày chỉ 1 dòng "Lịch khám"). Best-effort.
+  if (action === "confirm" && staffId && appt.slot_start) {
+    try {
+      const workDate = new Date(
+        new Date(appt.slot_start as string).getTime() + 7 * 3_600_000,
+      )
+        .toISOString()
+        .slice(0, 10); // ngày theo lịch VN
+      const { data: existing } = await db
+        .from("work_roster")
+        .select("id")
+        .eq("work_date", workDate)
+        .eq("station", "LICH_KHAM")
+        .eq("staff_id", staffId)
+        .limit(1);
+      if (!existing || existing.length === 0) {
+        const { data: doc } = await db
+          .from("staff")
+          .select("full_name")
+          .eq("id", staffId)
+          .maybeSingle();
+        const { error: wrErr } = await db.from("work_roster").insert({
+          week_start: weekStartOf(workDate),
+          work_date: workDate,
+          shift: "FULL",
+          station: "LICH_KHAM",
+          staff_id: staffId,
+          staff_name: (doc?.full_name as string | undefined) ?? "Bác sĩ",
+        });
+        if (wrErr) console.error("work_roster auto-insert lỗi:", wrErr.message);
+      }
+    } catch (e) {
+      console.error("work_roster auto-insert (confirm) lỗi:", e);
+    }
   }
 
   return NextResponse.json({ ok: true, status: newStatus });
