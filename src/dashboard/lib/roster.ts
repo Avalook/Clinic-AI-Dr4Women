@@ -2,6 +2,8 @@
 // Danh sách trạm suy ra từ bảng Google Sheet của phòng khám; chỉnh ở đây nếu
 // phòng khám đổi cách phân công.
 
+import { type ClinicRole, isDoctorRole } from "./roles";
+
 // Cookie lưu "tôi là ai" cho vai trò không phải bác sĩ (lọc lịch cá nhân).
 export const ROSTER_STAFF_COOKIE = "roster_staff_id";
 
@@ -145,4 +147,65 @@ export function currentWeekStartVn(): string {
 /** Hôm nay (yyyy-mm-dd) theo giờ VN. */
 export function todayVn(): string {
   return new Date(Date.now() + 7 * 60 * 60 * 1000).toISOString().slice(0, 10);
+}
+
+// ===== GIỜ MỞ CỬA PHÒNG KHÁM =====
+// T2–T6: 17:00–23:00 (chỉ buổi tối). T7 + Chủ nhật: cả ngày (08:00–23:00).
+// Dùng cho: đặt lịch hẹn (chặn ngoài giờ) + tham chiếu ca làm việc.
+export interface ClinicHours {
+  open: string; // "HH:MM"
+  close: string; // "HH:MM"
+}
+export function clinicHoursForDate(isoDate: string): ClinicHours {
+  const dow = new Date(isoDate + "T00:00:00Z").getUTCDay(); // 0=CN, 6=T7
+  const weekend = dow === 0 || dow === 6;
+  return weekend
+    ? { open: "08:00", close: "23:00" }
+    : { open: "17:00", close: "23:00" };
+}
+
+/**
+ * Kiểm giờ hẹn có nằm trong giờ mở cửa của NGÀY đó không. null = hợp lệ.
+ * So sánh chuỗi "HH:MM" (cùng độ dài) là đủ. Giờ bắt đầu phải < giờ đóng cửa.
+ */
+export function clinicHoursError(
+  isoDate: string,
+  time: string,
+): string | null {
+  if (!isoDate || !time) return null;
+  const { open, close } = clinicHoursForDate(isoDate);
+  if (time < open || time >= close) {
+    const dow = new Date(isoDate + "T00:00:00Z").getUTCDay();
+    const weekend = dow === 0 || dow === 6;
+    return weekend
+      ? `Cuối tuần phòng khám nhận khám ${open}–${close}. Hãy chọn giờ trong khoảng này.`
+      : `T2–T6 phòng khám chỉ nhận khám ${open}–${close} (buổi tối). Hãy chọn giờ trong khoảng này.`;
+  }
+  return null;
+}
+
+// ===== TRẠM HỢP LỆ THEO VAI TRÒ =====
+// Tránh phi lý "lễ tân → trạm bác sĩ": bác sĩ CHỈ ở "Lịch khám"; vai trò khác
+// KHÔNG vào trạm bác sĩ (vẫn xoay vòng mọi trạm hỗ trợ); quản lý linh động.
+export function stationsForRole(role: ClinicRole | null): Station[] {
+  if (isDoctorRole(role)) return STATIONS.filter((s) => s.key === "LICH_KHAM");
+  if (role === "MANAGEMENT") return STATIONS;
+  return STATIONS.filter((s) => s.key !== "LICH_KHAM");
+}
+
+/** Trạm mặc định cho "đăng ký ca của tôi" (đã bỏ ô chọn trạm — suy từ vai trò). */
+export function defaultStationForRole(role: ClinicRole | null): string {
+  switch (role) {
+    case "DOCTOR":
+    case "ULTRASOUND_DOCTOR":
+      return "LICH_KHAM";
+    case "RECEPTION":
+      return "LE_TAN";
+    case "NURSE_ULTRASOUND":
+      return "PHU_BS_SA";
+    case "CSKH":
+      return "LE_TAN";
+    default:
+      return stationsForRole(role)[0]?.key ?? STATIONS[0].key;
+  }
 }

@@ -15,6 +15,7 @@ import {
   weekStartOf,
   shiftWeek,
   currentWeekStartVn,
+  defaultStationForRole,
 } from "../../../lib/roster";
 import WorkRosterTable, {
   type RosterRow,
@@ -104,6 +105,7 @@ export default async function SchedulePage({
         <SelfRosterForm
           weekStart={week}
           dates={dates}
+          defaultStation={defaultStationForRole(role)}
           myRows={myRows.map((r) => ({
             id: r.id,
             work_date: r.work_date,

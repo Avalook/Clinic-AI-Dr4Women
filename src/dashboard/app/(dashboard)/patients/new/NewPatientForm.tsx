@@ -5,13 +5,17 @@
 // appointment if a service + date + time were filled, and finally lands on the
 // patient's profile. No more two-screen flow.
 
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { UserRound, CalendarClock } from "lucide-react";
+import { UserRound, CalendarClock, CalendarDays } from "lucide-react";
 import type { Option } from "../AppointmentBooking";
 import { vnLocalToUtcISO } from "../../../../lib/datetime";
-import { todayVn } from "../../../../lib/roster";
+import {
+  todayVn,
+  clinicHoursForDate,
+  clinicHoursError,
+} from "../../../../lib/roster";
 import {
   digitsOnly,
   phoneError,
@@ -97,6 +101,22 @@ export default function NewPatientForm({
   // Suy ra ISO + lỗi nhỏ ngày sinh (chỉ khi KHÔNG dùng năm-only).
   const dobIso = dmyToIso(dobDay, dobMonth, dobYear);
   const dobErr = dobYearOnly ? null : dobError(dobDay, dobMonth, dobYear, TODAY);
+  // Icon lịch → bộ chọn ngày native; chọn xong tách ra 3 ô dd/mm/yyyy.
+  const dobRef = useRef<HTMLInputElement>(null);
+  const openDobPicker = () => {
+    try {
+      dobRef.current?.showPicker?.();
+    } catch {
+      /* trình duyệt cũ không hỗ trợ showPicker — bỏ qua */
+    }
+  };
+  const onDobNative = (v: string) => {
+    if (!v) return; // v = "yyyy-mm-dd"
+    const [y, m, d] = v.split("-");
+    setDobYear(y);
+    setDobMonth(String(Number(m)));
+    setDobDay(String(Number(d)));
+  };
   const [phone, setPhone] = useState("");
   const [phone2, setPhone2] = useState("");
   const [cccd, setCccd] = useState("");
@@ -130,6 +150,10 @@ export default function NewPatientForm({
     ? !!serviceId
     : !!(serviceId && apptDate && apptTime);
   const canSubmit = fullName.trim() && locationId && !submitting;
+  // Giờ mở cửa PK theo ngày khám đã chọn (T2–T6 17–23h; T7+CN cả ngày).
+  const apptCh = apptDate ? clinicHoursForDate(apptDate) : null;
+  const apptMinHour = apptCh ? Number(apptCh.open.slice(0, 2)) : 0;
+  const apptMaxHour = apptCh ? Number(apptCh.close.slice(0, 2)) - 1 : 23;
 
   async function bookFor(clinicPatientId: string): Promise<boolean> {
     if (!wantsAppointment) return true;
@@ -216,6 +240,11 @@ export default function NewPatientForm({
       const startTs = new Date(vnLocalToUtcISO(apptDate, apptTime)).getTime();
       if (startTs < Date.now()) {
         setError("Không thể đặt lịch khám trong quá khứ. Chọn ngày/giờ từ hiện tại trở đi.");
+        return;
+      }
+      const chErr = clinicHoursError(apptDate, apptTime);
+      if (chErr) {
+        setError(chErr);
         return;
       }
     }
@@ -308,7 +337,7 @@ export default function NewPatientForm({
                 placeholder="VD: 1990"
               />
             ) : (
-              <div>
+              <div className="relative">
                 <div className="flex items-center gap-2">
                   <input
                     type="number"
@@ -342,6 +371,25 @@ export default function NewPatientForm({
                     className={INPUT}
                     placeholder="Năm"
                     aria-label="Ngày sinh — năm"
+                  />
+                  {/* Icon lịch → bộ chọn ngày native (cho BN chọn nhanh). */}
+                  <button
+                    type="button"
+                    onClick={openDobPicker}
+                    aria-label="Chọn ngày sinh từ lịch"
+                    className="shrink-0 rounded-lg border border-[#e4e4e7] bg-white p-2 text-[#71717a] hover:bg-[#f4f4f5]"
+                  >
+                    <CalendarDays size={18} />
+                  </button>
+                  <input
+                    ref={dobRef}
+                    type="date"
+                    max={TODAY}
+                    value={dobIso}
+                    onChange={(e) => onDobNative(e.target.value)}
+                    tabIndex={-1}
+                    aria-hidden
+                    className="pointer-events-none absolute h-0 w-0 opacity-0"
                   />
                 </div>
                 {dobErr && (
@@ -544,7 +592,17 @@ export default function NewPatientForm({
             <label className={LABEL}>
               Giờ <span className="font-normal text-[#a1a1aa]">(24h)</span>
             </label>
-            <Time24Input value={apptTime} onChange={setApptTime} />
+            <Time24Input
+              value={apptTime}
+              onChange={setApptTime}
+              minHour={apptMinHour}
+              maxHour={apptMaxHour}
+            />
+            {apptCh && (
+              <p className="mt-1 text-[11px] text-[#a1a1aa]">
+                Giờ mở cửa: {apptCh.open}–{apptCh.close}
+              </p>
+            )}
           </div>
           <div>
             <label className={LABEL}>Số khám</label>

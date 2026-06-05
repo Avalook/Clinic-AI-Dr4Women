@@ -8,7 +8,7 @@
 
 import { useState, type ReactNode } from "react";
 import { vnLocalToUtcISO } from "../../../lib/datetime";
-import { todayVn } from "../../../lib/roster";
+import { todayVn, clinicHoursForDate, clinicHoursError } from "../../../lib/roster";
 import { INPUT, LABEL, BTN, DURATIONS, CHANNELS } from "../form-ui";
 import Time24Input from "../Time24Input";
 
@@ -52,6 +52,10 @@ export default function AppointmentBooking({
   const [submitting, setSubmitting] = useState(false);
 
   const canBook = serviceId && locationId && apptDate && apptTime;
+  // Giới hạn giờ theo ngày đã chọn (giờ mở cửa PK).
+  const ch = apptDate ? clinicHoursForDate(apptDate) : null;
+  const minHour = ch ? Number(ch.open.slice(0, 2)) : 0;
+  const maxHour = ch ? Number(ch.close.slice(0, 2)) - 1 : 23;
 
   async function book() {
     setError(null);
@@ -60,6 +64,12 @@ export default function AppointmentBooking({
     // Logic thời gian thực: KHÔNG cho đặt lịch vào quá khứ.
     if (start.getTime() < Date.now()) {
       setError("Không thể đặt lịch trong quá khứ. Chọn ngày/giờ từ hiện tại trở đi.");
+      return;
+    }
+    // Trong giờ mở cửa PK (T2–T6 17–23h; T7+CN cả ngày).
+    const chErr = clinicHoursError(apptDate, apptTime);
+    if (chErr) {
+      setError(chErr);
       return;
     }
     setSubmitting(true);
@@ -131,8 +141,20 @@ export default function AppointmentBooking({
           />
         </div>
         <div className="space-y-1">
-          <label className={LABEL}>Giờ * <span className="font-normal text-[#a1a1aa]">(24h)</span></label>
-          <Time24Input value={apptTime} onChange={setApptTime} />
+          <label className={LABEL}>
+            Giờ * <span className="font-normal text-[#a1a1aa]">(24h)</span>
+          </label>
+          <Time24Input
+            value={apptTime}
+            onChange={setApptTime}
+            minHour={minHour}
+            maxHour={maxHour}
+          />
+          {ch && (
+            <p className="mt-1 text-[11px] text-[#a1a1aa]">
+              Giờ mở cửa: {ch.open}–{ch.close}
+            </p>
+          )}
         </div>
         <div className="space-y-1">
           <label className={LABEL}>Số khám</label>

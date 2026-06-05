@@ -17,7 +17,8 @@ import { type ClinicRole, canCheckin } from "../../../lib/roles";
 import HomeCheckin, { type HomeCheckinRow } from "./HomeCheckin";
 import type { ActiveStaff } from "../../../lib/clinic-session";
 import { vnTodayRangeUtc, fmtDate, vnLocalToUtcISO } from "../../../lib/datetime";
-import { currentWeekStartVn, weekDates } from "../../../lib/roster";
+import { currentWeekStartVn, weekDates, weekStartOf } from "../../../lib/roster";
+import WeekNav from "../WeekNav";
 import WeeklyAppointmentsTable, {
   type ApptDay,
   type WeekApptRow,
@@ -48,7 +49,11 @@ function greet(role: ClinicRole | null, staff: ActiveStaff | null): string {
   return `Chào ${GREET_LABEL[role]} ${cleanName(staff.short_name ?? staff.full_name)}`;
 }
 
-export default async function HomePage() {
+export default async function HomePage({
+  searchParams,
+}: {
+  searchParams: Promise<{ week?: string }>;
+}) {
   const supabase = await getSupabaseServer();
   const role = await getClinicRole();
   const staff = await getActiveStaff();
@@ -56,8 +61,9 @@ export default async function HomePage() {
   const showCheckin = canCheckin(role); // ĐD/Lễ tân/Quản lý: khu check-in ở đây
   const { startUtc: dayStart, endUtc: dayEnd } = vnTodayRangeUtc();
 
-  // Tuần này (T2..CN) cho 2 bảng dưới trang chủ.
-  const week = currentWeekStartVn();
+  // Tuần xem (mặc định tuần này) cho 2 bảng dưới trang chủ — có nút ←/→ tuần.
+  const { week: rawWeek } = await searchParams;
+  const week = rawWeek ? weekStartOf(rawWeek) : currentWeekStartVn();
   const dates = weekDates(week);
   const weekStartUtc = vnLocalToUtcISO(week, "00:00");
   const weekEndUtc = new Date(
@@ -216,21 +222,23 @@ export default async function HomePage() {
         <HomeCheckin rows={checkinRows} staffId={staffId} />
       )}
 
-      {/* Lịch hẹn khám tuần này — form theo file "Check đặt lịch" */}
+      {/* Lịch hẹn khám — giờ ở hàng, cột Khung giờ·Số·Bác sĩ·Thông tin·Phân loại */}
       <section>
-        <h2 className="mb-2 text-sm font-semibold text-[#171717]">
-          Lịch hẹn khám (check đặt lịch){" "}
-          <span className="text-xs font-normal text-[#888888]">· tuần này</span>
-        </h2>
+        <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+          <h2 className="text-sm font-semibold text-[#171717]">
+            Lịch hẹn khám (check đặt lịch)
+          </h2>
+          <WeekNav week={week} basePath="/home" />
+        </div>
         <WeeklyAppointmentsTable days={apptDays} />
       </section>
 
-      {/* Lịch làm việc tuần này — form theo file "BẢNG LÀM VIỆC" */}
+      {/* Lịch làm việc — form theo file "BẢNG LÀM VIỆC" */}
       <section>
-        <h2 className="mb-2 text-sm font-semibold text-[#171717]">
-          Lịch làm việc{" "}
-          <span className="text-xs font-normal text-[#888888]">· tuần này</span>
-        </h2>
+        <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+          <h2 className="text-sm font-semibold text-[#171717]">Lịch làm việc</h2>
+          <WeekNav week={week} basePath="/home" />
+        </div>
         <WorkRosterTable dates={dates} rows={rosterRows} />
       </section>
 

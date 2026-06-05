@@ -5,7 +5,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { getSupabaseServer } from "../../../../lib/supabase-server";
 import { getClinicRole } from "../../../../lib/clinic-session";
-import { isAdminRole } from "../../../../lib/roles";
+import { isAdminRole, departmentToRole } from "../../../../lib/roles";
 import {
   weekStartOf,
   weekDates,
@@ -39,16 +39,26 @@ export default async function ScheduleEditPage({
       .order("sort", { ascending: true }),
     supabase
       .from("staff")
-      .select("id, full_name, short_name")
+      .select("id, full_name, short_name, primary_department")
       .eq("is_active", true)
       .order("full_name"),
   ]);
 
   const rows = (rosterRes.data as EditorRow[] | null) ?? [];
   const staff = (
-    (staffRes.data as { id: string; full_name: string; short_name: string | null }[] | null) ??
-    []
-  ).map((s) => ({ id: s.id, label: s.short_name ?? s.full_name }));
+    (staffRes.data as
+      | {
+          id: string;
+          full_name: string;
+          short_name: string | null;
+          primary_department: string | null;
+        }[]
+      | null) ?? []
+  ).map((s) => ({
+    id: s.id,
+    name: s.short_name ?? s.full_name,
+    role: departmentToRole(s.primary_department),
+  }));
 
   return (
     <div className="mx-auto max-w-3xl space-y-4">

@@ -14,8 +14,11 @@ import {
   SHIFT_LABEL,
   dayShort,
   fmtDayMonth,
+  stationsForRole,
+  defaultStationForRole,
   type Shift,
 } from "../../../../lib/roster";
+import { ROLE_LABEL, type ClinicRole } from "../../../../lib/roles";
 
 export interface EditorRow {
   id: string;
@@ -28,7 +31,8 @@ export interface EditorRow {
 
 interface StaffOpt {
   id: string;
-  label: string;
+  name: string;
+  role: ClinicRole;
 }
 
 export default function RosterEditor({
@@ -50,6 +54,10 @@ export default function RosterEditor({
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  // Trạm hợp lệ theo vai trò NV đã chọn (tránh "lễ tân → trạm bác sĩ").
+  const selected = staff.find((s) => s.id === staffId) ?? null;
+  const validStations = selected ? stationsForRole(selected.role) : STATIONS;
+
   async function add() {
     setError(null);
     if (!staffId) {
@@ -67,7 +75,7 @@ export default function RosterEditor({
         shift,
         station,
         staff_id: staffId,
-        staff_name: picked?.label ?? "",
+        staff_name: picked?.name ?? "",
       }),
     });
     setBusy(false);
@@ -126,13 +134,19 @@ export default function RosterEditor({
               value={station}
               onChange={(e) => setStation(e.target.value)}
               className={INPUT}
+              disabled={!staffId}
             >
-              {STATIONS.map((s) => (
+              {validStations.map((s) => (
                 <option key={s.key} value={s.key}>
                   {s.label}
                 </option>
               ))}
             </select>
+            {!staffId && (
+              <p className="mt-1 text-[11px] text-[#a1a1aa]">
+                Chọn nhân viên trước — vị trí sẽ lọc theo chức danh.
+              </p>
+            )}
           </div>
           <div>
             <label className={LABEL}>Ca</label>
@@ -149,16 +163,22 @@ export default function RosterEditor({
             </select>
           </div>
           <div>
-            <label className={LABEL}>Nhân viên</label>
+            <label className={LABEL}>Nhân viên (chức danh — tên)</label>
             <select
               value={staffId}
-              onChange={(e) => setStaffId(e.target.value)}
+              onChange={(e) => {
+                const id = e.target.value;
+                setStaffId(id);
+                // Đổi NV → tự đặt lại vị trí mặc định theo chức danh (tránh lệch).
+                const r = staff.find((s) => s.id === id)?.role ?? null;
+                if (r) setStation(defaultStationForRole(r));
+              }}
               className={INPUT}
             >
               <option value="">— Chọn nhân viên —</option>
               {staff.map((s) => (
                 <option key={s.id} value={s.id}>
-                  {s.label}
+                  {ROLE_LABEL[s.role]} — {s.name}
                 </option>
               ))}
             </select>

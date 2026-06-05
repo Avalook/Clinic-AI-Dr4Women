@@ -1,7 +1,8 @@
 "use client";
 
 // "Đăng ký ca của tôi" — cho bác sĩ / lễ tân / điều dưỡng tự thêm/xoá ca CỦA
-// MÌNH (feedback C4). Không có ô chọn nhân viên: server ép staff_id = chính mình.
+// MÌNH (feedback C4). KHÔNG có ô chọn nhân viên (server ép staff_id = chính mình)
+// và KHÔNG có ô chọn VỊ TRÍ — trạm tự suy từ vai trò (ai đăng ký là người đó làm).
 // Ghi qua /api/roster rồi router.refresh() để nạp lại từ server.
 
 import { useState } from "react";
@@ -9,7 +10,6 @@ import { useRouter } from "next/navigation";
 import { Trash2 } from "lucide-react";
 import { INPUT, LABEL, BTN } from "../form-ui";
 import {
-  STATIONS,
   STATION_LABEL,
   SHIFTS,
   SHIFT_LABEL,
@@ -29,14 +29,16 @@ export default function SelfRosterForm({
   weekStart,
   dates,
   myRows,
+  defaultStation,
 }: {
   weekStart: string;
   dates: string[];
   myRows: MyRosterRow[];
+  /** Trạm tự suy từ vai trò người đăng nhập (đã bỏ ô chọn vị trí). */
+  defaultStation: string;
 }) {
   const router = useRouter();
   const [workDate, setWorkDate] = useState(dates[0]);
-  const [station, setStation] = useState(STATIONS[0].key);
   const [shift, setShift] = useState<Shift>("FULL");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -50,7 +52,7 @@ export default function SelfRosterForm({
       body: JSON.stringify({
         week_start: weekStart,
         work_date: workDate,
-        station,
+        station: defaultStation,
         shift,
       }),
     });
@@ -78,7 +80,14 @@ export default function SelfRosterForm({
       <h2 className="mb-3 text-sm font-semibold text-[#171717]">
         Đăng ký ca của tôi
       </h2>
-      <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+      <p className="mb-3 text-xs text-[#888888]">
+        Vị trí làm việc tự suy từ chức danh của bạn —{" "}
+        <span className="font-medium text-[#9d2463]">
+          {STATION_LABEL[defaultStation] ?? defaultStation}
+        </span>
+        . Chỉ cần chọn ngày + ca.
+      </p>
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
         <div>
           <label className={LABEL}>Ngày</label>
           <select
@@ -89,20 +98,6 @@ export default function SelfRosterForm({
             {dates.map((d) => (
               <option key={d} value={d}>
                 {dayShort(d)} · {fmtDayMonth(d)}
-              </option>
-            ))}
-          </select>
-        </div>
-        <div>
-          <label className={LABEL}>Vị trí</label>
-          <select
-            className={INPUT}
-            value={station}
-            onChange={(e) => setStation(e.target.value)}
-          >
-            {STATIONS.map((s) => (
-              <option key={s.key} value={s.key}>
-                {s.label}
               </option>
             ))}
           </select>
