@@ -19,12 +19,14 @@ from clinicai.api.v1.routers.orchestrator import router as orchestrator_router
 from clinicai.api.v1.routers.scheduling import router as scheduling_router
 from clinicai.api.v1.routers.staff import router as staff_router
 from clinicai.api.v1.routers.tools import router as tools_router
+from clinicai.api.v1.routers.voice import router as voice_router
 from clinicai.core.database import close_pool, create_pool
 from clinicai.core.exceptions import ClinicAIBaseException
 from clinicai.core.logging import setup_logging
 from clinicai.llm.anthropic_client import AnthropicClient
 from clinicai.orchestrator.checkpointer import make_checkpointer
 from clinicai.orchestrator.service import OrchestratorService
+from clinicai.voice.transcribe import PhoWhisperTranscriber
 
 # Initialize structured JSON logging
 setup_logging()
@@ -43,6 +45,10 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
             llm_client = AnthropicClient()
             stack.push_async_callback(llm_client.close)
             app.state.llm_client = llm_client
+
+            # Voice transcriber (on-prem PhoWhisper). Construction nhẹ — model nạp
+            # lazy ở lần transcribe đầu, nên app boot được kể cả khi chưa cài model.
+            app.state.voice_transcriber = PhoWhisperTranscriber()
 
             default_location_id_env = os.environ.get("DEFAULT_LOCATION_ID")
             scheduling_location_id: UUID | None = (
@@ -83,6 +89,7 @@ app.include_router(tools_router, prefix="/api/v1")
 app.include_router(orchestrator_router, prefix="/api/v1")
 app.include_router(brief_router, prefix="/api/v1")
 app.include_router(lab_router, prefix="/api/v1")
+app.include_router(voice_router, prefix="/api/v1")
 
 
 @app.exception_handler(asyncpg.exceptions.ExclusionViolationError)
