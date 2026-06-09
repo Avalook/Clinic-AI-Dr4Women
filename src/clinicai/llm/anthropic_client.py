@@ -32,6 +32,25 @@ RETRY_WAIT_MIN_S = 1.0
 RETRY_WAIT_MAX_S = 8.0
 
 
+def cached_system_param(system: str, cache: bool = True) -> Any:
+    """Bọc system prompt (TĨNH) trong block cache_control (ephemeral) để bật
+    Anthropic prompt-caching. Dùng chung cho chat() (real-time) lẫn batch (offline).
+
+    Caching CHỈ kích hoạt khi prefix vượt ngưỡng tối thiểu của model
+    (Sonnet 4.6 ~2048 token, Haiku 4.5 ~4096 token). Dưới ngưỡng → no-op vô
+    hại: SDK không ghi cache, KHÔNG phát sinh chi phí.
+    """
+    if not cache:
+        return system
+    return [
+        {
+            "type": "text",
+            "text": system,
+            "cache_control": {"type": "ephemeral"},
+        }
+    ]
+
+
 @dataclass(frozen=True)
 class LLMResponse:
     text: str
@@ -129,23 +148,8 @@ class AnthropicClient:
 
     @staticmethod
     def _build_system(system: str, cache: bool) -> Any:
-        """Bọc system prompt (TĨNH) trong block cache_control để Anthropic
-        prompt-caching tái dùng prefix giữa các lần gọi (~0.1x giá khi cache hit).
-
-        Caching CHỈ kích hoạt khi prefix vượt ngưỡng tối thiểu của model
-        (Sonnet 4.6 ~2048 token, Haiku 4.5 ~4096 token). Dưới ngưỡng → no-op
-        vô hại: SDK không ghi cache, KHÔNG phát sinh chi phí. An toàn để bật mặc
-        định; lợi ích tự đến khi system prompt / ngữ cảnh lớn lên.
-        """
-        if not cache:
-            return system
-        return [
-            {
-                "type": "text",
-                "text": system,
-                "cache_control": {"type": "ephemeral"},
-            }
-        ]
+        """Delegate sang hàm module-level dùng-chung (chat + batch)."""
+        return cached_system_param(system, cache)
 
     @staticmethod
     def _usage_int(usage: Any, name: str) -> int:
