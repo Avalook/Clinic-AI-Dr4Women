@@ -40,6 +40,9 @@ class LLMResponse:
     output_tokens: int
     latency_ms: int
     stop_reason: Optional[str] = None
+    # Prompt-caching observability (0 khi không có cache hit / SDK không trả về).
+    cache_read_input_tokens: int = 0
+    cache_creation_input_tokens: int = 0
 
 
 class AnthropicClient:
@@ -60,6 +63,7 @@ class AnthropicClient:
         max_tokens: int = DEFAULT_MAX_TOKENS,
         temperature: float = DEFAULT_TEMPERATURE,
         system: Optional[str] = None,
+        cache_system: bool = True,
         trace_id: Optional[UUID] = None,
     ) -> LLMResponse:
         model = TIER_TO_MODEL[tier]
@@ -70,15 +74,17 @@ class AnthropicClient:
             "temperature": temperature,
         }
         if system is not None:
-            kwargs["system"] = system
+            kwargs["system"] = self._build_system(system, cache_system)
 
         start = time.perf_counter()
         resp = await self._invoke_with_retry(kwargs)
         latency_ms = int((time.perf_counter() - start) * 1000)
 
         text = self._extract_text(resp)
-        input_tokens = getattr(resp.usage, "input_tokens", 0)
-        output_tokens = getattr(resp.usage, "output_tokens", 0)
+        input_tokens = self._usage_int(resp.usage, "input_tokens")
+        output_tokens = self._usage_int(resp.usage, "output_tokens")
+        cache_read = self._usage_int(resp.usage, "cache_read_input_tokens")
+        cache_creation = self._usage_int(resp.usage, "cache_creation_input_tokens")
         stop_reason = getattr(resp, "stop_reason", None)
 
         logger.info(
@@ -88,6 +94,8 @@ class AnthropicClient:
             tier=tier,
             input_tokens=input_tokens,
             output_tokens=output_tokens,
+            cache_read_input_tokens=cache_read,
+            cache_creation_input_tokens=cache_creation,
             latency_ms=latency_ms,
             stop_reason=stop_reason,
         )
@@ -99,6 +107,8 @@ class AnthropicClient:
             output_tokens=output_tokens,
             latency_ms=latency_ms,
             stop_reason=stop_reason,
+            cache_read_input_tokens=cache_read,
+            cache_creation_input_tokens=cache_creation,
         )
 
     async def _invoke_with_retry(self, kwargs: dict[str, Any]) -> Any:
@@ -116,6 +126,33 @@ class AnthropicClient:
             with attempt:
                 return await self._client.messages.create(**kwargs)
         raise RuntimeError("AnthropicClient retry loop exited without result")
+
+    @staticmethod
+    def _build_system(system: str, cache: bool) -> Any:
+        """Bọc system prompt (TĨNH) trong block cache_control để Anthropic
+        prompt-caching tái dùng prefix giữa các lần gọi (~0.1x giá khi cache hit).
+
+        Caching CHỈ kích hoạt khi prefix vượt ngưỡng tối thiểu của model
+        (Sonnet 4.6 ~2048 token, Haiku 4.5 ~4096 token). Dưới ngưỡng → no-op
+        vô hại: SDK không ghi cache, KHÔNG phát sinh chi phí. An toàn để bật mặc
+        định; lợi ích tự đến khi system prompt / ngữ cảnh lớn lên.
+        """
+        if not cache:
+            return system
+        return [
+            {
+                "type": "text",
+                "text": system,
+                "cache_control": {"type": "ephemeral"},
+            }
+        ]
+
+    @staticmethod
+    def _usage_int(usage: Any, name: str) -> int:
+        """Đọc field token từ usage, trả 0 nếu thiếu / không phải int
+        (vd response mock trong test, hoặc SDK chưa trả cache fields)."""
+        val = getattr(usage, name, 0)
+        return val if isinstance(val, int) else 0
 
     @staticmethod
     def _extract_text(resp: Any) -> str:
