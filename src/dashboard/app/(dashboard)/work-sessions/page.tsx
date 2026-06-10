@@ -2,6 +2,7 @@
 // the authenticated user's session.
 
 import { getSupabaseServer } from "../../../lib/supabase-server";
+import { requireNavAccess } from "../../../lib/clinic-session";
 
 interface WorkSessionRow {
   id: string;
@@ -18,6 +19,9 @@ interface WorkSessionRow {
 export const dynamic = "force-dynamic";
 
 export default async function WorkSessionsPage() {
+  // Chỉ Quản lý (NAV_ROLES) — chặn gõ thẳng URL; trang này bị sót trong đợt
+  // vá requireNavAccess 05/06.
+  await requireNavAccess("/work-sessions");
   const supabase = await getSupabaseServer();
 
   const { data, error } = await supabase

@@ -10,7 +10,11 @@ import {
   vnMonthStartUtc,
 } from "../../../lib/datetime";
 import { currentWeekStartVn } from "../../../lib/roster";
-import { getClinicRole, getClinicStaffId } from "../../../lib/clinic-session";
+import {
+  getClinicRole,
+  getClinicStaffId,
+  requireNavAccess,
+} from "../../../lib/clinic-session";
 import { isDoctorRole, canManageAppt, isTasksReadOnly } from "../../../lib/roles";
 import ConfirmBoard, { type ApptRow, type Opt } from "./ConfirmBoard";
 import CskhActionBoard, { type CskhActionRow } from "./CskhActionBoard";
@@ -144,6 +148,10 @@ const SELECT = `
 `;
 
 export default async function TasksPage() {
+  // Chặn gõ thẳng URL ngoài quyền (vd Điều dưỡng): nav ẩn là chưa đủ — không
+  // có dòng này, role ngoài danh sách rơi xuống nhánh ConfirmBoard (lộ toàn
+  // bộ lịch + nhật ký CSKH).
+  await requireNavAccess("/tasks");
   // Bác sĩ thấy board lâm sàng riêng; CSKH/Quản lý thấy board lịch hẹn cũ.
   const role = await getClinicRole();
   if (isDoctorRole(role)) return DoctorTasks();

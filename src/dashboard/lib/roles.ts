@@ -113,7 +113,8 @@ export const ROLE_LABEL: Record<ClinicRole, string> = {
 // Bác sĩ (DOCTOR + Bác sĩ siêu âm): việc chính gom ở "Công việc của tôi"
 // (/tasks). Thêm "Lịch làm việc" (/schedule) để TỰ đăng ký ca của mình (feedback
 // C4). /appointments + /patients/new vẫn KHÔNG cho bác sĩ (chỉ Quản lý / front
-// desk). /patients giờ mở cho CSKH + Lễ tân tra cứu (feedback B1).
+// desk). /patients: nav chỉ Quản lý; bác sĩ vào được qua URL (scope BN của
+// mình, gate trong page) — CSKH/Lễ tân tra cứu bằng /customers.
 const DOCTOR_ROLES_LIST: ClinicRole[] = ["DOCTOR", "ULTRASOUND_DOCTOR"];
 
 const NAV_ROLES: Record<string, "all" | ClinicRole[]> = {
