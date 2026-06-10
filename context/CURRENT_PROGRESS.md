@@ -3,6 +3,17 @@
 > File NGUỒN DUY NHẤT cho tiến độ (đã hợp nhất worklog/ + .ai/worklog/ ngày 25/5). CLAUDE.md §1 trỏ vào đây.
 
 ---
+## 2026-06-10 — Nghiên cứu role/workflow + 3 tính năng P0 dashboard (CHƯA PUSH)
+**Đã làm (commit local 0deda86, tsc+lint+build PASS, Tuyền dặn KHÔNG push vì muốn test trước):**
+- Khảo sát toàn bộ vai trò phòng khám (code + Data khách gửi + Xemlichsu) + research thị trường VN/quốc tế → `context/DASHBOARD_GAP_AND_ROADMAP.md` (gap theo role, pháp lý TT04/2022 đơn thuốc điện tử ĐÃ QUÁ HẠN liên thông, TT13/2025 bệnh án điện tử hạn 31/12/2026, roadmap P1-P3).
+- `/reports`: thay placeholder → KPI thật (hôm nay, ngày mai %xác nhận, theo BS, no-show 30 ngày, 7 ngày, nguồn booking_channel).
+- `/cskh-today` "Cần làm hôm nay" (CSKH+QL): xác nhận lịch mai · lịch BS từ chối · BN đến hạn tái khám · KQ XN hôm nay (GROUP_C khoá báo BN).
+- Form khám mục "X. Theo dõi & Tái khám" → **hợp đồng dữ liệu mới `soap_plan.tai_kham {ngay, xn[HM/SH/SA/DXA/PS], ghi_chu}`** (nguồn nuôi recall CSKH); phiếu in có dòng hẹn tái khám.
+
+**QUYẾT ĐỊNH:** nhận biểu mẫu khám 4 chuyên khoa từ phòng khám (Nội tiết/HMVS/Phụ khoa/Sản) → kế hoạch `specialty_data` JSONB theo service_type (P1, chưa làm). HMVS cần hồ sơ vợ–chồng + chu kỳ điều trị (P3).
+**VIỆC TIẾP:** Tuyền test 3 tính năng trên local → được lệnh mới push. P1 kế tiếp: prenatal flowsheet + form chuyên khoa (xem ROADMAP).
+
+---
 ## 2026-06-05 — Review logic đa-agent (48 agents) → fix + quyết định
 **Đã fix & push** (origin/feat/t-transform-01, tsc+eslint PASS):
 - Phân quyền page: `requireNavAccess()` guard server-side cho lab-queue/service-queue/customers/patient-list/appointments (trước chỉ ẩn menu → gõ URL lộ PII/lab).
