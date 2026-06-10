@@ -11,7 +11,12 @@
 - Form khám mục "X. Theo dõi & Tái khám" → **hợp đồng dữ liệu mới `soap_plan.tai_kham {ngay, xn[HM/SH/SA/DXA/PS], ghi_chu}`** (nguồn nuôi recall CSKH); phiếu in có dòng hẹn tái khám.
 
 **QUYẾT ĐỊNH:** nhận biểu mẫu khám 4 chuyên khoa từ phòng khám (Nội tiết/HMVS/Phụ khoa/Sản) → kế hoạch `specialty_data` JSONB theo service_type (P1, chưa làm). HMVS cần hồ sơ vợ–chồng + chu kỳ điều trị (P3).
-**VIỆC TIẾP:** Tuyền test 3 tính năng trên local → được lệnh mới push. P1 kế tiếp: prenatal flowsheet + form chuyên khoa (xem ROADMAP).
+
+**Cùng phiên (fix sau khi Tuyền test):**
+- `2f6f613` fix CSS vỡ dev (Turbopack): comment trong SplitPane.tsx chứa chuỗi `[flex-basis:var...]` → Tailwind v4 quét cả comment, sinh CSS hỏng. Build prod chỉ warn, dev chặn cứng. BÀI HỌC: không viết cú pháp class ngoặc-vuông trong comment file .tsx.
+- `03f971f` audit phân quyền 6 role → vá 3 trang LỘ DỮ LIỆU khi gõ thẳng URL: `/tasks` (ĐD rơi vào ConfirmBoard → lộ lịch+nhật ký CSKH), `/patients` (CSKH/LT/ĐD thấy toàn bộ BN), `/work-sessions` (mọi vai xem ca trực — sót đợt vá 05/06). API action-gate vốn chặt, không đổi. Trùng quyền giữa các role đã rà = trùng CÓ CHỦ ĐÍCH (CSKH↔LT ~70%, ĐD↔LT check-in); DOCTOR↔ULTRASOUND_DOCTOR trùng 100% — cân nhắc tách khi có worklist SA (P1).
+
+**VIỆC TIẾP:** Tuyền test xong → ra lệnh PUSH (4+ commit local đang treo: 0deda86, f711c27, 2f6f613, 03f971f + worklog). P1 kế tiếp: prenatal flowsheet + form 4 chuyên khoa (xem `context/DASHBOARD_GAP_AND_ROADMAP.md`).
 
 ---
 ## 2026-06-05 — Review logic đa-agent (48 agents) → fix + quyết định
