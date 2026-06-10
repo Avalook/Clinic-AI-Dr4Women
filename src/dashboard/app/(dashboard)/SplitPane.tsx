@@ -5,8 +5,10 @@
 // hồ sơ lâm sàng). Trên mobile xếp DỌC (không có thanh kéo).
 //
 // Bề rộng cột trái áp bằng INLINE style (flex-basis %) thay vì class Tailwind
-// arbitrary — vì Tailwind không sinh class `[flex-basis:var(...)]` động. Chỉ áp
-// khi màn hình rộng (md+, matchMedia) để mobile vẫn xếp dọc bình thường.
+// arbitrary — Tailwind không sinh class flex-basis động được (và còn quét cả
+// comment tìm class, nên ở đây tránh viết cú pháp ngoặc-vuông kẻo nó sinh CSS
+// hỏng làm vỡ dev build). Chỉ áp khi màn hình rộng (md+, matchMedia) để mobile
+// vẫn xếp dọc bình thường.
 
 import { useCallback, useEffect, useRef, useState } from "react";
 
