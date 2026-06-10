@@ -92,6 +92,20 @@ interface RxRow {
   caution: string;
 }
 const EMPTY_RX: RxRow = { drug_name: "", quantity: "", dosage: "", caution: "" };
+
+// Mục X — Theo dõi & Tái khám (theo biểu mẫu giấy: "Ngày tái khám + XN cần kiểm
+// tra lại"). Lưu vào soap_plan.tai_kham — HỢP ĐỒNG với màn CSKH nhắc tái khám:
+//   tai_kham: { ngay: "YYYY-MM-DD", xn: ["HM",…], ghi_chu?: "…" }
+// BS không nhập gì → KHÔNG ghi khóa tai_kham (giữ soap_plan sạch).
+const TAIKHAM_XN: [code: string, label: string][] = [
+  ["HM", "Hormone"],
+  ["SH", "Sinh hóa"],
+  ["SA", "Siêu âm"],
+  ["DXA", "Đo loãng xương"],
+  ["PS", "Pap smear"],
+];
+const EMPTY_TK = { ngay: "", xn: [] as string[], ghi_chu: "" };
+type TkFields = typeof EMPTY_TK;
 const BLOOD_TYPES = ["", "A", "B", "AB", "O", "A+", "A-", "B+", "B-", "AB+", "AB-", "O+", "O-"];
 const splitComma = (s: string): string[] =>
   s.split(",").map((x) => x.trim()).filter(Boolean);
@@ -138,6 +152,16 @@ function readDraft(d: Data["draft"]): Fields {
     tuoi_thai: str(k.tuoi_thai), du_kien_sinh: str(k.du_kien_sinh),
     chieu_cao_tc: str(k.chieu_cao_tc), nhip_tim_thai: str(k.nhip_tim_thai),
   };
+}
+
+// Prefill mục X từ plan.tai_kham (nếu hồ sơ nháp đã có); lọc mã XN ngoài danh mục.
+function readTaiKham(d: Data["draft"]): TkFields {
+  const t = objOf(objOf(d.plan).tai_kham);
+  const codes = TAIKHAM_XN.map(([c]) => c);
+  const xn = Array.isArray(t.xn)
+    ? t.xn.map(String).filter((c) => codes.includes(c))
+    : [];
+  return { ngay: str(t.ngay), xn, ghi_chu: str(t.ghi_chu) };
 }
 
 function AdminRow({ label, value }: { label: string; value?: string | null }) {
@@ -196,6 +220,7 @@ export default function ClinicalRecordForm({
   const [loading, setLoading] = useState(true);
   const [f, setF] = useState<Fields>(EMPTY);
   const [pm, setPm] = useState<PmFields>(EMPTY_PM);
+  const [tk, setTk] = useState<TkFields>(EMPTY_TK);
   const [rx, setRx] = useState<RxRow[]>([]);
   const [labOrder, setLabOrder] = useState("");
   const [labBusy, setLabBusy] = useState(false);
@@ -211,6 +236,7 @@ export default function ClinicalRecordForm({
         if (!on) return;
         setData(d);
         setF(readDraft(d.draft));
+        setTk(readTaiKham(d.draft));
         const pr = d.profile;
         setPm(
           pr
@@ -241,6 +267,11 @@ export default function ClinicalRecordForm({
 
   const set = (k: keyof Fields, v: string) => setF((s) => ({ ...s, [k]: v }));
   const setP = (k: keyof PmFields, v: string) => setPm((s) => ({ ...s, [k]: v }));
+  const toggleTkXn = (code: string) =>
+    setTk((s) => ({
+      ...s,
+      xn: s.xn.includes(code) ? s.xn.filter((c) => c !== code) : [...s.xn, code],
+    }));
   const setRxAt = (i: number, k: keyof RxRow, v: string) =>
     setRx((s) => s.map((r, j) => (j === i ? { ...r, [k]: v } : r)));
   const addRx = () => setRx((s) => [...s, { ...EMPTY_RX }]);
@@ -311,6 +342,19 @@ export default function ClinicalRecordForm({
     }
     setSaving(true);
     setMsg(null);
+    // Mục X: chỉ ghi khóa tai_kham khi có ngày HOẶC ≥1 nhóm XN (hợp đồng với màn
+    // CSKH nhắc tái khám — không nhập gì thì giữ soap_plan sạch, không có khóa).
+    const tkNgay = tk.ngay.trim();
+    const tkXn = TAIKHAM_XN.map(([c]) => c).filter((c) => tk.xn.includes(c));
+    const tkGhiChu = tk.ghi_chu.trim();
+    const plan: Record<string, unknown> = { loi_dan: f.loi_dan };
+    if (tkNgay || tkXn.length > 0) {
+      plan.tai_kham = {
+        ...(tkNgay ? { ngay: tkNgay } : {}),
+        xn: tkXn,
+        ...(tkGhiChu ? { ghi_chu: tkGhiChu } : {}),
+      };
+    }
     const res = await fetch("/api/clinical-record", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -331,7 +375,7 @@ export default function ClinicalRecordForm({
           },
         },
         assessment: { chan_doan: f.chan_doan },
-        plan: { loi_dan: f.loi_dan },
+        plan,
         profile: {
           allergies: splitComma(pm.allergies),
           blood_type: pm.blood_type || null,
@@ -420,6 +464,8 @@ export default function ClinicalRecordForm({
   // / đang tải prefill (chưa tải xong mà sửa+lưu sẽ ghi đè rỗng — xem guard save()).
   const ro = readOnly || locked || saving || arrivalPending || loading;
   const roRest = ro || vitalsOnly; // đón-khám (vitalsOnly): mọi mục khác chỉ xem
+  // "YYYY-MM-DD" theo giờ máy người dùng — min cho ô Ngày tái khám (mục X).
+  const todayYmd = new Date().toLocaleDateString("en-CA");
 
   return (
     <div
@@ -815,6 +861,54 @@ export default function ClinicalRecordForm({
             </div>
           </Section>
         )}
+
+        {/* X — Theo dõi & Tái khám: nguồn dữ liệu cho CSKH nhắc tái khám
+            (soap_plan.tai_kham). KHÔNG bắt buộc — không ảnh hưởng "Khám xong". */}
+        <Section no="X" title="Theo dõi & Tái khám">
+          <div className="space-y-2">
+            <div>
+              <label className={LABEL}>Ngày tái khám</label>
+              <input
+                type="date"
+                min={todayYmd}
+                className={INPUT}
+                value={tk.ngay}
+                disabled={roRest}
+                onChange={(e) => setTk((s) => ({ ...s, ngay: e.target.value }))}
+              />
+            </div>
+            <div>
+              <label className={LABEL}>Xét nghiệm cần kiểm tra lại</label>
+              <div className="flex flex-wrap gap-x-4 gap-y-1.5">
+                {TAIKHAM_XN.map(([code, label]) => (
+                  <label
+                    key={code}
+                    className="inline-flex items-center gap-1.5 text-sm text-[#3f3f46]"
+                  >
+                    <input
+                      type="checkbox"
+                      className="h-4 w-4 accent-[#ec4899]"
+                      checked={tk.xn.includes(code)}
+                      disabled={roRest}
+                      onChange={() => toggleTkXn(code)}
+                    />
+                    {label} ({code})
+                  </label>
+                ))}
+              </div>
+            </div>
+            <div>
+              <label className={LABEL}>Ghi chú tái khám</label>
+              <input
+                className={INPUT}
+                value={tk.ghi_chu}
+                disabled={roRest}
+                onChange={(e) => setTk((s) => ({ ...s, ghi_chu: e.target.value }))}
+                placeholder="Tùy chọn, vd: nhịn ăn sáng trước khi xét nghiệm"
+              />
+            </div>
+          </div>
+        </Section>
       </div>
 
       <div className="flex items-center justify-between gap-2 border-t border-[#e4e4e7] px-4 py-3">

@@ -118,6 +118,9 @@ const DOCTOR_ROLES_LIST: ClinicRole[] = ["DOCTOR", "ULTRASOUND_DOCTOR"];
 
 const NAV_ROLES: Record<string, "all" | ClinicRole[]> = {
   "/home": "all",
+  // "Cần làm hôm nay" — danh sách việc CSKH tự sinh từ dữ liệu (gọi xác nhận,
+  // phân lại lịch bị từ chối, tái khám đến hạn, KQ XN mới về).
+  "/cskh-today": ["CSKH", "MANAGEMENT"],
   "/appointments": ["MANAGEMENT"],
   // Thông tin khách hàng (danh bạ + chi tiết + tra cứu tên/mã/SĐT) — CSKH/Lễ tân/QL.
   "/customers": ["CSKH", "RECEPTION", "MANAGEMENT"],

@@ -200,6 +200,29 @@ export default async function PrintMedicalSummaryPage({
     })
     .join("\n");
 
+  // Mục X — Theo dõi & Tái khám (soap_plan.tai_kham, hợp đồng với màn CSKH):
+  //   { ngay: "YYYY-MM-DD", xn: ["HM",…], ghi_chu?: "…" }
+  // → nối thành 1 dòng dưới "Hướng xử lý" (FormData của phiếu in cố định, không
+  // thêm trường mới được). Chỉ hiện khi hồ sơ có tai_kham.
+  const TK_XN_LABEL: Record<string, string> = {
+    HM: "Hormone",
+    SH: "Sinh hóa",
+    SA: "Siêu âm",
+    DXA: "Đo loãng xương",
+    PS: "Pap smear",
+  };
+  const taiKham = objOf(plan.tai_kham);
+  const tkParts: string[] = [];
+  if (str(taiKham.ngay)) {
+    tkParts.push(`Hẹn tái khám: ${ymdToDmy(str(taiKham.ngay))}`);
+  }
+  const tkXn = Array.isArray(taiKham.xn)
+    ? taiKham.xn.map((c) => TK_XN_LABEL[String(c)] ?? String(c))
+    : [];
+  if (tkXn.length) tkParts.push(`Kiểm tra lại: ${tkXn.join(", ")}`);
+  if (str(taiKham.ghi_chu)) tkParts.push(str(taiKham.ghi_chu));
+  const taiKhamLine = tkParts.join(" — ");
+
   const doctorName = one(appt.doctor)?.full_name ?? "";
   const code = p.patient_code ?? "";
 
@@ -243,7 +266,7 @@ export default async function PrintMedicalSummaryPage({
     sinhHoaMau: "",
     cdha: "",
     chanDoan: str(assess.chan_doan),
-    huongXuLy: str(plan.loi_dan),
+    huongXuLy: [str(plan.loi_dan), taiKhamLine].filter(Boolean).join("\n"),
     thanhPho: "",
     nguoiKy: doctorName,
     ngayKyDuyet: fmtVnDateTime(visit?.created_at ?? appt.slot_start),
