@@ -29,6 +29,8 @@ from pydantic import BaseModel, ConfigDict, Field
 from clinicai.tools._common.context import TraceContext
 
 if TYPE_CHECKING:
+    from collections.abc import Awaitable, Callable
+
     import asyncpg
 
 logger = logging.getLogger(__name__)
@@ -275,9 +277,12 @@ async def aggregate_patient_context(
 ) -> PatientContext:
     """Aggregate patient data for the pre-visit brief.
 
-    Reads run concurrently against a single acquired connection:
+    The five reads run concurrently, each on its OWN pooled connection:
     patient_summary VIEW, medical profile, ONGOING pregnancy, recent labs,
-    latest ultrasound studies.
+    latest ultrasound studies. A single asyncpg connection cannot serve
+    concurrent operations ("another operation is in progress"), so each
+    coroutine acquires its own connection from the pool — matching the
+    one-acquire-per-unit-of-work pattern used across the codebase.
 
     Args:
         pool: asyncpg connection pool.
@@ -299,20 +304,25 @@ async def aggregate_patient_context(
         },
     )
 
-    async with pool.acquire() as conn:
-        (
-            summary_rec,
-            profile_rec,
-            pregnancy_rec,
-            lab_rows,
-            us_rows,
-        ) = await asyncio.gather(
-            _fetch_patient_summary(conn, clinic_patient_id),
-            _fetch_medical_profile(conn, clinic_patient_id),
-            _fetch_current_pregnancy(conn, clinic_patient_id),
-            _fetch_recent_labs(conn, clinic_patient_id),
-            _fetch_latest_ultrasounds(conn, clinic_patient_id),
-        )
+    async def _run(
+        fetch: "Callable[[asyncpg.Connection, UUID], Awaitable[Any]]",
+    ) -> Any:
+        async with pool.acquire() as conn:
+            return await fetch(conn, clinic_patient_id)
+
+    (
+        summary_rec,
+        profile_rec,
+        pregnancy_rec,
+        lab_rows,
+        us_rows,
+    ) = await asyncio.gather(
+        _run(_fetch_patient_summary),
+        _run(_fetch_medical_profile),
+        _run(_fetch_current_pregnancy),
+        _run(_fetch_recent_labs),
+        _run(_fetch_latest_ultrasounds),
+    )
 
     if summary_rec is None:
         raise PatientNotFoundError(
