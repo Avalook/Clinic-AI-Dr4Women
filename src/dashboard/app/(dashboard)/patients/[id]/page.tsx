@@ -8,6 +8,7 @@ import PatientDetail from "./PatientDetail";
 import PatientHistory from "./PatientHistory";
 import PatientBooking from "./PatientBooking";
 import PatientCskhLog from "./PatientCskhLog";
+import PreVisitBrief from "./PreVisitBrief";
 import { getSupabaseServer } from "../../../../lib/supabase-server";
 import { getClinicRole, getClinicStaffId } from "../../../../lib/clinic-session";
 import { canWriteIntake, isDoctorRole, canEditPatient } from "../../../../lib/roles";
@@ -107,6 +108,7 @@ export default async function PatientDetailPage({
         </div>
       )}
       <PatientDetail id={id} canEdit={canEdit} />
+      {isDoctorRole(role) && <PreVisitBrief id={id} />}
       {canBook && (
         <PatientBooking
           clinicPatientId={id}
