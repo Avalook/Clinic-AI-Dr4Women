@@ -5,7 +5,7 @@
 // appointment if a service + date + time were filled, and finally lands on the
 // patient's profile. No more two-screen flow.
 
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { UserRound, CalendarClock, CalendarDays } from "lucide-react";
@@ -42,6 +42,14 @@ interface DupMatch {
   patient_code: string;
   full_name: string;
   date_of_birth: string | null;
+}
+
+// Cảnh báo SỚM (feedback #9): trùng SĐT phát hiện NGAY khi nhập, gọn hơn
+// DupMatch (chỉ tên + mã + năm sinh — không CCCD/địa chỉ).
+interface PhoneMatch {
+  full_name: string;
+  patient_code: string;
+  birth_year: number | null;
 }
 
 function Req() {
@@ -146,6 +154,41 @@ export default function NewPatientForm({
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [dupes, setDupes] = useState<DupMatch[] | null>(null);
+
+  // Cảnh báo SỚM trùng SĐT (feedback #9): nhập đủ 10 số → hỏi backend xem đã có
+  // ai dùng chưa. CHỈ cảnh báo, KHÔNG chặn lưu — backend lo chuẩn hoá +84/0.
+  const [phoneDupes, setPhoneDupes] = useState<PhoneMatch[]>([]);
+  useEffect(() => {
+    let alive = true;
+    // Debounce 450ms — toàn bộ (cả việc xoá cảnh báo cũ) chạy trong timeout để
+    // KHÔNG setState đồng bộ trong thân effect (react-hooks/set-state-in-effect).
+    const t = setTimeout(() => {
+      const digits = phone.replace(/\D/g, "");
+      if (digits.length !== 10) {
+        if (alive) setPhoneDupes([]);
+        return;
+      }
+      void (async () => {
+        try {
+          const res = await fetch(
+            `/api/patients/check-phone?phone=${encodeURIComponent(phone)}`,
+          );
+          if (!res.ok) return;
+          const json = (await res.json()) as {
+            exists?: boolean;
+            matches?: PhoneMatch[];
+          };
+          if (alive) setPhoneDupes(json.exists ? (json.matches ?? []) : []);
+        } catch {
+          /* cảnh báo là phụ: lỗi mạng thì im lặng, submit vẫn có guard riêng */
+        }
+      })();
+    }, 450);
+    return () => {
+      alive = false;
+      clearTimeout(t);
+    };
+  }, [phone]);
 
   // Walk-in: chỉ cần chọn dịch vụ là tạo lượt khám (giờ = bây giờ). Full: cần đủ
   // dịch vụ + ngày + giờ.
@@ -426,6 +469,29 @@ export default function NewPatientForm({
             />
             {phoneErr && (
               <p className="mt-1 text-[12px] text-[#dc2626]">{phoneErr}</p>
+            )}
+            {/* Cảnh báo MỀM trùng SĐT (feedback #9) — KHÔNG chặn lưu. */}
+            {phoneDupes.length > 0 && (
+              <div className="mt-1.5 rounded-lg border border-[#fde68a] bg-[#fffbeb] px-3 py-2 text-[12px] text-[#a16207]">
+                <p className="font-medium">⚠ Số này đã có trong hệ thống:</p>
+                <ul className="mt-1 space-y-0.5">
+                  {phoneDupes.map((m) => (
+                    <li key={m.patient_code}>
+                      {m.full_name}{" "}
+                      <span className="font-mono text-[#888888]">
+                        {m.patient_code}
+                      </span>
+                      {m.birth_year && (
+                        <span className="text-[#888888]"> · {m.birth_year}</span>
+                      )}
+                    </li>
+                  ))}
+                </ul>
+                <p className="mt-1">
+                  Kiểm tra xem có phải người nhà dùng chung số không. Vẫn tạo
+                  mới được.
+                </p>
+              </div>
             )}
           </div>
           <div>

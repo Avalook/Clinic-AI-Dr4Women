@@ -151,6 +151,54 @@ def test_get_by_phone_returns_list(mock_service_class, client) -> None:
 
 
 @patch("clinicai.api.v1.patients.PatientService")
+def test_check_phone_exists_returns_minimal_matches(mock_service_class, client) -> None:
+    """GET /api/v1/patients/check-phone → {exists, matches} with lean fields."""
+    mock_service = mock_service_class.return_value
+    mock_service.find_phone_duplicates = AsyncMock(
+        return_value=[
+            {
+                "full_name": "Nguyen Thi Lan",
+                "patient_code": "BN-2026-000001",
+                "birth_year": 1990,
+            }
+        ]
+    )
+
+    response = client.get(
+        "/api/v1/patients/check-phone", params={"phone": "0901234567"}
+    )
+    assert response.status_code == 200
+
+    data = response.json()
+    assert data["exists"] is True
+    assert len(data["matches"]) == 1
+    match = data["matches"][0]
+    assert match == {
+        "full_name": "Nguyen Thi Lan",
+        "patient_code": "BN-2026-000001",
+        "birth_year": 1990,
+    }
+    # Route resolves to check-phone, NOT get_patient_by_id (UUID route).
+    mock_service.find_phone_duplicates.assert_awaited_once_with("0901234567")
+
+
+@patch("clinicai.api.v1.patients.PatientService")
+def test_check_phone_absent_returns_exists_false(mock_service_class, client) -> None:
+    """No match → exists=false, empty matches."""
+    mock_service = mock_service_class.return_value
+    mock_service.find_phone_duplicates = AsyncMock(return_value=[])
+
+    response = client.get(
+        "/api/v1/patients/check-phone", params={"phone": "0999999999"}
+    )
+    assert response.status_code == 200
+
+    data = response.json()
+    assert data["exists"] is False
+    assert data["matches"] == []
+
+
+@patch("clinicai.api.v1.patients.PatientService")
 def test_update_patient_returns_200(mock_service_class, client) -> None:
     """PATCH /api/v1/patients/{id} returns 200 OK and the updated PatientDTO."""
     mock_service = mock_service_class.return_value

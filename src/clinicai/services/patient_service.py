@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import datetime
+import re
 from uuid import UUID
 
 import asyncpg
@@ -28,6 +29,29 @@ def _generate_patient_code() -> str:
 def _record_to_dto(record: asyncpg.Record) -> PatientDTO:
     """Convert an asyncpg Record into a PatientDTO."""
     return PatientDTO.model_validate(dict(record))
+
+
+def _phone_variants(phone: str) -> list[str]:
+    """Canonicalise a VN phone then return its equivalent STORED spellings.
+
+    Stored data is inconsistent: some rows are ``0987…``, some ``+84987…``
+    (no DB-level format constraint — only the dashboard form forces 10 digits).
+    Comparing the raw input would let ``0987`` miss a stored ``+84987``. So we
+    strip to digits, collapse a leading ``84`` country code to a national ``0``,
+    then expand back to the three common spellings (``0…``, ``84…``, ``+84…``)
+    so a single ``= ANY(...)`` catches every form. Returns ``[]`` for input
+    with no usable digits (caller treats that as "nothing to match").
+    """
+    digits = re.sub(r"\D", "", phone)
+    if not digits:
+        return []
+    if digits.startswith("84"):
+        subscriber = digits[2:]
+    elif digits.startswith("0"):
+        subscriber = digits[1:]
+    else:
+        subscriber = digits
+    return [f"0{subscriber}", f"84{subscriber}", f"+84{subscriber}"]
 
 
 class PatientService:
@@ -155,6 +179,40 @@ class PatientService:
         async with self._pool.acquire() as conn:
             rows = await conn.fetch(query, phone)
         return [_record_to_dto(r) for r in rows]
+
+    async def find_phone_duplicates(self, phone: str) -> list[dict]:
+        """Read-only: patients already on file with this phone (any spelling).
+
+        Returns MINIMAL fields (full_name, patient_code, birth_year) for a soft
+        "shared number?" warning at intake — never blocks creation. ``birth_year``
+        comes from ``date_of_birth`` (year-only patients store ``YYYY-01-01``), so
+        it does not depend on the optional ``birth_year`` column. Does NOT log the
+        phone or names. Returns ``[]`` when the input has no digits.
+        """
+        variants = _phone_variants(phone)
+        if not variants:
+            return []
+        query = """
+            SELECT
+                patient_code,
+                full_name,
+                EXTRACT(YEAR FROM date_of_birth)::int AS birth_year
+            FROM patient
+            WHERE phone_primary = ANY($1::text[])
+               OR phone_secondary = ANY($1::text[])
+            ORDER BY created_at DESC
+            LIMIT 10;
+        """
+        async with self._pool.acquire() as conn:
+            rows = await conn.fetch(query, variants)
+        return [
+            {
+                "full_name": r["full_name"],
+                "patient_code": r["patient_code"],
+                "birth_year": r["birth_year"],
+            }
+            for r in rows
+        ]
 
     async def update_patient(
         self, clinic_patient_id: UUID, data: PatientUpdateDTO

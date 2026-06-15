@@ -58,6 +58,26 @@ def _mask_national_id(value: str | None) -> str | None:
     return value[:3] + "*" * (len(value) - 5) + value[-2:]
 
 
+class PhoneDuplicateMatch(BaseModel):
+    """One patient already on file with a queried phone number.
+
+    Deliberately MINIMAL — only what reception needs to recognise a person
+    (feedback #9: a mother registering with her own number for her child).
+    NO national_id, NO address: this is a soft warning surface, not a profile.
+    """
+
+    full_name: str
+    patient_code: str
+    birth_year: int | None = None
+
+
+class PhoneCheckResult(BaseModel):
+    """Result of the read-only phone-duplicate lookup."""
+
+    exists: bool
+    matches: list[PhoneDuplicateMatch]
+
+
 class PatientDTO(BaseModel):
     """Output schema returned from service layer. national_id is masked."""
 

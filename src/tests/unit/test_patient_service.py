@@ -176,6 +176,80 @@ async def test_get_by_phone_returns_empty() -> None:
     assert results == []
 
 
+# ---------------------------------------------------------------------------
+# find_phone_duplicates + phone normalisation (feedback #9)
+# ---------------------------------------------------------------------------
+
+
+def test_phone_variants_normalises_to_same_set() -> None:
+    """0xxx, 84xxx, +84xxx and a bare subscriber all map to the SAME variants."""
+    from clinicai.services.patient_service import _phone_variants
+
+    expected = {"0901234567", "84901234567", "+84901234567"}
+    assert set(_phone_variants("0901234567")) == expected
+    assert set(_phone_variants("+84901234567")) == expected
+    assert set(_phone_variants("84901234567")) == expected
+    # Spaces / dashes are stripped before normalising.
+    assert set(_phone_variants("090 123 4567")) == expected
+    assert set(_phone_variants("901234567")) == expected
+    # No digits → nothing to match.
+    assert _phone_variants("") == []
+    assert _phone_variants("abc") == []
+
+
+@pytest.mark.asyncio
+async def test_find_phone_duplicates_returns_minimal_fields() -> None:
+    """find_phone_duplicates returns only full_name/patient_code/birth_year."""
+    pool, conn = _mock_pool_and_conn()
+    conn.fetch.return_value = [
+        {
+            "patient_code": "BN-2026-000001",
+            "full_name": "Nguyễn Thị Lan",
+            "birth_year": 1990,
+        },
+    ]
+
+    svc = PatientService(pool)
+    matches = await svc.find_phone_duplicates("0901234567")
+
+    assert matches == [
+        {
+            "full_name": "Nguyễn Thị Lan",
+            "patient_code": "BN-2026-000001",
+            "birth_year": 1990,
+        }
+    ]
+    # No CCCD / address leaked.
+    assert "national_id_number" not in matches[0]
+    assert "address" not in matches[0]
+
+    # Queried with the normalised variant array (catches +84 vs 0).
+    conn.fetch.assert_awaited_once()
+    sql_arg, variants = conn.fetch.call_args[0]
+    assert "= ANY($1::text[])" in sql_arg
+    assert set(variants) == {"0901234567", "84901234567", "+84901234567"}
+
+
+@pytest.mark.asyncio
+async def test_find_phone_duplicates_empty_when_no_match() -> None:
+    """No rows → empty list (exists=false upstream)."""
+    pool, conn = _mock_pool_and_conn()
+    conn.fetch.return_value = []
+
+    svc = PatientService(pool)
+    assert await svc.find_phone_duplicates("0987654321") == []
+
+
+@pytest.mark.asyncio
+async def test_find_phone_duplicates_skips_db_when_no_digits() -> None:
+    """Blank/garbage input never touches the DB."""
+    pool, conn = _mock_pool_and_conn()
+
+    svc = PatientService(pool)
+    assert await svc.find_phone_duplicates("   ") == []
+    conn.fetch.assert_not_awaited()
+
+
 @pytest.mark.asyncio
 async def test_update_patient_success() -> None:
     """update_patient should SET only provided fields and return updated DTO."""

@@ -7,7 +7,13 @@ from fastapi import APIRouter, Depends, status
 
 from clinicai.core.database import get_db_pool
 from clinicai.core.exceptions import ResourceNotFoundError, ValidationError
-from clinicai.schemas.patient import PatientCreateDTO, PatientDTO, PatientUpdateDTO
+from clinicai.schemas.patient import (
+    PatientCreateDTO,
+    PatientDTO,
+    PatientUpdateDTO,
+    PhoneCheckResult,
+    PhoneDuplicateMatch,
+)
 from clinicai.services.patient_service import PatientService
 
 router = APIRouter()
@@ -25,6 +31,29 @@ async def create_patient(
     """Register a new patient and run Master Patient Index (MPI) deduplication."""
     service = PatientService(pool)
     return await service.create_patient(data)
+
+
+# NOTE: must be declared BEFORE "/patients/{id}" — otherwise the literal path
+# "check-phone" gets matched against {id} (UUID) and rejected with 422.
+@router.get("/patients/check-phone", response_model=PhoneCheckResult)
+async def check_phone_duplicate(
+    phone: str,
+    pool: asyncpg.Pool = Depends(get_db_pool),
+) -> PhoneCheckResult:
+    """Read-only early warning: is this phone already on file (feedback #9)?
+
+    Returns minimal identifying fields so reception can spot a relative sharing
+    a number (e.g. a mother registering for her child). NEVER blocks creation —
+    the warning is advisory; the operator decides.
+    """
+    if not phone.strip():
+        raise ValidationError("phone query parameter must not be blank")
+    service = PatientService(pool)
+    matches = await service.find_phone_duplicates(phone)
+    return PhoneCheckResult(
+        exists=bool(matches),
+        matches=[PhoneDuplicateMatch(**m) for m in matches],
+    )
 
 
 @router.get("/patients/{id}", response_model=PatientDTO)
