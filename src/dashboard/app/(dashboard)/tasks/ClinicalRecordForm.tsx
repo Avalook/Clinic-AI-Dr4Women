@@ -14,6 +14,8 @@ import { fmtDate, fmtDateTimeOrDate } from "../../../lib/datetime";
 import { INPUT, LABEL } from "../form-ui";
 import PatientAdminEditor from "../PatientAdminEditor";
 import PreVisitBrief from "../PreVisitBrief";
+import ServiceFormEngine from "./ServiceFormEngine";
+import { resolveServiceCode } from "../../../lib/form-schemas";
 import type { DoctorApptRow } from "./DoctorWorkBoard";
 
 interface Profile {
@@ -222,6 +224,9 @@ export default function ClinicalRecordForm({
 }) {
   const router = useRouter();
   const p = appt.patient;
+  // Engine form chuyên khoa (pilot Phụ khoa): suy service_code từ tên dịch vụ.
+  // Không khớp config nào → null → engine tự ẩn.
+  const serviceCode = resolveServiceCode(appt.service?.name);
   const [data, setData] = useState<Data | null>(null);
   const [loading, setLoading] = useState(true);
   const [f, setF] = useState<Fields>(EMPTY);
@@ -923,6 +928,19 @@ export default function ClinicalRecordForm({
             </div>
           </div>
         </Section>
+
+        {/* Phiếu khám CHUYÊN KHOA (engine config-driven) — pilot Phụ khoa. Chỉ hiện
+            cho bác sĩ (KHÔNG ở luồng đón-khám vitalsOnly) khi dịch vụ có config +
+            đã có visit. FINALIZED / lễ tân chỉ-đọc → read-only (route cũng chặn ghi). */}
+        {!vitalsOnly && serviceCode && data?.visit?.visit_id && (
+          <div className="border-t border-[#f4f4f5] pt-3">
+            <ServiceFormEngine
+              visitId={data.visit.visit_id}
+              serviceCode={serviceCode}
+              readOnly={readOnly || locked}
+            />
+          </div>
+        )}
       </div>
 
       <div className="flex items-center justify-between gap-2 border-t border-[#e4e4e7] px-4 py-3">
