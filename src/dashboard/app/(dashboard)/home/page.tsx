@@ -24,6 +24,7 @@ import WeeklyAppointmentsTable, {
   type WeekApptRow,
 } from "./WeeklyAppointmentsTable";
 import WorkRosterTable, { type RosterRow } from "./WorkRosterTable";
+import VisitStatusBoard, { type VisitStatusRow } from "./VisitStatusBoard";
 
 export const dynamic = "force-dynamic";
 
@@ -59,6 +60,7 @@ export default async function HomePage({
   const staff = await getActiveStaff();
   const staffId = await getClinicStaffId();
   const showCheckin = canCheckin(role); // ĐD/Lễ tân/Quản lý: khu check-in ở đây
+  const isReception = role === "RECEPTION"; // bảng trạng thái buổi khám: chỉ Lễ tân
   const { startUtc: dayStart, endUtc: dayEnd } = vnTodayRangeUtc();
 
   // 2 bảng có tuần ĐỘC LẬP: weekAppt cho Lịch hẹn khám, weekRoster cho Lịch làm
@@ -92,6 +94,16 @@ export default async function HomePage({
     service:service_type!service_type_id ( name )
   `;
 
+  // Trạng thái BN buổi khám hôm nay (chỉ Lễ tân) — đọc visit TẠO HÔM NAY +
+  // join patient/bác sĩ/dịch vụ. 3 staff-FK trên visit → phải chỉ rõ
+  // attending_doctor_id để PostgREST không nhập nhằng. RLS SELECT cho phép.
+  const VISIT_STATUS_SELECT = `
+    visit_id, status, checked_in_at, created_at,
+    patient:patient!clinic_patient_id ( full_name, patient_code ),
+    doctor:staff!attending_doctor_id ( full_name ),
+    service:service_type!service_type_id ( name )
+  `;
+
   // 3 ô số + ca trực hôm nay + roster tuần + lịch hẹn tuần + check-in hôm nay.
   const [
     taskRes,
@@ -100,6 +112,7 @@ export default async function HomePage({
     rosterRes,
     weekApptRes,
     checkinRes,
+    visitStatusRes,
   ] = await Promise.all([
     supabase
       .from("staff_task")
@@ -145,8 +158,19 @@ export default async function HomePage({
           .order("slot_start", { ascending: true })
           .limit(300)
       : Promise.resolve({ data: [] }),
+    isReception
+      ? supabase
+          .from("visit")
+          .select(VISIT_STATUS_SELECT)
+          .gte("created_at", dayStart)
+          .lt("created_at", dayEnd)
+          .order("created_at", { ascending: true })
+          .limit(300)
+      : Promise.resolve({ data: [] }),
   ]);
   const checkinRows = (checkinRes.data as HomeCheckinRow[] | null) ?? [];
+  const visitStatusRows =
+    (visitStatusRes.data as VisitStatusRow[] | null) ?? [];
 
   const cards = [
     { label: "Việc đang chờ làm", value: taskRes.count ?? 0 },
@@ -225,6 +249,16 @@ export default async function HomePage({
           Bấm mở danh sách ngay dưới nút; Lịch hẹn khám tự đẩy xuống. */}
       {showCheckin && (
         <HomeCheckin rows={checkinRows} staffId={staffId} />
+      )}
+
+      {/* Trạng thái BN buổi khám hôm nay — CHỈ Lễ tân, READ-ONLY (theo visit.status). */}
+      {isReception && (
+        <section>
+          <h2 className="mb-2 text-sm font-semibold text-[#171717]">
+            Trạng thái BN buổi khám hôm nay
+          </h2>
+          <VisitStatusBoard rows={visitStatusRows} />
+        </section>
       )}
 
       {/* Lịch hẹn khám — nút tuần RIÊNG (weekAppt), KHÔNG đụng Lịch làm việc. */}
