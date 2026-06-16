@@ -11,7 +11,8 @@ export type ClinicRole =
   | "NURSE_ULTRASOUND"
   | "CSKH"
   | "MANAGEMENT"
-  | "RECEPTION";
+  | "RECEPTION"
+  | "CASHIER";
 
 export const ALL_ROLES: ClinicRole[] = [
   "DOCTOR",
@@ -20,6 +21,7 @@ export const ALL_ROLES: ClinicRole[] = [
   "CSKH",
   "MANAGEMENT",
   "RECEPTION",
+  "CASHIER",
 ];
 
 // staff.primary_department → vai trò ứng dụng. Mỗi người chọn tên mình khi
@@ -102,6 +104,7 @@ export const ROLE_LABEL: Record<ClinicRole, string> = {
   CSKH: "CSKH",
   MANAGEMENT: "Quản lý",
   RECEPTION: "Lễ tân",
+  CASHIER: "Thu ngân",
 };
 
 // Which roles may see each sidebar destination. Anything not listed = everyone.
@@ -140,6 +143,8 @@ const NAV_ROLES: Record<string, "all" | ClinicRole[]> = {
   // Hàng đợi XN + Dịch vụ: điều dưỡng/KTV thực hiện (+ Quản lý xem).
   "/lab-queue": ["NURSE_ULTRASOUND", "MANAGEMENT"],
   "/service-queue": ["NURSE_ULTRASOUND", "MANAGEMENT"],
+  // Thu ngân: màn thu ngân + bảng giá khung (Thu ngân thực hiện, Quản lý xem/sửa giá).
+  "/cashier": ["CASHIER", "MANAGEMENT"],
   // Bác sĩ + Lễ tân + Điều dưỡng tự đăng ký ca của mình; Quản lý xếp cả bảng (feedback C4).
   "/schedule": [...DOCTOR_ROLES_LIST, "NURSE_ULTRASOUND", "RECEPTION", "MANAGEMENT"],
   "/work-sessions": ["MANAGEMENT"],
