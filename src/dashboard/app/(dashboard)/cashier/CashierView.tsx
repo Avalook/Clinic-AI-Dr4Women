@@ -31,9 +31,16 @@ function fmtVnd(v: number | null): string {
   return new Intl.NumberFormat("vi-VN").format(v) + " ₫";
 }
 
-export default function CashierView({ rows }: { rows: PriceRow[] }) {
+export default function CashierView({
+  rows,
+  group: lockedGroup,
+}: {
+  rows: PriceRow[];
+  /** Khoá vào 1 nhóm (trang Bảng giá thuốc / dịch vụ riêng) → ẩn toggle. */
+  group?: PriceGroup;
+}) {
   const router = useRouter();
-  const [view, setView] = useState<PriceGroup>("thuoc");
+  const [view, setView] = useState<PriceGroup>(lockedGroup ?? "thuoc");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -100,23 +107,26 @@ export default function CashierView({ rows }: { rows: PriceRow[] }) {
 
   return (
     <div className="space-y-4">
-      {/* Toggle 2 view */}
-      <div className="inline-flex rounded-xl border border-[#e4e4e7] bg-white p-1 shadow-[0_1px_2px_rgba(0,0,0,0.04)]">
-        {VIEWS.map((v) => (
-          <button
-            key={v}
-            onClick={() => setView(v)}
-            className={
-              "rounded-lg px-4 py-1.5 text-sm font-medium transition-colors " +
-              (view === v
-                ? "bg-[#ec4899] text-white"
-                : "text-[#52525b] hover:bg-[#fdf2f8]")
-            }
-          >
-            {VIEW_LABEL[v]}
-          </button>
-        ))}
-      </div>
+      {/* Toggle 2 view — chỉ hiện khi KHÔNG khoá nhóm (trang gộp cũ). Trang
+          Bảng giá thuốc / dịch vụ truyền group → ẩn toggle. */}
+      {!lockedGroup && (
+        <div className="inline-flex rounded-xl border border-[#e4e4e7] bg-white p-1 shadow-[0_1px_2px_rgba(0,0,0,0.04)]">
+          {VIEWS.map((v) => (
+            <button
+              key={v}
+              onClick={() => setView(v)}
+              className={
+                "rounded-lg px-4 py-1.5 text-sm font-medium transition-colors " +
+                (view === v
+                  ? "bg-[#ec4899] text-white"
+                  : "text-[#52525b] hover:bg-[#fdf2f8]")
+              }
+            >
+              {VIEW_LABEL[v]}
+            </button>
+          ))}
+        </div>
+      )}
 
       {error && (
         <p className="rounded bg-[#fee2e2] px-3 py-2 text-sm text-[#dc2626]">

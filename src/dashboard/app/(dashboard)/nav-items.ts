@@ -15,7 +15,8 @@ import {
   Stethoscope,
   FlaskConical,
   Activity,
-  Wallet,
+  Pill,
+  Tag,
   ScanLine,
   type LucideIcon,
 } from "lucide-react";
@@ -71,6 +72,9 @@ export const NAV: NavItem[] = [
     shortLabel: "Việc",
     icon: CheckSquare,
   },
+  // Bảng giá tách 2 trang, đặt NGAY DƯỚI "Công việc của tôi" (sidebar Thu ngân).
+  { href: "/cashier/thuoc", label: "Bảng giá thuốc", shortLabel: "Giá thuốc", icon: Pill },
+  { href: "/cashier/dich-vu", label: "Bảng giá dịch vụ", shortLabel: "Giá DV", icon: Tag },
   {
     href: "/lab-queue",
     label: "Hàng đợi xét nghiệm",
@@ -83,7 +87,6 @@ export const NAV: NavItem[] = [
     shortLabel: "Dịch vụ",
     icon: Activity,
   },
-  { href: "/cashier", label: "Bảng giá", shortLabel: "Bảng giá", icon: Wallet },
   { href: "/sono", label: "ĐD siêu âm", shortLabel: "Siêu âm", icon: ScanLine },
   { href: "/schedule", label: "Lịch làm việc", shortLabel: "Ca trực", icon: Calendar },
   { href: "/reports", label: "Báo cáo", icon: BarChart3 },

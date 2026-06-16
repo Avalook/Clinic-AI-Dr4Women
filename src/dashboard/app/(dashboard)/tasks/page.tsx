@@ -19,6 +19,7 @@ import { isDoctorRole, canManageAppt, isTasksReadOnly } from "../../../lib/roles
 import ConfirmBoard, { type ApptRow, type Opt } from "./ConfirmBoard";
 import CskhActionBoard, { type CskhActionRow } from "./CskhActionBoard";
 import DoctorWorkBoard, { type DoctorApptRow } from "./DoctorWorkBoard";
+import CashierWorkBoard from "./CashierWorkBoard";
 
 export const dynamic = "force-dynamic";
 
@@ -157,6 +158,10 @@ export default async function TasksPage() {
   await requireNavAccess("/tasks");
   // Bác sĩ thấy board lâm sàng riêng; CSKH/Quản lý thấy board lịch hẹn cũ.
   const role = await getClinicRole();
+  // Thu ngân: màn LÀM VIỆC thu ngân riêng (2 mode thuốc/dịch vụ) — KHÔNG dùng board
+  // bác sĩ. Đặt TRƯỚC isTasksReadOnly để CASHIER không rơi vào nhánh read-only board.
+  // (CASHIER vẫn nằm trong isTasksReadOnly cho mục đích khác: popup ở /patient-list.)
+  if (role === "CASHIER") return <CashierWorkBoard />;
   if (isDoctorRole(role)) return DoctorTasks(false, true);
   // Lễ tân: CLONE Y HỆT board bác sĩ nhưng CHỈ ĐỌC (khóa mọi nút sửa).
   if (isTasksReadOnly(role)) return DoctorTasks(true);

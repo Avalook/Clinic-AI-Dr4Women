@@ -148,8 +148,10 @@ const NAV_ROLES: Record<string, "all" | ClinicRole[]> = {
   "/service-queue": ["NURSE_ULTRASOUND", "MANAGEMENT"],
   // ĐD siêu âm: hàng đợi BN sắp khám SA + hàng đợi XN 3 trạng thái + in phiếu.
   "/sono": ["NURSE_ULTRASOUND", "MANAGEMENT"],
-  // Thu ngân: màn thu ngân + bảng giá khung (Thu ngân thực hiện, Quản lý xem/sửa giá).
-  "/cashier": ["CASHIER", "MANAGEMENT"],
+  // Thu ngân: bảng giá tách 2 trang (thuốc / dịch vụ). Thu ngân + Quản lý xem/sửa giá.
+  // ("Công việc của tôi" thu ngân nằm ở /tasks, gate bằng entry /tasks bên dưới.)
+  "/cashier/thuoc": ["CASHIER", "MANAGEMENT"],
+  "/cashier/dich-vu": ["CASHIER", "MANAGEMENT"],
   // Bác sĩ + Lễ tân + Điều dưỡng tự đăng ký ca của mình; Quản lý xếp cả bảng (feedback C4).
   "/schedule": [...DOCTOR_ROLES_LIST, "NURSE_ULTRASOUND", "RECEPTION", "MANAGEMENT"],
   "/work-sessions": ["MANAGEMENT"],
