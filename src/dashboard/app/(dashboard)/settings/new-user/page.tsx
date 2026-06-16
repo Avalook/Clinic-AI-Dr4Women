@@ -25,6 +25,7 @@ const DEPT_LABEL: Record<string, string> = {
   RECEPTION: "Lễ tân",
   CSKH: "CSKH",
   MANAGEMENT: "Quản lý",
+  CASHIER: "Thu ngân",
 };
 
 export default async function NewUserPage() {

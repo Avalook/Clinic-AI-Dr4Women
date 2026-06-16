@@ -83,7 +83,7 @@ export const NAV: NavItem[] = [
     shortLabel: "Dịch vụ",
     icon: Activity,
   },
-  { href: "/cashier", label: "Thu ngân", shortLabel: "Thu ngân", icon: Wallet },
+  { href: "/cashier", label: "Bảng giá", shortLabel: "Bảng giá", icon: Wallet },
   { href: "/sono", label: "ĐD siêu âm", shortLabel: "Siêu âm", icon: ScanLine },
   { href: "/schedule", label: "Lịch làm việc", shortLabel: "Ca trực", icon: Calendar },
   { href: "/reports", label: "Báo cáo", icon: BarChart3 },

@@ -88,7 +88,9 @@ export function canEditPatient(role: ClinicRole | null): boolean {
  *  Nhận/Từ chối/Lưu hồ sơ/Chỉ định XN đều bị khóa. Dùng để clone giao diện
  *  bác sĩ cho front desk mà không cấp quyền ghi. */
 export function isTasksReadOnly(role: ClinicRole | null): boolean {
-  return role === "RECEPTION";
+  // Lễ tân + Thu ngân: xem board "Công việc của tôi" để nắm tình trạng buổi khám,
+  // nhưng CHỈ ĐỌC (khóa mọi nút sửa) — tránh rơi xuống ConfirmBoard (quyền quản lý lịch).
+  return role === "RECEPTION" || role === "CASHIER";
 }
 
 /** Landing path after a role is picked. */
@@ -126,12 +128,13 @@ const NAV_ROLES: Record<string, "all" | ClinicRole[]> = {
   // phân lại lịch bị từ chối, tái khám đến hạn, KQ XN mới về).
   "/cskh-today": ["CSKH", "MANAGEMENT"],
   "/appointments": ["MANAGEMENT"],
-  // Thông tin khách hàng (danh bạ + chi tiết + tra cứu tên/mã/SĐT) — CSKH/Lễ tân/QL.
-  "/customers": ["CSKH", "RECEPTION", "MANAGEMENT"],
+  // Thông tin khách hàng (danh bạ + chi tiết + tra cứu tên/mã/SĐT) — CSKH/Lễ tân/QL
+  // + Thu ngân (xem để đối chiếu khi thu tiền; canWriteIntake KHÔNG gồm CASHIER → chỉ xem).
+  "/customers": ["CSKH", "RECEPTION", "MANAGEMENT", "CASHIER"],
   // Danh sách bệnh nhân ĐÃ KHÁM (lần đầu / tái khám) — CSKH/Lễ tân/QL + BÁC SĨ.
   // Bác sĩ thấy TOÀN BỘ BN đã khám (như front desk); mở hồ sơ vẫn bị guard
   // patients/[id] (chỉ mở được BN của mình) — đúng mô hình quyền hiện tại.
-  "/patient-list": ["CSKH", "RECEPTION", "MANAGEMENT", ...DOCTOR_ROLES_LIST],
+  "/patient-list": ["CSKH", "RECEPTION", "MANAGEMENT", "CASHIER", ...DOCTOR_ROLES_LIST],
   // Tra cứu BN đầy đủ (phân trang) — Quản lý. CSKH/Lễ tân dùng /customers.
   "/patients": ["MANAGEMENT"],
   // Điều dưỡng cũng nhập được (khách vãng lai).
@@ -139,7 +142,7 @@ const NAV_ROLES: Record<string, "all" | ClinicRole[]> = {
   // /checkin đã chuyển hẳn lên Trang chủ (HomeCheckin) — route cũ đã xóa.
   // Lễ tân được THÊM vào: thấy "Công việc của tôi" nhưng ở chế độ CHỈ XEM
   // (clone giao diện board bác sĩ, khóa mọi nút sửa — xem isTasksReadOnly).
-  "/tasks": ["CSKH", "MANAGEMENT", "RECEPTION", ...DOCTOR_ROLES_LIST],
+  "/tasks": ["CSKH", "MANAGEMENT", "RECEPTION", "CASHIER", ...DOCTOR_ROLES_LIST],
   // Hàng đợi XN + Dịch vụ: điều dưỡng/KTV thực hiện (+ Quản lý xem).
   "/lab-queue": ["NURSE_ULTRASOUND", "MANAGEMENT"],
   "/service-queue": ["NURSE_ULTRASOUND", "MANAGEMENT"],
