@@ -87,6 +87,7 @@ export default function DoctorWorkBoard({
   staffId,
   readOnly = false,
   canEditAdmin = false,
+  showPreVisitBrief = false,
 }: {
   rows: DoctorApptRow[];
   staffId: string | null;
@@ -95,6 +96,8 @@ export default function DoctorWorkBoard({
   readOnly?: boolean;
   /** Cho sửa mục I Hành chính trong hồ sơ (vd Lễ tân) — độc lập với readOnly. */
   canEditAdmin?: boolean;
+  /** Hiện nút "Xem tóm tắt trước khám" trong hồ sơ — chỉ BÁC SĨ bật từ server. */
+  showPreVisitBrief?: boolean;
 }) {
   const router = useRouter();
   const [openId, setOpenId] = useState<string | null>(null);
@@ -363,6 +366,7 @@ export default function DoctorWorkBoard({
                 fill
                 readOnly={readOnly}
                 canEditAdmin={canEditAdmin}
+                showPreVisitBrief={showPreVisitBrief}
                 onClose={() => setOpenId(null)}
               />
             }

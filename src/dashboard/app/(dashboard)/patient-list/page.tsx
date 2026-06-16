@@ -117,6 +117,8 @@ export default async function PatientListPage() {
           rows={rows}
           enablePopup={enablePopup}
           canEditAdmin={enablePopup}
+          /* Nút tóm tắt trước khám chỉ cho BÁC SĨ (CSKH/lễ tân mở popup nhưng không thấy). */
+          showPreVisitBrief={isDoctorRole(role)}
         />
       )}
     </div>

@@ -13,6 +13,7 @@ import { X, Plus } from "lucide-react";
 import { fmtDate, fmtDateTimeOrDate } from "../../../lib/datetime";
 import { INPUT, LABEL } from "../form-ui";
 import PatientAdminEditor from "../PatientAdminEditor";
+import PreVisitBrief from "../PreVisitBrief";
 import type { DoctorApptRow } from "./DoctorWorkBoard";
 
 interface Profile {
@@ -199,6 +200,7 @@ export default function ClinicalRecordForm({
   fill = false,
   readOnly = false,
   canEditAdmin = false,
+  showPreVisitBrief = false,
 }: {
   appt: DoctorApptRow;
   staffId: string | null;
@@ -213,6 +215,10 @@ export default function ClinicalRecordForm({
   /** canEditAdmin = cho SỬA mục I Hành chính (PATCH /api/patients) — độc lập với
    *  readOnly (Lễ tân chỉ-đọc lâm sàng nhưng vẫn sửa được hành chính). */
   canEditAdmin?: boolean;
+  /** showPreVisitBrief = hiện nút "Xem tóm tắt trước khám" (gọi-và-hiện, read-only).
+   *  Chỉ BÁC SĨ (isDoctorRole) bật từ server. ĐỘC LẬP với readOnly — nút chỉ đọc
+   *  nên vẫn hiện khi form khóa ghi. */
+  showPreVisitBrief?: boolean;
 }) {
   const router = useRouter();
   const p = appt.patient;
@@ -551,6 +557,14 @@ export default function ClinicalRecordForm({
             </dl>
           )}
         </Section>
+
+        {/* Tóm tắt trước khám (bác sĩ): gọi-và-hiện, KHÔNG lưu. Đặt ở ĐẦU panel
+            để bác sĩ xem trước khi đọc/ghi hồ sơ. Read-only → hiện cả khi form khóa. */}
+        {showPreVisitBrief && p?.clinic_patient_id && (
+          <div className="border-t border-[#f4f4f5] pt-3">
+            <PreVisitBrief id={p.clinic_patient_id} />
+          </div>
+        )}
 
         {(data?.history?.length ?? 0) > 0 && (
           <details className="border-t border-[#f4f4f5] pt-3" open>

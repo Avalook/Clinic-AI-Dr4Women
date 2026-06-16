@@ -39,7 +39,7 @@ const DOCTOR_SELECT = `
 // VẪN có clinic_staff_id (cookie set cho mọi vai trò) nhưng KHÔNG phải bác sĩ →
 // khi readOnly ta BỎ lọc doctor_id để thấy lịch của MỌI bác sĩ (góc nhìn front
 // desk). Nếu lọc theo staffId của lễ tân thì board sẽ rỗng (không lịch nào của họ).
-async function DoctorTasks(readOnly = false) {
+async function DoctorTasks(readOnly = false, showPreVisitBrief = false) {
   const supabase = await getSupabaseServer();
   const staffId = await getClinicStaffId();
   const { startUtc } = vnTodayRangeUtc();
@@ -130,6 +130,9 @@ async function DoctorTasks(readOnly = false) {
           /* Lễ tân (readOnly): khóa lâm sàng nhưng ĐƯỢC sửa hành chính mục I.
              Bác sĩ (readOnly=false): không bật sửa hành chính ở đây. */
           canEditAdmin={readOnly}
+          /* Nút tóm tắt trước khám: chỉ board của BÁC SĨ (DoctorTasks() — nhánh
+             isDoctorRole), lễ tân (DoctorTasks(true)) không bật. */
+          showPreVisitBrief={showPreVisitBrief}
         />
       )}
     </div>
@@ -154,7 +157,7 @@ export default async function TasksPage() {
   await requireNavAccess("/tasks");
   // Bác sĩ thấy board lâm sàng riêng; CSKH/Quản lý thấy board lịch hẹn cũ.
   const role = await getClinicRole();
-  if (isDoctorRole(role)) return DoctorTasks();
+  if (isDoctorRole(role)) return DoctorTasks(false, true);
   // Lễ tân: CLONE Y HỆT board bác sĩ nhưng CHỈ ĐỌC (khóa mọi nút sửa).
   if (isTasksReadOnly(role)) return DoctorTasks(true);
 
