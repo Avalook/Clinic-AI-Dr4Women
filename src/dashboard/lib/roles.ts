@@ -143,6 +143,8 @@ const NAV_ROLES: Record<string, "all" | ClinicRole[]> = {
   // Hàng đợi XN + Dịch vụ: điều dưỡng/KTV thực hiện (+ Quản lý xem).
   "/lab-queue": ["NURSE_ULTRASOUND", "MANAGEMENT"],
   "/service-queue": ["NURSE_ULTRASOUND", "MANAGEMENT"],
+  // ĐD siêu âm: hàng đợi BN sắp khám SA + hàng đợi XN 3 trạng thái + in phiếu.
+  "/sono": ["NURSE_ULTRASOUND", "MANAGEMENT"],
   // Thu ngân: màn thu ngân + bảng giá khung (Thu ngân thực hiện, Quản lý xem/sửa giá).
   "/cashier": ["CASHIER", "MANAGEMENT"],
   // Bác sĩ + Lễ tân + Điều dưỡng tự đăng ký ca của mình; Quản lý xếp cả bảng (feedback C4).

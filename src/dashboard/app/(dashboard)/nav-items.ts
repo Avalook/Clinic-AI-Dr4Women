@@ -16,6 +16,7 @@ import {
   FlaskConical,
   Activity,
   Wallet,
+  ScanLine,
   type LucideIcon,
 } from "lucide-react";
 import { type ClinicRole, isNurseRole } from "../../lib/roles";
@@ -83,6 +84,7 @@ export const NAV: NavItem[] = [
     icon: Activity,
   },
   { href: "/cashier", label: "Thu ngân", shortLabel: "Thu ngân", icon: Wallet },
+  { href: "/sono", label: "ĐD siêu âm", shortLabel: "Siêu âm", icon: ScanLine },
   { href: "/schedule", label: "Lịch làm việc", shortLabel: "Ca trực", icon: Calendar },
   { href: "/reports", label: "Báo cáo", icon: BarChart3 },
   { href: "/settings", label: "Cài đặt", icon: Settings },
