@@ -1,0 +1,28 @@
+# CHANGELOG — ClinicAI Dr4Women
+> Mỗi entry = 1 packet Claude Code. Mới nhất trên cùng. Mục đích: báo cáo tổng quan thay đổi.
+
+## [LOCAL — chưa push]
+
+### 2026-06-17 · T-DASH-GENDER-KHAC-02 · Giới tính "Khác" + bootstrap CHANGELOG · commit `chưa commit`
+- **Yêu cầu phòng khám:** D13 (giới tính cần lựa chọn "Khác" ngoài Nam/Nữ).
+- **Đã làm:**
+  - Migration 048 nới `patient_gender_check` → chấp nhận `'Nam'/'Nữ'/'Khác'` (giữ NULL).
+  - Test temp schema PASS (pre-reject → up-accept → junk-reject → Nam/Nữ intact → down-revert), rồi apply lẻ vào public + insert ledger.
+  - Thêm `<option>Khác` vào 3 dropdown giới tính (NewPatientForm, PatientAdminEditor, ConfirmBoard).
+  - Verify write path: `/api/patients` không có allowlist gender → `'Khác'` ghi DB OK (smoke insert chỉ vướng patient_code auto-gen, gender check PASS).
+- **File sửa (4 + 2 migration + 1 changelog):** NewPatientForm.tsx · PatientAdminEditor.tsx · ConfirmBoard.tsx · (CHANGELOG.md mới) · migrations/20260617_048_patient_gender_add_khac.sql(+.down).
+- **Migration:** 048 apply LẺ qua psql (BEGIN/COMMIT), insert `schema_migrations`. Không chạy runner sequential.
+- **Boundary giữ:** chỉ DROP+RECREATE đúng 1 constraint `patient_gender_check`; KHÔNG đụng cột/constraint khác, KHÔNG đụng 043 (vẫn lỗ), không đổi giá trị Nam/Nữ đang lưu (10 Nữ / 7 NULL).
+- **Nợ / next:** down 048 chỉ an toàn khi chưa có BN gender='Khác'; 043 vẫn pending (đợt riêng).
+
+### 2026-06-17 · T-DASH-INTAKE-UX-01 · UX form intake (PT, tên BS, search bỏ dấu, date) · commit `08365f6`
+- **Yêu cầu phòng khám:** D11 (nhãn PT + tên BS đầy đủ + tìm không dấu), D19 (ô ngày DD/MM/YYYY).
+- **Đã làm:**
+  - (a) `PT`→`Phẫu thuật` (ClinicalRecordForm); bác sĩ hiển thị HỌ TÊN ĐẦY ĐỦ (WeeklyAppointmentsTable bỏ in-hoa/viết-tắt; heading /appointments dùng full_name).
+  - (b) Tìm tên KHÔNG phân biệt dấu: tái dùng cột `full_name_unaccent` (migration 039) cho customers/page (server, có fallback); lọc client HomeCheckin + StaffPicker qua `unaccentVi`; gom `unaccentVi` vào lib/validation.
+  - (c) [DỪNG ở packet này] Giới tính "Khác" bị CHECK chặn → chuyển sang packet T-DASH-GENDER-KHAC-02.
+  - (d) Component `DateField` dùng chung: 1 ô DD/MM/YYYY, tự đệm 0 (7→07), nút lịch native, emit ISO (DB date không đổi); gộp 3 ô DOB rời; áp cho DOB + ngày khám ở NewPatientForm/AppointmentBooking/PatientAdminEditor.
+- **File sửa (12):** DateField.tsx (mới) · lib/validation.ts · NewPatientForm.tsx · AppointmentBooking.tsx · PatientAdminEditor.tsx · WeeklyAppointmentsTable.tsx · HomeCheckin.tsx · appointments/page.tsx · ClinicalRecordForm.tsx · customers/page.tsx · PatientsList.tsx · StaffPicker.tsx.
+- **Migration:** none (chỉ tái dùng cột 039 sẵn có).
+- **Boundary giữ:** frontend-only; KHÔNG migration, KHÔNG đổi schema/RLS/route ghi; search tái dùng cột sẵn có (không đổi DB).
+- **Nợ / next:** nghiệm thu mắt DateField trên local (gõ tay + chọn lịch + "Chỉ biết năm").

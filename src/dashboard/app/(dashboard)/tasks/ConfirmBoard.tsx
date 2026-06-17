@@ -626,6 +626,7 @@ export default function ConfirmBoard({
                     <option value="">— Chọn —</option>
                     <option value="Nữ">Nữ</option>
                     <option value="Nam">Nam</option>
+                    <option value="Khác">Khác</option>
                   </select>
                 </div>
                 <div>
