@@ -6,6 +6,7 @@
 import { getSupabaseServer } from "../../../lib/supabase-server";
 import { requireNavAccess, getClinicRole } from "../../../lib/clinic-session";
 import { canWriteIntake } from "../../../lib/roles";
+import { unaccentVi } from "../../../lib/validation";
 import {
   vnTodayRangeUtc,
   vnMonthStartUtc,
@@ -101,38 +102,50 @@ export default async function CustomersPage({
     ];
   }
 
-  let query = supabase
-    .from("patient")
-    .select(SELECT)
-    .order("created_at", { ascending: false })
-    .limit(300);
-  if (by === "created" && win) query = query.gte("created_at", win.start);
-  if (by === "appt" && apptFilterIds) {
-    // Rỗng → sentinel để .in() không lỗi và trả 0 dòng.
-    query = query.in(
-      "clinic_patient_id",
-      apptFilterIds.length
-        ? apptFilterIds
-        : ["00000000-0000-0000-0000-000000000000"],
-    );
-  }
-  if (q) {
-    const t = q.replace(/[,()%*]/g, " ").trim();
-    if (t) {
-      query = query.or(
-        [
-          `full_name.ilike.%${t}%`,
-          `patient_code.ilike.%${t}%`,
-          `phone_primary.ilike.%${t}%`,
-        ].join(","),
+  // Tìm tên KHÔNG phân biệt dấu (D11): cộng thêm điều kiện trên cột
+  // full_name_unaccent (migration 039 — bỏ dấu + thường). useUnaccent=false để
+  // fallback nếu cột chưa migrate (KHÔNG đổi DB, chỉ tái dùng cột sẵn có).
+  const t = q ? q.replace(/[,()%*]/g, " ").trim() : "";
+  const buildPatientQuery = (useUnaccent: boolean) => {
+    let query = supabase
+      .from("patient")
+      .select(SELECT)
+      .order("created_at", { ascending: false })
+      .limit(300);
+    if (by === "created" && win) query = query.gte("created_at", win.start);
+    if (by === "appt" && apptFilterIds) {
+      // Rỗng → sentinel để .in() không lỗi và trả 0 dòng.
+      query = query.in(
+        "clinic_patient_id",
+        apptFilterIds.length
+          ? apptFilterIds
+          : ["00000000-0000-0000-0000-000000000000"],
       );
     }
-  }
+    if (t) {
+      const ors = [
+        `full_name.ilike.%${t}%`,
+        `patient_code.ilike.%${t}%`,
+        `phone_primary.ilike.%${t}%`,
+      ];
+      if (useUnaccent) {
+        ors.push(`full_name_unaccent.ilike.%${unaccentVi(t)}%`);
+      }
+      query = query.or(ors.join(","));
+    }
+    return query;
+  };
 
-  const [{ data, error }, locRes] = await Promise.all([
-    query,
+  const [patRes, locRes] = await Promise.all([
+    buildPatientQuery(true),
     supabase.from("clinic_location").select("id, name").order("name"),
   ]);
+
+  let { data, error } = patRes;
+  // Thiếu cột full_name_unaccent (chưa migrate) → tìm lại không bỏ dấu.
+  if (error && /full_name_unaccent|column/i.test(error.message ?? "")) {
+    ({ data, error } = await buildPatientQuery(false));
+  }
 
   const rows = (data as CustomerRow[] | null) ?? [];
   const locations: Opt[] = (locRes.data ?? []).map((r) => ({

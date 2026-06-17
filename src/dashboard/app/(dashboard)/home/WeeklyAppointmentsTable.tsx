@@ -30,9 +30,10 @@ export interface ApptDay {
 
 const NO_DOCTOR = "Chưa phân bác sĩ";
 
-// "BS Thành" / "BS SA Thành" → "THÀNH" (bỏ tiền tố chức danh, in hoa như sheet).
+// Bỏ tiền tố chức danh ("BS"/"BS SA"/"ĐD"/"TL") để khỏi lặp "BS. BS …", nhưng
+// GIỮ HỌ TÊN ĐẦY ĐỦ (không viết tắt/in hoa) — yêu cầu hiển thị đủ tên bác sĩ.
 function cleanDoctor(name: string): string {
-  return name.replace(/^(BS\s*SA|BS|ĐD|TL)\s+/i, "").trim().toUpperCase();
+  return name.replace(/^(BS\s*SA|BS|ĐD|TL)[.\s]+/i, "").trim();
 }
 
 function PhanLoai({ value }: { value: string }) {

@@ -6,6 +6,7 @@
 import { useMemo, useState } from "react";
 import { Search } from "lucide-react";
 import { ROLE_LABEL, departmentToRole } from "../../lib/roles";
+import { unaccentVi } from "../../lib/validation";
 import { chooseStaffIdentity } from "./actions";
 
 export interface StaffPerson {
@@ -27,14 +28,15 @@ const DEPT_ORDER = [
 
 export default function StaffPicker({ staff }: { staff: StaffPerson[] }) {
   const [q, setQ] = useState("");
-  const term = q.trim().toLowerCase();
+  // Tìm nhân sự KHÔNG phân biệt dấu (D11): so khớp trên bản đã bỏ dấu.
+  const term = unaccentVi(q.trim());
 
   const groups = useMemo(() => {
     const filtered = term
       ? staff.filter(
           (s) =>
-            s.full_name.toLowerCase().includes(term) ||
-            (s.short_name ?? "").toLowerCase().includes(term),
+            unaccentVi(s.full_name).includes(term) ||
+            unaccentVi(s.short_name ?? "").includes(term),
         )
       : staff;
     const byDept = new Map<string, StaffPerson[]>();

@@ -9,6 +9,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { UserCheck, ChevronDown, Search, FileText, Printer } from "lucide-react";
 import { fmtTime, isVnMidnight } from "../../../lib/datetime";
+import { unaccentVi } from "../../../lib/validation";
 import { compareQueue } from "../../../lib/queue";
 import SplitPane from "../SplitPane";
 import ClinicalRecordForm from "../tasks/ClinicalRecordForm";
@@ -37,13 +38,14 @@ export default function HomeCheckin({
   const arrived = rows.filter(
     (r) => r.status === "CHECKED_IN" || r.status === "COMPLETED",
   ).length;
-  const term = q.trim().toLowerCase();
+  // Tìm tên KHÔNG phân biệt dấu (D11): so khớp trên bản đã bỏ dấu cả 2 phía.
+  const term = unaccentVi(q.trim());
   const filtered = term
     ? rows.filter((r) => {
         const p = r.patient;
         return (
-          p?.full_name.toLowerCase().includes(term) ||
-          p?.patient_code.toLowerCase().includes(term) ||
+          unaccentVi(p?.full_name ?? "").includes(term) ||
+          unaccentVi(p?.patient_code ?? "").includes(term) ||
           (p?.phone_primary ?? "").includes(term)
         );
       })

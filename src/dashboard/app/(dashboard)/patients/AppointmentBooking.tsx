@@ -11,6 +11,7 @@ import { vnLocalToUtcISO, nowMs } from "../../../lib/datetime";
 import { todayVn, clinicHoursForDate, clinicHoursError } from "../../../lib/roster";
 import { INPUT, LABEL, BTN, DURATIONS, CHANNELS } from "../form-ui";
 import Time24Input from "../Time24Input";
+import DateField from "../DateField";
 
 export interface Option {
   id: string;
@@ -132,12 +133,11 @@ export default function AppointmentBooking({
         </div>
         <div className="space-y-1">
           <label className={LABEL}>Ngày *</label>
-          <input
-            type="date"
-            min={todayVn()}
+          <DateField
             value={apptDate}
-            onChange={(e) => setApptDate(e.target.value)}
-            className={INPUT}
+            onChange={setApptDate}
+            min={todayVn()}
+            ariaLabel="Ngày khám"
           />
         </div>
         <div className="space-y-1">

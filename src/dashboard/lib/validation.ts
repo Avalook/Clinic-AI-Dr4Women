@@ -9,6 +9,19 @@ export const CCCD_RE = /^\d{12}$/;
 /** Bỏ mọi ký tự không phải chữ số (dùng cho onChange ép "số viết liền"). */
 export const digitsOnly = (s: string): string => (s ?? "").replace(/\D/g, "");
 
+/**
+ * Bỏ dấu tiếng Việt + viết thường — tìm kiếm KHÔNG phân biệt dấu
+ * ("Hoà" = "Hoa" = "hoa"). Khớp đúng cột patient.full_name_unaccent (migration
+ * 039: lower + f_unaccent + đ→d), dùng chung cho lọc client lẫn query Supabase.
+ */
+export const unaccentVi = (s: string): string =>
+  (s ?? "")
+    .normalize("NFD")
+    .replace(/[̀-ͯ]/g, "")
+    .replace(/đ/g, "d")
+    .replace(/Đ/g, "D")
+    .toLowerCase();
+
 /** null = hợp lệ (hoặc rỗng); chuỗi = thông báo lỗi. */
 export function phoneError(v: string | null | undefined): string | null {
   const t = (v ?? "").trim();

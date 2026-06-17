@@ -5,10 +5,10 @@
 // appointment if a service + date + time were filled, and finally lands on the
 // patient's profile. No more two-screen flow.
 
-import { useState, useRef, useEffect } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { UserRound, CalendarClock, CalendarDays } from "lucide-react";
+import { UserRound, CalendarClock } from "lucide-react";
 import type { Option } from "../AppointmentBooking";
 import { vnLocalToUtcISO, nowMs } from "../../../../lib/datetime";
 import {
@@ -20,10 +20,9 @@ import {
   digitsOnly,
   phoneError,
   cccdError,
-  dmyToIso,
-  dobError,
   birthYearError,
 } from "../../../../lib/validation";
+import DateField from "../../DateField";
 import {
   INPUT,
   LABEL,
@@ -99,35 +98,19 @@ export default function NewPatientForm({
 
   // Patient
   const [fullName, setFullName] = useState("");
-  // Ngày sinh dd/mm/yyyy (3 ô) — có logic lịch (không 30/2; 29/2 chỉ năm nhuận)
-  // + không ở tương lai (validation.ts).
-  const [dobDay, setDobDay] = useState("");
-  const [dobMonth, setDobMonth] = useState("");
-  const [dobYear, setDobYear] = useState("");
+  // Ngày sinh = 1 ô DD/MM/YYYY (DateField) → ISO "yyyy-mm-dd" (đúng kiểu DB);
+  // DateField đã chặn ngày lịch sai (30/2; 29/2 chỉ năm nhuận). Đây chỉ chặn
+  // thêm "tương lai".
+  const [dobIso, setDobIso] = useState("");
   // Năm sinh-only (feedback B5#4): BN chỉ nhớ năm → bật toggle, nhập năm.
   const [dobYearOnly, setDobYearOnly] = useState(false);
   const [birthYear, setBirthYear] = useState("");
-  // Suy ra ISO + lỗi nhỏ ngày sinh (chỉ khi KHÔNG dùng năm-only).
-  const dobIso = dmyToIso(dobDay, dobMonth, dobYear);
-  const dobErr = dobYearOnly ? null : dobError(dobDay, dobMonth, dobYear, TODAY);
+  const dobErr =
+    !dobYearOnly && dobIso && dobIso > TODAY
+      ? "Ngày sinh không thể ở tương lai."
+      : null;
   // "Chỉ biết năm": cũng validate (1900..năm hiện tại, không tương lai) + báo inline.
   const birthYearErr = dobYearOnly ? birthYearError(birthYear, CUR_YEAR) : null;
-  // Icon lịch → bộ chọn ngày native; chọn xong tách ra 3 ô dd/mm/yyyy.
-  const dobRef = useRef<HTMLInputElement>(null);
-  const openDobPicker = () => {
-    try {
-      dobRef.current?.showPicker?.();
-    } catch {
-      /* trình duyệt cũ không hỗ trợ showPicker — bỏ qua */
-    }
-  };
-  const onDobNative = (v: string) => {
-    if (!v) return; // v = "yyyy-mm-dd"
-    const [y, m, d] = v.split("-");
-    setDobYear(y);
-    setDobMonth(String(Number(m)));
-    setDobDay(String(Number(d)));
-  };
   const [phone, setPhone] = useState("");
   const [phone2, setPhone2] = useState("");
   const [cccd, setCccd] = useState("");
@@ -280,9 +263,9 @@ export default function NewPatientForm({
         setError(birthYearErr);
         return;
       }
-    } else if (!dobDay && !dobMonth && !dobYear) {
+    } else if (!dobIso) {
       setError(
-        "Phải điền đầy đủ ngày/tháng/năm sinh. Nếu chỉ biết năm, hãy tick “Chỉ biết năm”.",
+        "Phải điền đầy đủ ngày/tháng/năm sinh hợp lệ. Nếu chỉ biết năm, hãy tick “Chỉ biết năm”.",
       );
       return;
     } else if (dobErr) {
@@ -396,61 +379,14 @@ export default function NewPatientForm({
                 )}
               </div>
             ) : (
-              <div className="relative">
-                <div className="flex items-center gap-2">
-                  <input
-                    type="number"
-                    inputMode="numeric"
-                    min={1}
-                    max={31}
-                    value={dobDay}
-                    onChange={(e) => setDobDay(digitsOnly(e.target.value).slice(0, 2))}
-                    className={INPUT}
-                    placeholder="Ngày"
-                    aria-label="Ngày sinh — ngày"
-                  />
-                  <input
-                    type="number"
-                    inputMode="numeric"
-                    min={1}
-                    max={12}
-                    value={dobMonth}
-                    onChange={(e) => setDobMonth(digitsOnly(e.target.value).slice(0, 2))}
-                    className={INPUT}
-                    placeholder="Tháng"
-                    aria-label="Ngày sinh — tháng"
-                  />
-                  <input
-                    type="number"
-                    inputMode="numeric"
-                    min={1900}
-                    max={CUR_YEAR}
-                    value={dobYear}
-                    onChange={(e) => setDobYear(digitsOnly(e.target.value).slice(0, 4))}
-                    className={INPUT}
-                    placeholder="Năm"
-                    aria-label="Ngày sinh — năm"
-                  />
-                  {/* Icon lịch → bộ chọn ngày native (cho BN chọn nhanh). */}
-                  <button
-                    type="button"
-                    onClick={openDobPicker}
-                    aria-label="Chọn ngày sinh từ lịch"
-                    className="shrink-0 rounded-lg border border-[#e4e4e7] bg-white p-2 text-[#71717a] hover:bg-[#f4f4f5]"
-                  >
-                    <CalendarDays size={18} />
-                  </button>
-                  <input
-                    ref={dobRef}
-                    type="date"
-                    max={TODAY}
-                    value={dobIso}
-                    onChange={(e) => onDobNative(e.target.value)}
-                    tabIndex={-1}
-                    aria-hidden
-                    className="pointer-events-none absolute h-0 w-0 opacity-0"
-                  />
-                </div>
+              <div>
+                <DateField
+                  value={dobIso}
+                  onChange={setDobIso}
+                  max={TODAY}
+                  ariaLabel="Ngày sinh"
+                  invalid={!!dobErr}
+                />
                 {dobErr && (
                   <p className="mt-1 text-[12px] text-[#dc2626]">{dobErr}</p>
                 )}
@@ -671,12 +607,11 @@ export default function NewPatientForm({
           </div>
           <div>
             <label className={LABEL}>Ngày khám</label>
-            <input
-              type="date"
-              min={TODAY}
+            <DateField
               value={apptDate}
-              onChange={(e) => setApptDate(e.target.value)}
-              className={INPUT}
+              onChange={setApptDate}
+              min={TODAY}
+              ariaLabel="Ngày khám"
             />
           </div>
           <div>

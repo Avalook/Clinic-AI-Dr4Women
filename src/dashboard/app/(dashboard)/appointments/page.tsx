@@ -98,7 +98,7 @@ export default async function AppointmentsPage({
       <header className="flex flex-wrap items-start justify-between gap-3">
         <div className="min-w-0">
           <h1 className="text-xl font-semibold text-[#171717]">
-            Lịch hẹn{isDoctor && staff ? ` của ${staff.short_name ?? staff.full_name}` : ""}
+            Lịch hẹn{isDoctor && staff ? ` của ${staff.full_name}` : ""}
           </h1>
           <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
             <p className="text-sm text-[#888888]">

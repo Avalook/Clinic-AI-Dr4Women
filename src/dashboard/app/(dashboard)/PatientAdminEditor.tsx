@@ -11,8 +11,10 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Pencil } from "lucide-react";
 import { fmtDate } from "../../lib/datetime";
+import { todayVn } from "../../lib/roster";
 import { digitsOnly, phoneError } from "../../lib/validation";
 import { INPUT, LABEL } from "./form-ui";
+import DateField from "./DateField";
 
 export interface PatientAdmin {
   clinic_patient_id: string;
@@ -160,11 +162,11 @@ export default function PatientAdminEditor({
         </div>
         <div>
           <label className={LABEL}>Ngày sinh</label>
-          <input
-            type="date"
-            className={INPUT}
+          <DateField
             value={form.date_of_birth}
-            onChange={(e) => set("date_of_birth", e.target.value)}
+            onChange={(v) => set("date_of_birth", v)}
+            max={todayVn()}
+            ariaLabel="Ngày sinh"
           />
         </div>
         <div>

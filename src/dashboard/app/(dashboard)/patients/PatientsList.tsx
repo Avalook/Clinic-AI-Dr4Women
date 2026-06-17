@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { Inbox } from "lucide-react";
 import { getSupabaseServer } from "../../../lib/supabase-server";
+import { unaccentVi } from "../../../lib/validation";
 
 interface PatientRow {
   clinic_patient_id: string;
@@ -19,16 +20,6 @@ const SAFE_COLUMNS =
   "clinic_patient_id, patient_code, full_name, date_of_birth, phone_primary, created_at";
 // birth_year cần migration 040; nếu chưa apply → query lỗi → fallback SAFE_COLUMNS.
 const FULL_COLUMNS = SAFE_COLUMNS + ", birth_year";
-
-// Bỏ dấu + thường (khớp cột patient.full_name_unaccent của migration 039).
-function unaccentVi(s: string): string {
-  return s
-    .normalize("NFD")
-    .replace(/[̀-ͯ]/g, "")
-    .replace(/đ/g, "d")
-    .replace(/Đ/g, "D")
-    .toLowerCase();
-}
 
 function ageFromDob(dob: string | null, birthYear?: number | null): string {
   if (!dob && birthYear) return String(new Date().getFullYear() - birthYear);

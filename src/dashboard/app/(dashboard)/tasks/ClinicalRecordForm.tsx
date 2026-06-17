@@ -673,7 +673,7 @@ export default function ClinicalRecordForm({
           />
         </Section>
 
-        <Section no="IV" title="Tiền sử (mạn tính / PT / thuốc / gia đình)">
+        <Section no="IV" title="Tiền sử (mạn tính / Phẫu thuật / thuốc / gia đình)">
           <div className="space-y-2">
             <div>
               <label className={LABEL}>Nhóm máu</label>
