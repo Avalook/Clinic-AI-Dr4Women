@@ -3,6 +3,13 @@
 
 ## [LOCAL — chưa push]
 
+### 2026-06-18 · T-DASH-CHECKIN-AT-01 · Set visit.checked_in_at lúc tạo lượt khám → đồng hồ chờ chạy thật · commit `chưa commit`
+- **Vấn đề:** `WaitClock` (board Lễ tân) hiện "—" cho mọi visit tạo từ dashboard vì `visit.checked_in_at` chưa bao giờ được ghi (chỉ luồng import/FastAPI set).
+- **Fix:** `api/clinical-record/route.ts` — thêm `checked_in_at: new Date().toISOString()` vào **INSERT visit** (block chỉ chạy khi CHƯA có visit → set đúng 1 lần lúc tạo, lần lưu sau KHÔNG ghi đè). Cột `visit.checked_in_at` (timestamptz, nullable) đã có sẵn (mig 017) → KHÔNG migration.
+- **Phạm vi an toàn:** chỉ thêm 1 field vào INSERT có sẵn; KHÔNG đổi luồng check-in, KHÔNG tạo visit ở bước check-in, KHÔNG DELETE/UPDATE visit, KHÔNG đụng visit.status/FINALIZED/043. tsc/eslint/next build sạch.
+- **Ngữ nghĩa:** mốc = lúc TẠO lượt khám (đón khách/nhập sinh hiệu — người đầu tiên lưu hồ sơ), không phải lúc check-in ở quầy (visit chưa tồn tại trong lúc chờ trước đó — kiến trúc board dựa trên visit). Đủ cho "đồng hồ chờ" của board chạy thật + đổi màu theo ngưỡng.
+- **Nợ:** 4 visit test cũ vẫn NULL (không backfill — tránh UPDATE bảng append-only); visit mới sau deploy sẽ có mốc. Muốn đo đúng "chờ từ lúc check-in ở quầy" cần task lớn hơn (tạo visit OPEN ngay khi check-in + xử lý undo_checkin) — chưa làm.
+
 ### 2026-06-18 · T-DASH-REVIEW-FIX-01 · Fix sau review đa-agent (trước khi push cho PK test) · commit `chưa commit`
 - **Bối cảnh:** review toàn diff chưa push (20 commit) bằng skill code-review + 4 subagent (phân quyền / data-path feature mới / migration-DB / line-by-line). DB verify: has_043=False, constraint 11 role khớp ALL_ROLES, drug_catalog=64, service_price CLS=29. Clinical gates (FINALIZED/AMENDED) còn nguyên, không vai thu ngân/lễ tân nào ghi được lâm sàng.
 - **2 BUG CONFIRMED (do cashier-split, đã fix):**

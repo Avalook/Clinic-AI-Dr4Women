@@ -311,6 +311,12 @@ export async function POST(request: Request) {
         appointment_id: appointmentId,
         attending_doctor_id: attendingId,
         status: "IN_PROGRESS",
+        // Mốc BẮT ĐẦU lượt khám (đón khách/nhập sinh hiệu) — nuôi "đồng hồ chờ" ở
+        // board Lễ tân (VisitStatusBoard/WaitClock). CHỈ set 1 lần lúc TẠO visit
+        // (block này chỉ chạy khi chưa có visit) — lần lưu sau KHÔNG ghi đè.
+        // Luồng import/FastAPI cũng set cột này; dashboard trước đây bỏ trống → đồng
+        // hồ hiện "—". KHÔNG đụng visit.status/FINALIZED/043.
+        checked_in_at: new Date().toISOString(),
       })
       .select("visit_id")
       .single();
