@@ -13,7 +13,8 @@ export type ClinicRole =
   | "CSKH"
   | "MANAGEMENT"
   | "RECEPTION"
-  | "CASHIER";
+  | "CASHIER"
+  | "TRUONG_CA";
 
 export const ALL_ROLES: ClinicRole[] = [
   "DOCTOR",
@@ -24,6 +25,7 @@ export const ALL_ROLES: ClinicRole[] = [
   "MANAGEMENT",
   "RECEPTION",
   "CASHIER",
+  "TRUONG_CA",
 ];
 
 // staff.primary_department → vai trò ứng dụng. Mỗi người chọn tên mình khi
@@ -73,8 +75,15 @@ export function canWriteIntake(role: ClinicRole | null): boolean {
     role === "CSKH" ||
     role === "RECEPTION" ||
     role === "MANAGEMENT" ||
-    role === "NURSE_ULTRASOUND"
+    role === "NURSE_ULTRASOUND" ||
+    role === "TRUONG_CA"
   );
+}
+
+/** Trưởng ca — vai HÀNH CHÍNH (đổi ca/ngày), sửa intake + hồ sơ hành chính như
+ *  Lễ tân/CSKH. TUYỆT ĐỐI KHÔNG lâm sàng (KHÔNG có trong canWriteClinical). */
+export function isTruongCaRole(role: ClinicRole | null): boolean {
+  return role === "TRUONG_CA";
 }
 
 /** Roles lo check-in (đón khách đã đến). Khu check-in giờ nằm ở TRANG CHỦ
@@ -123,6 +132,7 @@ export const ROLE_LABEL: Record<ClinicRole, string> = {
   MANAGEMENT: "Quản lý",
   RECEPTION: "Lễ tân",
   CASHIER: "Thu ngân",
+  TRUONG_CA: "Trưởng ca",
 };
 
 // Which roles may see each sidebar destination. Anything not listed = everyone.
@@ -146,15 +156,19 @@ const NAV_ROLES: Record<string, "all" | ClinicRole[]> = {
   "/appointments": ["MANAGEMENT"],
   // Thông tin khách hàng (danh bạ + chi tiết + tra cứu tên/mã/SĐT) — CSKH/Lễ tân/QL
   // + Thu ngân (xem để đối chiếu khi thu tiền; canWriteIntake KHÔNG gồm CASHIER → chỉ xem).
-  "/customers": ["CSKH", "RECEPTION", "MANAGEMENT", "CASHIER"],
+  "/customers": ["CSKH", "RECEPTION", "MANAGEMENT", "CASHIER", "TRUONG_CA"],
+  // Trưởng ca: theo dõi buổi (read-only) + "Công việc của tôi" placeholder
+  // (chờ mẫu báo cáo PK 24/6). Vai HÀNH CHÍNH, KHÔNG lâm sàng.
+  "/truong-ca": ["TRUONG_CA", "MANAGEMENT"],
+  "/truong-ca/cong-viec": ["TRUONG_CA", "MANAGEMENT"],
   // Danh sách bệnh nhân ĐÃ KHÁM (lần đầu / tái khám) — CSKH/Lễ tân/QL + BÁC SĨ.
   // Bác sĩ thấy TOÀN BỘ BN đã khám (như front desk); mở hồ sơ vẫn bị guard
   // patients/[id] (chỉ mở được BN của mình) — đúng mô hình quyền hiện tại.
-  "/patient-list": ["CSKH", "RECEPTION", "MANAGEMENT", "CASHIER", ...DOCTOR_ROLES_LIST],
+  "/patient-list": ["CSKH", "RECEPTION", "MANAGEMENT", "CASHIER", "TRUONG_CA", ...DOCTOR_ROLES_LIST],
   // Tra cứu BN đầy đủ (phân trang) — Quản lý. CSKH/Lễ tân dùng /customers.
   "/patients": ["MANAGEMENT"],
   // Điều dưỡng cũng nhập được (khách vãng lai).
-  "/patients/new": ["CSKH", "RECEPTION", "MANAGEMENT", "NURSE_ULTRASOUND"],
+  "/patients/new": ["CSKH", "RECEPTION", "MANAGEMENT", "NURSE_ULTRASOUND", "TRUONG_CA"],
   // /checkin đã chuyển hẳn lên Trang chủ (HomeCheckin) — route cũ đã xóa.
   // Lễ tân được THÊM vào: thấy "Công việc của tôi" nhưng ở chế độ CHỈ XEM
   // (clone giao diện board bác sĩ, khóa mọi nút sửa — xem isTasksReadOnly).

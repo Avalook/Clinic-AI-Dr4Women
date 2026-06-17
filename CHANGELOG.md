@@ -3,6 +3,18 @@
 
 ## [LOCAL — chưa push]
 
+### 2026-06-17 · T-DASH-TRUONGCA-01 · Role Trưởng ca (hành chính, KHÔNG lâm sàng) · commit `chưa commit`
+- **Yêu cầu phòng khám:** thêm vai "Trưởng ca" (quản 1 ca/ngày, thay phiên) = quyền HÀNH CHÍNH như Lễ tân/CSKH, TUYỆT ĐỐI không lâm sàng.
+- **Đã làm:**
+  - Role/department **TRUONG_CA** mirror CASHIER/QL: roles.ts (union + ALL_ROLES + ROLE_LABEL + GREET_LABEL + helper isTruongCaRole) + NAV.
+  - **Migration 050**: DROP+RECREATE staff_primary_department_check — 8 value cũ (...TKYK) + 'TRUONG_CA' = 9. Test temp schema PASS (pre/up/junk/intact/down), apply LẺ qua psql (per-file, KHÔNG replay 042-049, KHÔNG chạm 043) + insert schema_migrations. Seed 1 staff "Trưởng ca" (guard IF NOT EXISTS).
+  - **Quyền:** `canWriteIntake += TRUONG_CA` → sửa intake + hồ sơ hành chính (qua canEditPatient) ở /customers, /patients/[id], /patients/new, PATCH/POST patients. `canWriteClinical` GIỮ NGUYÊN (BS+ĐD+TKYK) — TRUONG_CA KHÔNG ghi lâm sàng.
+  - **UI:** trang `/truong-ca` "Theo dõi buổi" READ-ONLY (tái dùng VisitStatusBoard, visit hôm nay, không nút mutate) + `/truong-ca/cong-viec` placeholder "Công việc của tôi" (Đang xây dựng — chờ mẫu báo cáo PK 24/6). Nav 2 mục mới.
+- **File sửa (5 code + 3 migration/seed):** lib/roles.ts · home/page.tsx · nav-items.ts · truong-ca/page.tsx (mới) · truong-ca/cong-viec/page.tsx (mới) + migrations 050(.sql/.down) + seed/050.
+- **Migration:** 050 apply LẺ qua psql + seed; insert ledger. KHÔNG runner sequential, KHÔNG chạm 043.
+- **Boundary giữ:** KHÔNG visit.status/FINALIZED/043/logic lâm sàng; KHÔNG thêm TRUONG_CA vào canWriteClinical; KHÔNG sửa migration đã merged; KHÔNG đụng FastAPI.
+- **Nợ / next:** auth cá nhân cho staff Trưởng ca (hiện shared-login + role-picker); nội dung thật "Công việc của tôi" chờ mẫu báo cáo PK 24/6; cân nhắc thêm TRUONG_CA vào enum staff FastAPI nếu sau tạo staff qua API.
+
 ### 2026-06-17 · T-DASH-LETAN-WORKQUEUE-01 · Màn làm việc Lễ tân (hàng chờ + nút hành động) · commit `chưa commit`
 - **Yêu cầu phòng khám:** triết lý "màn hình làm việc, không phải bảng trạng thái — mỗi nút = 1 việc thật". Hàng chờ hôm nay có nút đổi theo pha.
 - **Đã làm:**

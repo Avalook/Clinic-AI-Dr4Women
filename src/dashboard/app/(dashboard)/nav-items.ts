@@ -18,6 +18,7 @@ import {
   Pill,
   Tag,
   ScanLine,
+  ClipboardCheck,
   type LucideIcon,
 } from "lucide-react";
 import { type ClinicRole, isNurseRole } from "../../lib/roles";
@@ -68,6 +69,19 @@ export const NAV: NavItem[] = [
   // Check-in ĐÃ chuyển lên TRANG CHỦ (HomeCheckin) — không còn ở sidebar.
   {
     href: "/tasks",
+    label: "Công việc của tôi",
+    shortLabel: "Việc",
+    icon: CheckSquare,
+  },
+  // Trưởng ca (hành chính): theo dõi buổi (read-only) + Công việc của tôi (placeholder).
+  {
+    href: "/truong-ca",
+    label: "Theo dõi buổi",
+    shortLabel: "Theo dõi",
+    icon: ClipboardCheck,
+  },
+  {
+    href: "/truong-ca/cong-viec",
     label: "Công việc của tôi",
     shortLabel: "Việc",
     icon: CheckSquare,

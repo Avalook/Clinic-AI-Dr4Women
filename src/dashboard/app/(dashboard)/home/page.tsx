@@ -40,6 +40,7 @@ const GREET_LABEL: Record<ClinicRole, string> = {
   MANAGEMENT: "quản lý",
   RECEPTION: "lễ tân",
   CASHIER: "thu ngân",
+  TRUONG_CA: "trưởng ca",
 };
 
 // Bỏ tiền tố chức danh khỏi tên ("BS Thành" → "Thành", "ĐD Hà Vũ" → "Hà Vũ").
