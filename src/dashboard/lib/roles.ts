@@ -9,6 +9,7 @@ export type ClinicRole =
   | "DOCTOR"
   | "ULTRASOUND_DOCTOR"
   | "NURSE_ULTRASOUND"
+  | "TKYK"
   | "CSKH"
   | "MANAGEMENT"
   | "RECEPTION"
@@ -18,6 +19,7 @@ export const ALL_ROLES: ClinicRole[] = [
   "DOCTOR",
   "ULTRASOUND_DOCTOR",
   "NURSE_ULTRASOUND",
+  "TKYK",
   "CSKH",
   "MANAGEMENT",
   "RECEPTION",
@@ -51,11 +53,17 @@ export function isNurseRole(role: ClinicRole | null): boolean {
   return role === "NURSE_ULTRASOUND";
 }
 
-/** Ghi LÂM SÀNG (lý do khám, sinh hiệu, bệnh án) = CHỈ Bác sĩ + Điều dưỡng.
- *  Lễ tân / Quản lý làm hành chính (check-in, hồ sơ hành chính) — KHÔNG ghi lâm
- *  sàng. Tách bạch với canCheckin (đón khách = hành chính, rộng hơn). */
+/** Thư ký Y khoa (TKYK) — nhập hộ hồ sơ lâm sàng cho bác sĩ. */
+export function isThuKyRole(role: ClinicRole | null): boolean {
+  return role === "TKYK";
+}
+
+/** Ghi LÂM SÀNG (lý do khám, sinh hiệu, bệnh án, KQ xét nghiệm, log SA) = CHỈ
+ *  Bác sĩ + Điều dưỡng + Thư ký Y khoa (recap 17/6). Lễ tân / Quản lý làm hành
+ *  chính (check-in, hồ sơ hành chính) — KHÔNG ghi lâm sàng. Tách bạch với
+ *  canCheckin (đón khách = hành chính, rộng hơn). */
 export function canWriteClinical(role: ClinicRole | null): boolean {
-  return isDoctorRole(role) || isNurseRole(role);
+  return isDoctorRole(role) || isNurseRole(role) || isThuKyRole(role);
 }
 
 /** Roles allowed to create patients / appointments (data entry).
@@ -110,6 +118,7 @@ export const ROLE_LABEL: Record<ClinicRole, string> = {
   DOCTOR: "Bác sĩ",
   ULTRASOUND_DOCTOR: "Bác sĩ Siêu âm",
   NURSE_ULTRASOUND: "Điều dưỡng / Phụ siêu âm",
+  TKYK: "Thư ký Y khoa",
   CSKH: "CSKH",
   MANAGEMENT: "Quản lý",
   RECEPTION: "Lễ tân",

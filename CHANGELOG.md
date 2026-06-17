@@ -3,6 +3,18 @@
 
 ## [LOCAL — chưa push]
 
+### 2026-06-17 · T-DASH-TKYK-CLINICAL-01 · Role TKYK + canWriteClinical+=TKYK + siết lab/service-log · commit `chưa commit`
+- **Yêu cầu phòng khám:** recap 17/6 — "Chỉ bác sĩ, điều dưỡng và thư ký y khoa có quyền điều chỉnh hồ sơ lâm sàng."
+- **Đã làm:**
+  - Tạo role/department **TKYK** (Thư ký Y khoa) theo pattern CASHIER (047): roles.ts (union + ALL_ROLES + ROLE_LABEL + GREET_LABEL), helper `isThuKyRole`.
+  - **Migration 049**: DROP+RECREATE `staff_primary_department_check` — copy 7 value cũ (...CASHIER) + 'TKYK' = 8. Test temp schema PASS (pre/up/junk/intact/seed-idempotent/down), apply LẺ qua psql → public + insert `schema_migrations`. Seed 1 staff "Thư ký Y khoa" (guard `IF NOT EXISTS` theo full_name).
+  - `canWriteClinical` (Packet 4) += `isThuKyRole` → = isDoctorRole || isNurseRole || isThuKyRole.
+  - Siết 2 route lâm sàng còn rộng: `/api/lab-result` (nhập KQ XN) + `/api/service-log` (log SA/XN) đổi gate `canCheckin` → `canWriteClinical`. Lễ tân/QL bị 403; BS/ĐD/TKYK ghi được.
+- **File sửa (5 code + 3 migration/seed):** lib/roles.ts · home/page.tsx · app/api/lab-result/route.ts · app/api/service-log/route.ts · CHANGELOG.md + migrations/20260617_049_staff_dept_add_tkyk.sql(+.down) + migrations/seed/049_tkyk_staff.sql.
+- **Migration:** 049 apply LẺ qua psql + seed; insert ledger. KHÔNG runner sequential.
+- **Boundary giữ:** migration chỉ đụng `staff_primary_department_check`; KHÔNG 043 / visit.status / FINALIZED / GROUP_C / append-only. ĐD (NURSE_ULTRASOUND) VẪN ghi lab/service (isNurseRole). KHÔNG đụng UI workqueue (để R3).
+- **Nợ / next:** R3 — wire NAV/workqueue UI cho TKYK (chưa có nav → TKYK đăng nhập role-picker được nhưng chưa có màn làm việc riêng); liên kết auth cá nhân cho staff TKYK; cân nhắc thêm TKYK vào enum staff phía FastAPI (src/clinicai/schemas/staff.py) nếu sau này tạo staff qua API.
+
 ### 2026-06-17 · T-DASH-RECEPTION-FLOW-01 · Bỏ gate BS duyệt + Lễ tân sửa hành chính + rename phiếu khám · commit `chưa commit`
 - **Yêu cầu phòng khám:** D21 (bỏ bước bác sĩ duyệt BN), D22 (Lễ tân sửa hành chính), + rename nhãn "Tóm tắt khám bệnh"→"Phiếu khám bệnh".
 - **Đã làm:**

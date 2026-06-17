@@ -35,6 +35,7 @@ const GREET_LABEL: Record<ClinicRole, string> = {
   DOCTOR: "bác sĩ",
   ULTRASOUND_DOCTOR: "bác sĩ",
   NURSE_ULTRASOUND: "điều dưỡng",
+  TKYK: "thư ký y khoa",
   CSKH: "CSKH",
   MANAGEMENT: "quản lý",
   RECEPTION: "lễ tân",

@@ -10,7 +10,7 @@ import { NextResponse } from "next/server";
 import { getSupabaseServer } from "../../../lib/supabase-server";
 import { getSupabaseService } from "../../../lib/supabase-service";
 import { getClinicRole, getClinicStaffId } from "../../../lib/clinic-session";
-import { canCheckin } from "../../../lib/roles";
+import { canWriteClinical } from "../../../lib/roles";
 import { logEvent } from "../../../lib/event-log";
 
 interface PostBody {
@@ -33,10 +33,12 @@ async function guard() {
     return { res: NextResponse.json({ error: "Unauthorised" }, { status: 401 }) };
   }
   const role = await getClinicRole();
-  if (!canCheckin(role)) {
+  // Log dịch vụ (SA/XN) = LÂM SÀNG → chỉ Bác sĩ / Điều dưỡng / Thư ký Y khoa.
+  // Lễ tân / Quản lý KHÔNG ghi (recap 17/6).
+  if (!canWriteClinical(role)) {
     return {
       res: NextResponse.json(
-        { error: "Chỉ Điều dưỡng / Lễ tân / Quản lý mới ghi dịch vụ." },
+        { error: "Chỉ Bác sĩ / Điều dưỡng / Thư ký Y khoa mới ghi dịch vụ." },
         { status: 403 },
       ),
     };
