@@ -40,6 +40,8 @@ const GREET_LABEL: Record<ClinicRole, string> = {
   MANAGEMENT: "quản lý",
   RECEPTION: "lễ tân",
   CASHIER: "thu ngân",
+  CASHIER_THUOC: "thu ngân thuốc",
+  CASHIER_DV: "thu ngân dịch vụ",
   TRUONG_CA: "trưởng ca",
 };
 

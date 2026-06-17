@@ -3,6 +3,18 @@
 
 ## [LOCAL — chưa push]
 
+### 2026-06-18 · T-DASH-CASHIER-SPLIT-01 · Tách 2 vai thu ngân thuốc ⟂ dịch vụ · commit `chưa commit`
+- **Yêu cầu phòng khám:** 2 thu ngân (thuốc / dịch vụ) = 2 tài khoản riêng, không thấy màn nhau. CASHIER cũ giữ làm superset (QL/admin xem cả hai).
+- **Migration 052** (`20260618_052_staff_dept_add_cashier_split.sql` + `.down`): CHECK `staff_primary_department_check` += `CASHIER_THUOC` + `CASHIER_DV` (9→11 value, mirror 050). Apply LẺ out-of-band (psql → `apply_migrations.py --mark-applied`), KHÔNG sequential-to-max. Verify: **has_043=False**, has_052=True. DOWN revert về 9 value. Seed `seed/052_cashier_split_staff.sql`: 2 staff "Thu ngân thuốc"/"Thu ngân dịch vụ" (guard IF NOT EXISTS) — đã landed.
+- **roles.ts:** `ClinicRole` + `ALL_ROLES` += 2 vai; `ROLE_LABEL` ("Thu ngân thuốc"/"Thu ngân dịch vụ"); helper mới `isCashierRole` (CASHIER∪THUOC∪DV); `isTasksReadOnly` dùng `isCashierRole` (cả 2 vai xem board /tasks chỉ-đọc như CASHIER). `home/page.tsx` GREET_LABEL += 2 (giữ Record<ClinicRole> đủ key).
+- **Gating (NAV_ROLES — page tự gate qua `requireNavAccess`+`canSeeNav`, KHÔNG dựng UI mới):**
+  - `/cashier/thuoc` → `[CASHIER_THUOC, CASHIER, MANAGEMENT]`; `/cashier/dich-vu` → `[CASHIER_DV, CASHIER, MANAGEMENT]`.
+  - `/customers`, `/patient-list`, `/tasks` += cả 2 vai (baseline như CASHIER).
+  - Nav mỗi vai chỉ hiện màn của mình (Nav.tsx lọc bằng canSeeNav); CASHIER thấy cả hai.
+- **canWriteClinical KHÔNG đụng** (cả 2 vai hành chính, không lâm sàng). KHÔNG đụng service_price/billing/catalog/VisitProgress/cskh-followup.
+- **Build:** tsc 0 lỗi · eslint 0 lỗi · next build Errors:0.
+- **Nợ:** 2 vai mới chưa link auth cá nhân (shared-login + role-picker như các vai khác); CashierWorkBoard (/tasks, billing placeholder) vẫn toggle thuoc/dich_vu tự do — chưa khoá theo vai (chờ build billing thật).
+
 ### 2026-06-18 · T-DASH-CSKH-FOLLOWUP-01 · Danh sách BN cần nhắc gọi (bucket 2/10/20/30 ngày) + nút "Đã gọi" · commit `chưa commit`
 - **Yêu cầu phòng khám:** trong màn CSKH ("Cần làm hôm nay"), thêm danh sách BN quá hạn/không phản hồi chia bucket theo số ngày + nút "Đã gọi" ghi nhật ký CSKH.
 - **Anchor (TÁI DÙNG, không định nghĩa mới):** `tai_kham.ngay` (soap_plan, cùng nguồn `dueLimit` khối ③). Quá hạn = `today − tai_kham.ngay` (ngày). Dùng lại đúng tập `recalls` đã loại BN có lịch hẹn tương lai.

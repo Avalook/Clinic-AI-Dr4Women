@@ -14,6 +14,8 @@ export type ClinicRole =
   | "MANAGEMENT"
   | "RECEPTION"
   | "CASHIER"
+  | "CASHIER_THUOC"
+  | "CASHIER_DV"
   | "TRUONG_CA";
 
 export const ALL_ROLES: ClinicRole[] = [
@@ -25,6 +27,8 @@ export const ALL_ROLES: ClinicRole[] = [
   "MANAGEMENT",
   "RECEPTION",
   "CASHIER",
+  "CASHIER_THUOC",
+  "CASHIER_DV",
   "TRUONG_CA",
 ];
 
@@ -108,13 +112,19 @@ export function canEditPatient(role: ClinicRole | null): boolean {
   return canWriteIntake(role) || isDoctorRole(role);
 }
 
+/** Họ thu ngân: CASHIER (superset) + 2 vai tách CASHIER_THUOC / CASHIER_DV.
+ *  Dùng cho các quyền/nav chung của thu ngân (xem khách, board read-only…). */
+export function isCashierRole(role: ClinicRole | null): boolean {
+  return role === "CASHIER" || role === "CASHIER_THUOC" || role === "CASHIER_DV";
+}
+
 /** Lễ tân xem "Công việc của tôi" (board bác sĩ) nhưng CHỈ ĐỌC — mọi nút
  *  Nhận/Từ chối/Lưu hồ sơ/Chỉ định XN đều bị khóa. Dùng để clone giao diện
  *  bác sĩ cho front desk mà không cấp quyền ghi. */
 export function isTasksReadOnly(role: ClinicRole | null): boolean {
-  // Lễ tân + Thu ngân: xem board "Công việc của tôi" để nắm tình trạng buổi khám,
-  // nhưng CHỈ ĐỌC (khóa mọi nút sửa) — tránh rơi xuống ConfirmBoard (quyền quản lý lịch).
-  return role === "RECEPTION" || role === "CASHIER";
+  // Lễ tân + Thu ngân (cả 2 vai tách): xem board "Công việc của tôi" để nắm tình
+  // trạng buổi khám, nhưng CHỈ ĐỌC — tránh rơi xuống ConfirmBoard (quản lý lịch).
+  return role === "RECEPTION" || isCashierRole(role);
 }
 
 /** Landing path after a role is picked. */
@@ -132,6 +142,8 @@ export const ROLE_LABEL: Record<ClinicRole, string> = {
   MANAGEMENT: "Quản lý",
   RECEPTION: "Lễ tân",
   CASHIER: "Thu ngân",
+  CASHIER_THUOC: "Thu ngân thuốc",
+  CASHIER_DV: "Thu ngân dịch vụ",
   TRUONG_CA: "Trưởng ca",
 };
 
@@ -156,7 +168,7 @@ const NAV_ROLES: Record<string, "all" | ClinicRole[]> = {
   "/appointments": ["MANAGEMENT"],
   // Thông tin khách hàng (danh bạ + chi tiết + tra cứu tên/mã/SĐT) — CSKH/Lễ tân/QL
   // + Thu ngân (xem để đối chiếu khi thu tiền; canWriteIntake KHÔNG gồm CASHIER → chỉ xem).
-  "/customers": ["CSKH", "RECEPTION", "MANAGEMENT", "CASHIER", "TRUONG_CA"],
+  "/customers": ["CSKH", "RECEPTION", "MANAGEMENT", "CASHIER", "CASHIER_THUOC", "CASHIER_DV", "TRUONG_CA"],
   // Trưởng ca: theo dõi buổi (read-only) + "Công việc của tôi" placeholder
   // (chờ mẫu báo cáo PK 24/6). Vai HÀNH CHÍNH, KHÔNG lâm sàng.
   "/truong-ca": ["TRUONG_CA", "MANAGEMENT"],
@@ -164,7 +176,7 @@ const NAV_ROLES: Record<string, "all" | ClinicRole[]> = {
   // Danh sách bệnh nhân ĐÃ KHÁM (lần đầu / tái khám) — CSKH/Lễ tân/QL + BÁC SĨ.
   // Bác sĩ thấy TOÀN BỘ BN đã khám (như front desk); mở hồ sơ vẫn bị guard
   // patients/[id] (chỉ mở được BN của mình) — đúng mô hình quyền hiện tại.
-  "/patient-list": ["CSKH", "RECEPTION", "MANAGEMENT", "CASHIER", "TRUONG_CA", ...DOCTOR_ROLES_LIST],
+  "/patient-list": ["CSKH", "RECEPTION", "MANAGEMENT", "CASHIER", "CASHIER_THUOC", "CASHIER_DV", "TRUONG_CA", ...DOCTOR_ROLES_LIST],
   // Tra cứu BN đầy đủ (phân trang) — Quản lý. CSKH/Lễ tân dùng /customers.
   "/patients": ["MANAGEMENT"],
   // Điều dưỡng cũng nhập được (khách vãng lai).
@@ -172,16 +184,17 @@ const NAV_ROLES: Record<string, "all" | ClinicRole[]> = {
   // /checkin đã chuyển hẳn lên Trang chủ (HomeCheckin) — route cũ đã xóa.
   // Lễ tân được THÊM vào: thấy "Công việc của tôi" nhưng ở chế độ CHỈ XEM
   // (clone giao diện board bác sĩ, khóa mọi nút sửa — xem isTasksReadOnly).
-  "/tasks": ["CSKH", "MANAGEMENT", "RECEPTION", "CASHIER", ...DOCTOR_ROLES_LIST],
+  "/tasks": ["CSKH", "MANAGEMENT", "RECEPTION", "CASHIER", "CASHIER_THUOC", "CASHIER_DV", ...DOCTOR_ROLES_LIST],
   // Hàng đợi XN + Dịch vụ: điều dưỡng/KTV thực hiện (+ Quản lý xem).
   "/lab-queue": ["NURSE_ULTRASOUND", "MANAGEMENT"],
   "/service-queue": ["NURSE_ULTRASOUND", "MANAGEMENT"],
   // ĐD siêu âm: hàng đợi BN sắp khám SA + hàng đợi XN 3 trạng thái + in phiếu.
   "/sono": ["NURSE_ULTRASOUND", "MANAGEMENT"],
-  // Thu ngân: bảng giá tách 2 trang (thuốc / dịch vụ). Thu ngân + Quản lý xem/sửa giá.
+  // Thu ngân: bảng giá tách 2 trang (thuốc / dịch vụ), gate theo VAI tách (mỗi
+  // vai chỉ thấy màn của mình). CASHIER = superset (thấy cả hai), Quản lý xem/sửa cả hai.
   // ("Công việc của tôi" thu ngân nằm ở /tasks, gate bằng entry /tasks bên dưới.)
-  "/cashier/thuoc": ["CASHIER", "MANAGEMENT"],
-  "/cashier/dich-vu": ["CASHIER", "MANAGEMENT"],
+  "/cashier/thuoc": ["CASHIER_THUOC", "CASHIER", "MANAGEMENT"],
+  "/cashier/dich-vu": ["CASHIER_DV", "CASHIER", "MANAGEMENT"],
   // Bác sĩ + Lễ tân + Điều dưỡng tự đăng ký ca của mình; Quản lý xếp cả bảng (feedback C4).
   "/schedule": [...DOCTOR_ROLES_LIST, "NURSE_ULTRASOUND", "RECEPTION", "MANAGEMENT"],
   "/work-sessions": ["MANAGEMENT"],
