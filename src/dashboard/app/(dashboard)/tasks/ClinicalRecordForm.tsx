@@ -95,7 +95,8 @@ const EMPTY_PM = {
 };
 type PmFields = typeof EMPTY_PM;
 
-// Đơn thuốc (mục IX) — free-text, mỗi dòng 1 thuốc (chưa có drug master).
+// Đơn thuốc (mục IX) — mỗi dòng 1 thuốc. Tên gợi ý từ drug_catalog (mig 051)
+// qua <datalist>, vẫn cho gõ tự do (giữ name_raw verbatim khi BS tự nhập).
 interface RxRow {
   drug_name: string;
   quantity: string;
@@ -103,6 +104,10 @@ interface RxRow {
   caution: string;
 }
 const EMPTY_RX: RxRow = { drug_name: "", quantity: "", dosage: "", caution: "" };
+
+// Danh mục dùng chung cho picker (đọc runtime từ /api/catalog — KHÔNG hardcode).
+interface DrugOpt { name_raw: string; variant: string | null; needs_review: boolean }
+interface ClsOpt { name: string; category: string | null }
 
 // Mục X — Theo dõi & Tái khám (theo biểu mẫu giấy: "Ngày tái khám + XN cần kiểm
 // tra lại"). Lưu vào soap_plan.tai_kham — HỢP ĐỒNG với màn CSKH nhắc tái khám:
@@ -241,6 +246,9 @@ export default function ClinicalRecordForm({
   const [pm, setPm] = useState<PmFields>(EMPTY_PM);
   const [tk, setTk] = useState<TkFields>(EMPTY_TK);
   const [rx, setRx] = useState<RxRow[]>([]);
+  // Danh mục picker dùng chung (thuốc + CLS) — đọc 1 lần từ /api/catalog.
+  const [drugOpts, setDrugOpts] = useState<DrugOpt[]>([]);
+  const [clsOpts, setClsOpts] = useState<ClsOpt[]>([]);
   const [labOrder, setLabOrder] = useState("");
   const [labBusy, setLabBusy] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -285,6 +293,20 @@ export default function ClinicalRecordForm({
       .finally(() => on && setLoading(false));
     return () => { on = false; };
   }, [p?.clinic_patient_id, appt.id]);
+
+  // Tải danh mục thuốc + CLS cho picker (dùng chung mọi loại form khám).
+  useEffect(() => {
+    let on = true;
+    fetch("/api/catalog")
+      .then((r) => (r.ok ? r.json() : { drugs: [], cls: [] }))
+      .then((d: { drugs?: DrugOpt[]; cls?: ClsOpt[] }) => {
+        if (!on) return;
+        setDrugOpts(d.drugs ?? []);
+        setClsOpts(d.cls ?? []);
+      })
+      .catch(() => {});
+    return () => { on = false; };
+  }, []);
 
   const set = (k: keyof Fields, v: string) => setF((s) => ({ ...s, [k]: v }));
   const setP = (k: keyof PmFields, v: string) => setPm((s) => ({ ...s, [k]: v }));
@@ -505,6 +527,22 @@ export default function ClinicalRecordForm({
           : "max-h-[calc(100vh-2rem)]")
       }
     >
+      {/* Danh mục dùng chung cho picker — options bơm runtime, KHÔNG hardcode
+          vào schema tĩnh. Dùng cho mọi loại form khám (PK/SK/NT/NK/HMVS). */}
+      <datalist id="drug-catalog-list">
+        {drugOpts.map((d) => (
+          <option key={d.name_raw} value={d.name_raw}>
+            {d.needs_review ? "⚠ cần dược xác nhận" : d.variant ? `biến thể: ${d.variant}` : ""}
+          </option>
+        ))}
+      </datalist>
+      <datalist id="cls-catalog-list">
+        {clsOpts.map((c) => (
+          <option key={c.name} value={c.name}>
+            {c.category ?? ""}
+          </option>
+        ))}
+      </datalist>
       <div className="flex items-center justify-between border-b border-[#e4e4e7] px-4 py-3">
         <div>
           <h3 className="text-sm font-bold uppercase text-[#171717]">
@@ -818,9 +856,10 @@ export default function ClinicalRecordForm({
               <input
                 className={INPUT}
                 value={labOrder}
+                list="cls-catalog-list"
                 disabled={roRest}
                 onChange={(e) => setLabOrder(e.target.value)}
-                placeholder="Chỉ định XN mới (vd: NIPT, Tổng phân tích nước tiểu…)"
+                placeholder="Chỉ định CLS (chọn từ danh mục hoặc gõ tự do)…"
                 onKeyDown={(e) => {
                   if (e.key === "Enter") {
                     e.preventDefault();
@@ -859,6 +898,7 @@ export default function ClinicalRecordForm({
                     <input
                       className={INPUT}
                       placeholder="Tên thuốc"
+                      list="drug-catalog-list"
                       value={row.drug_name}
                       disabled={roRest}
                       onChange={(e) => setRxAt(i, "drug_name", e.target.value)}

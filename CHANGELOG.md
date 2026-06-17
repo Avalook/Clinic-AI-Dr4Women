@@ -3,6 +3,19 @@
 
 ## [LOCAL — chưa push]
 
+### 2026-06-17 · T-DATA-CHIDINH-CATALOG-SEED-01 · Seed danh mục CLS + thuốc từ PHIẾU CHỈ ĐỊNH (PK) + nối picker form khám · commit `chưa commit`
+- **Nguồn:** `scripts/catalog_src/PHIEU_CHI_DINH_update.docx` (PK gửi). Parser `scripts/parse_chidinh_catalog.py` (python-docx) → `scripts/catalog_out/{services,drugs}.csv` (gitignore `*.csv` — regen bằng chạy lại script).
+- **Parse:** **29 dịch vụ/CLS** (Table0+1 theo nhóm-cột: Tầng 1 / Thủ thuật / Chụp phim ngoài / Thai / Nội tiết–phụ khoa; gộp 1 dòng trùng "Đo mật độ xương") + **64 thuốc** (Table2, 9 dòng-nhóm L1–L9; splitter tôn trọng ngoặc → giữ `Letrozole (10v, 15v)`, tách `;` cho `Diphereline…; GonaF`). **needs_review=TRUE: 3** (`Fes 1/10`, `Utrogestan (Đ) (1v/2v): (U)`, `Difavon/Diflucan/Fluconazole/Zolmed`). KHÔNG bỏ sót dòng nào.
+- **Migration 051** (`20260617_051_create_drug_catalog_and_cls_seed.sql` + `.down.sql`):
+  - TẠO MỚI `drug_catalog` (name_base, name_raw UNIQUE verbatim, variant, group_label, **unit_price NULL**, needs_review, is_active, created_at) + RLS SELECT authenticated. (Cột `prescription.drug_catalog_ref` mig 031 đã chờ sẵn.)
+  - `service_price`: **ADD COLUMN** `category` + `tang` (nullable → KHÔNG đụng rows cũ) để picker CLS gom nhóm theo group_label.
+  - Seed 64 thuốc (giá NULL, `ON CONFLICT(name_raw) DO NOTHING`) + 29 dịch vụ NEW vào `service_price` group='dich_vu' (giá NULL, `ON CONFLICT("group",service_code) DO NOTHING`, service_code = `CLS_<slug>`). SQL sinh bởi `scripts/gen_catalog_seed_sql.py` (deterministic).
+  - **Apply LẺ out-of-band**: psql trực tiếp (INSERT 64 + 29, COMMIT) → `apply_migrations.py --mark-applied`. **KHÔNG sequential-to-max.** Verify sau apply: **has_043=False** (lỗ 043 còn nguyên), has_051=True, drug_catalog=64, service_price dich_vu=29.
+- **Wire picker (dùng chung 5 form pk/sk/nt/nk/hmvs):** route mới `app/api/catalog/route.ts` (GET, đọc-only) → `{drugs, cls}`. `ClinicalRecordForm.tsx`: fetch 1 lần, 2 `<datalist>` (options BƠM RUNTIME, KHÔNG hardcode vào schema tĩnh): input "Đơn thuốc" (mục IX) `list=drug-catalog-list` (name_raw + nhãn variant/⚠cần dược); input "Chỉ định CLS" (mục VI) `list=cls-catalog-list` (name + nhãn category). Giữ gõ tự do (catalog là MENU, không phải safety gate) → persist qua đường có sẵn (prescription / lab_result).
+- **Build:** tsc 0 lỗi · eslint 0 lỗi (file đổi) · next build Errors:0.
+- **Boundary giữ:** giá NULL (không bịa); name_raw verbatim; chỉ THÊM dịch vụ NEW (rows/giá cũ không đụng); KHÔNG chạm 043/visit.status/FINALIZED/lâm sàng; KHÔNG push.
+- **Nợ:** giá lazy-fill ở màn Thu ngân (toàn bộ 93 row unit_price NULL); 3 thuốc needs_review chờ DƯỢC xác nhận biến thể/định danh; variant tách best-effort (vd `Đ`=đặt/`U`=uống) nên dược rà; root còn bản docx trùng `PHIẾU CHỈ ĐỊNH - update.docx` (bản chuẩn đã ở `scripts/catalog_src/`) — Quang xoá bản root nếu muốn.
+
 ### 2026-06-17 · T-DASH-BO-BS-CHIDINH-01 · Gỡ UI "Bác sĩ phụ trách chỉ định" → NO-OP (field chưa từng tồn tại) · commit `chưa commit`
 - **Yêu cầu phòng khám (họp 17/6):** bỏ field/label "Bác sĩ phụ trách chỉ định" (thuật ngữ sai), GIỮ "Chỉ định CLS".
 - **Kết quả khảo sát:** label này **KHÔNG tồn tại** trong code dashboard và **chưa từng tồn tại**.
