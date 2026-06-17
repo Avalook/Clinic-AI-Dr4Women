@@ -3,6 +3,18 @@
 
 ## [LOCAL — chưa push]
 
+### 2026-06-18 · T-DASH-REVIEW-FIX-01 · Fix sau review đa-agent (trước khi push cho PK test) · commit `chưa commit`
+- **Bối cảnh:** review toàn diff chưa push (20 commit) bằng skill code-review + 4 subagent (phân quyền / data-path feature mới / migration-DB / line-by-line). DB verify: has_043=False, constraint 11 role khớp ALL_ROLES, drug_catalog=64, service_price CLS=29. Clinical gates (FINALIZED/AMENDED) còn nguyên, không vai thu ngân/lễ tân nào ghi được lâm sàng.
+- **2 BUG CONFIRMED (do cashier-split, đã fix):**
+  1. `tasks/page.tsx:164` — `role === "CASHIER"` không match CASHIER_THUOC/CASHIER_DV → 2 vai tách rơi vào board bác sĩ read-only (LỘ lịch+BN của BS). Sửa: `isCashierRole(role)`.
+  2. `api/service-price/route.ts:42` — `role !== "CASHIER" && != MANAGEMENT` chặn 2 vai tách sửa giá (403) dù có nav. Sửa: `!isCashierRole(role) && != MANAGEMENT`.
+- **2 fix nhẹ:** `ClinicalRecordForm` CLS `<option key>` đổi `c.name`→`c.service_code` (uniqueness ở (group,service_code), tránh trùng key khi 2 dịch vụ cùng tên); `settings/new-user` DEPT_LABEL thêm 4 nhãn còn thiếu (TKYK/TRUONG_CA/CASHIER_THUOC/CASHIER_DV — trước hiện raw code).
+- **Nợ đã ghi nhận (KHÔNG sửa lần này, cần quyết định/scope riêng):**
+  - `visit.checked_in_at` KHÔNG được dashboard ghi (chỉ import/FastAPI set) → WaitClock hiện "—" cho visit tạo từ dashboard. Stepper vẫn chạy (theo visit.status). Cần task riêng set checked_in_at lúc check-in.
+  - TKYK nằm trong `canWriteClinical` nhưng route clinical-record/clinical-form chỉ cho `isDoctorRole` → TKYK chưa ghi được bệnh án (đúng nợ "TKYK chưa wire" đã ghi). Cần PK quyết định trước khi mở.
+  - cskh-today: BN quá hạn hiện ở CẢ khối ③ (đến hạn) lẫn ③b (nhắc gọi) — chủ đích khác mức độ, có thể gộp sau.
+- **Build:** tsc 0 · eslint 0 · next build Errors:0.
+
 ### 2026-06-18 · T-DASH-CASHIER-SPLIT-01 · Tách 2 vai thu ngân thuốc ⟂ dịch vụ · commit `chưa commit`
 - **Yêu cầu phòng khám:** 2 thu ngân (thuốc / dịch vụ) = 2 tài khoản riêng, không thấy màn nhau. CASHIER cũ giữ làm superset (QL/admin xem cả hai).
 - **Migration 052** (`20260618_052_staff_dept_add_cashier_split.sql` + `.down`): CHECK `staff_primary_department_check` += `CASHIER_THUOC` + `CASHIER_DV` (9→11 value, mirror 050). Apply LẺ out-of-band (psql → `apply_migrations.py --mark-applied`), KHÔNG sequential-to-max. Verify: **has_043=False**, has_052=True. DOWN revert về 9 value. Seed `seed/052_cashier_split_staff.sql`: 2 staff "Thu ngân thuốc"/"Thu ngân dịch vụ" (guard IF NOT EXISTS) — đã landed.

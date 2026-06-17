@@ -107,7 +107,7 @@ const EMPTY_RX: RxRow = { drug_name: "", quantity: "", dosage: "", caution: "" }
 
 // Danh mục dùng chung cho picker (đọc runtime từ /api/catalog — KHÔNG hardcode).
 interface DrugOpt { name_raw: string; variant: string | null; needs_review: boolean }
-interface ClsOpt { name: string; category: string | null }
+interface ClsOpt { service_code: string; name: string; category: string | null }
 
 // Mục X — Theo dõi & Tái khám (theo biểu mẫu giấy: "Ngày tái khám + XN cần kiểm
 // tra lại"). Lưu vào soap_plan.tai_kham — HỢP ĐỒNG với màn CSKH nhắc tái khám:
@@ -538,7 +538,7 @@ export default function ClinicalRecordForm({
       </datalist>
       <datalist id="cls-catalog-list">
         {clsOpts.map((c) => (
-          <option key={c.name} value={c.name}>
+          <option key={c.service_code} value={c.name}>
             {c.category ?? ""}
           </option>
         ))}

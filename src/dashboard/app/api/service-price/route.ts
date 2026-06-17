@@ -9,6 +9,7 @@ import { NextResponse } from "next/server";
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { getSupabaseServer } from "../../../lib/supabase-server";
 import { getClinicRole } from "../../../lib/clinic-session";
+import { isCashierRole } from "../../../lib/roles";
 
 type PriceGroup = "thuoc" | "dich_vu";
 
@@ -39,7 +40,7 @@ async function authorize(): Promise<Auth> {
     };
   }
   const role = await getClinicRole();
-  if (role !== "CASHIER" && role !== "MANAGEMENT") {
+  if (!isCashierRole(role) && role !== "MANAGEMENT") {
     return {
       ok: false,
       res: NextResponse.json(

@@ -26,6 +26,10 @@ const DEPT_LABEL: Record<string, string> = {
   CSKH: "CSKH",
   MANAGEMENT: "Quản lý",
   CASHIER: "Thu ngân",
+  CASHIER_THUOC: "Thu ngân thuốc",
+  CASHIER_DV: "Thu ngân dịch vụ",
+  TKYK: "Thư ký Y khoa",
+  TRUONG_CA: "Trưởng ca",
 };
 
 export default async function NewUserPage() {
