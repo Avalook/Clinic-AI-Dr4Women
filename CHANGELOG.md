@@ -3,6 +3,19 @@
 
 ## [LOCAL — chưa push]
 
+### 2026-06-17 · T-DASH-LETAN-WORKQUEUE-01 · Màn làm việc Lễ tân (hàng chờ + nút hành động) · commit `chưa commit`
+- **Yêu cầu phòng khám:** triết lý "màn hình làm việc, không phải bảng trạng thái — mỗi nút = 1 việc thật". Hàng chờ hôm nay có nút đổi theo pha.
+- **Đã làm:**
+  - Nâng HomeCheckin (/home) từ read-only → hàng đợi TƯƠNG TÁC. Cột: Bệnh nhân · Giờ hẹn · Trạng thái (nhãn VN) · Nút hành động.
+  - Nút theo pha (mỗi nút 1 action tái dùng /api/appointments, chặn double-click qua busyId, refetch router.refresh sau bấm):
+    SCHEDULED → "Gọi xác nhận" (`cskh_confirm`); CSKH_CONFIRMED/CONFIRMED → "Check-in" (`checkin`); CHECKED_IN → "Đang chờ bác sĩ khám" + Hoàn tác (`undo_checkin`); COMPLETED → In phiếu; +"Không đến" (`no_show`) ở pha trước khi đến.
+  - Nhãn trạng thái VN (STATUS_VN) cho cột Trạng thái.
+- **File sửa (1 + CHANGELOG):** app/(dashboard)/home/HomeCheckin.tsx.
+- **Migration:** none. Route: KHÔNG thêm action mới — TÁI DÙNG cskh_confirm/checkin/undo_checkin/no_show sẵn có.
+- **Quyết định (đã hỏi Planner):** nút "Đưa vào khám" cho CHECKED_IN cần 1 pha trung gian KHÔNG có trong enum (CHECKED_IN→COMPLETED, không "đang khám"). Chọn **không migration**: CHECKED_IN = ĐÃ vào hàng khám của bác sĩ (DoctorWorkBoard đã hiện) → bỏ nút đổi-pha, chỉ hiện "Đang chờ bác sĩ khám" + Hoàn tác.
+- **Boundary giữ:** workqueue HÀNH CHÍNH (gate canWriteIntake/canCheckin của route sẵn có); KHÔNG đụng visit.status/FINALIZED/GROUP_C/043/ghi lâm sàng; TKYK (vai lâm sàng) không thấy màn này (home showCheckin=canCheckin). Nút chỉ hiện đúng pha (state machine).
+- **Nợ / next:** nếu PK muốn tách rõ "đã đến" ⟂ "đang khám" → packet riêng thêm status IN_EXAM (migration lẻ) + action to_exam + cập nhật DoctorWorkBoard. Walk-in SCHEDULED hiện cần Gọi xác nhận → Check-in (2 bước) đúng mapping ảnh; nếu muốn 1 bước cho khách tới trực tiếp thì refine sau.
+
 ### 2026-06-17 · T-DASH-TKYK-CLINICAL-01 · Role TKYK + canWriteClinical+=TKYK + siết lab/service-log · commit `chưa commit`
 - **Yêu cầu phòng khám:** recap 17/6 — "Chỉ bác sĩ, điều dưỡng và thư ký y khoa có quyền điều chỉnh hồ sơ lâm sàng."
 - **Đã làm:**

@@ -19,6 +19,18 @@ export interface HomeCheckinRow extends DoctorApptRow {
   queue_number: string | null;
 }
 
+// Nhãn trạng thái buổi khám (VN) cho cột "Trạng thái" của hàng đợi Lễ tân.
+const STATUS_VN: Record<string, string> = {
+  SCHEDULED: "Chưa xác nhận",
+  CSKH_CONFIRMED: "Đã xác nhận",
+  CONFIRMED: "Đã xác nhận",
+  CHECKED_IN: "Đã check-in",
+  COMPLETED: "Đã khám xong",
+  NO_SHOW: "Không đến",
+  CANCELLED: "Đã huỷ",
+  DOCTOR_DECLINED: "Bác sĩ từ chối",
+};
+
 export default function HomeCheckin({
   rows,
   staffId,
@@ -58,7 +70,13 @@ export default function HomeCheckin({
   const shown = [...filtered].sort(compareQueue);
   const sel = rows.find((r) => r.id === selId) ?? null;
 
-  async function act(id: string, action: "checkin" | "undo_checkin" | "no_show") {
+  // Mọi nút = 1 việc thật → 1 action trên route /api/appointments (tái dùng,
+  // service-role, gate canWriteIntake/canCheckin). Chặn double-click qua busyId.
+  async function act(
+    id: string,
+    action: "cskh_confirm" | "checkin" | "undo_checkin" | "no_show",
+  ) {
+    if (busyId) return; // đang có 1 việc chạy → chặn double-click
     setBusyId(id);
     setError(null);
     const res = await fetch("/api/appointments", {
@@ -104,12 +122,13 @@ export default function HomeCheckin({
           {shown.map((r) => {
             const checkedIn = r.status === "CHECKED_IN";
             const completed = r.status === "COMPLETED";
-            // D21 — BN đến là check-in được NGAY (không chờ bác sĩ duyệt). Mọi lịch
-            // còn "sống" trước khi đến đều check-in được.
-            const canCheckIn =
-              !checkedIn &&
-              !completed &&
-              ["SCHEDULED", "CSKH_CONFIRMED", "CONFIRMED"].includes(r.status);
+            // Hàng đợi đón khách theo PHA (mỗi pha 1 nút việc):
+            //   SCHEDULED          → "Gọi xác nhận" (cskh_confirm)
+            //   CSKH_CONFIRMED/CONFIRMED → "Check-in" (BN đã tới)
+            //   CHECKED_IN         → đã vào hàng khám của bác sĩ (chỉ Hoàn tác)
+            const canCall = r.status === "SCHEDULED";
+            const canCheckIn = ["CSKH_CONFIRMED", "CONFIRMED"].includes(r.status);
+            const statusVN = STATUS_VN[r.status] ?? r.status;
             const active = selId === r.id;
             return (
               <li
@@ -151,34 +170,70 @@ export default function HomeCheckin({
                     </span>
                   </span>
                 </button>
+                {/* Cột TRẠNG THÁI (nhãn VN) */}
+                <span
+                  className={
+                    "shrink-0 rounded-full px-2.5 py-0.5 text-center text-[10px] font-medium " +
+                    (completed
+                      ? "bg-[#f4f4f5] text-[#52525b]"
+                      : checkedIn
+                        ? "bg-[#dcfce7] text-[#15803d]"
+                        : canCall
+                          ? "bg-[#fef9c3] text-[#a16207]"
+                          : canCheckIn
+                            ? "bg-[#fce7f3] text-[#9d2463]"
+                            : "bg-[#f4f4f5] text-[#52525b]")
+                  }
+                >
+                  {statusVN}
+                </span>
+
+                {/* Cột NÚT HÀNH ĐỘNG — đổi theo pha (mỗi pha 1 việc thật) */}
                 {completed ? (
-                  // Đã khám xong — giữ trong danh sách. Lễ tân IN PHIẾU "Tóm tắt
-                  // khám bệnh" cho BN (mở tab mới → Xuất PDF). Click tên vẫn mở hồ sơ.
-                  <div className="flex shrink-0 flex-col items-end gap-1">
-                    <span className="rounded-full bg-[#f4f4f5] px-2.5 py-0.5 text-[10px] font-medium text-[#52525b]">
-                      Đã khám xong
-                    </span>
-                    <a
-                      href={`/print/${r.id}`}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="inline-flex min-h-8 items-center gap-1 rounded-lg border border-[#bbf7d0] bg-white px-2.5 text-xs font-semibold text-[#15803d] hover:bg-[#f0fdf4]"
-                    >
-                      <Printer size={13} /> In phiếu
-                    </a>
-                  </div>
-                ) : checkedIn ? (
-                  <button
-                    onClick={() => act(r.id, "undo_checkin")}
-                    disabled={busyId === r.id}
-                    className="shrink-0 text-[11px] text-[#a1a1aa] hover:text-[#71717a] disabled:opacity-50"
+                  // Đã khám xong — Lễ tân in phiếu khám bệnh (tab mới → Xuất PDF).
+                  <a
+                    href={`/print/${r.id}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex min-h-8 shrink-0 items-center gap-1 rounded-lg border border-[#bbf7d0] bg-white px-2.5 text-xs font-semibold text-[#15803d] hover:bg-[#f0fdf4]"
                   >
-                    <span className="mb-0.5 block rounded-full bg-[#dcfce7] px-2 py-0.5 text-center text-[10px] font-medium text-[#15803d]">
-                      Đã check-in
+                    <Printer size={13} /> In phiếu
+                  </a>
+                ) : checkedIn ? (
+                  // Đã check-in = ĐÃ vào hàng khám của bác sĩ. Không có nút đổi pha
+                  // ở đây (việc khám là của bác sĩ); chỉ cho Hoàn tác nếu nhầm.
+                  <div className="flex shrink-0 flex-col items-end gap-1">
+                    <span className="rounded-full bg-[#dcfce7] px-2 py-0.5 text-center text-[10px] font-medium text-[#15803d]">
+                      Đang chờ bác sĩ khám
                     </span>
-                    Hoàn tác
-                  </button>
+                    <button
+                      onClick={() => act(r.id, "undo_checkin")}
+                      disabled={busyId === r.id}
+                      className="text-[11px] text-[#a1a1aa] hover:text-[#71717a] disabled:opacity-50"
+                    >
+                      Hoàn tác check-in
+                    </button>
+                  </div>
+                ) : canCall ? (
+                  // Chưa xác nhận → Lễ tân/CSKH gọi xác nhận với khách.
+                  <div className="flex shrink-0 flex-col items-end gap-1">
+                    <button
+                      onClick={() => act(r.id, "cskh_confirm")}
+                      disabled={busyId === r.id}
+                      className="min-h-9 rounded-lg bg-[#ec4899] px-3 text-xs font-semibold text-white hover:bg-[#db2777] disabled:opacity-50"
+                    >
+                      {busyId === r.id ? "..." : "Gọi xác nhận"}
+                    </button>
+                    <button
+                      onClick={() => act(r.id, "no_show")}
+                      disabled={busyId === r.id}
+                      className="text-[11px] text-[#a1a1aa] hover:text-[#dc2626] disabled:opacity-50"
+                    >
+                      Không đến
+                    </button>
+                  </div>
                 ) : canCheckIn ? (
+                  // Đã xác nhận, BN chưa đến → BN tới quầy thì Check-in.
                   <div className="flex shrink-0 flex-col items-end gap-1">
                     <button
                       onClick={() => act(r.id, "checkin")}
@@ -196,10 +251,8 @@ export default function HomeCheckin({
                     </button>
                   </div>
                 ) : (
-                  // Trạng thái khác (vd bác sĩ đã từ chối) — không check-in từ đây.
-                  <span className="shrink-0 rounded-full bg-[#f4f4f5] px-2.5 py-0.5 text-center text-[10px] font-medium text-[#52525b]">
-                    {r.status}
-                  </span>
+                  // NO_SHOW / CANCELLED / DOCTOR_DECLINED — không thao tác từ hàng đợi.
+                  <span className="shrink-0 text-[11px] text-[#c4c4c8]">—</span>
                 )}
               </li>
             );
