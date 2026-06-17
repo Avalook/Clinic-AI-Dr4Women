@@ -356,12 +356,13 @@ export async function PATCH(request: Request) {
       fromStatuses = ["CHECKED_IN"];
     }
   } else if (action === "checkin") {
-    // Lễ tân CHỈ check-in khi BÁC SĨ ĐÃ NHẬN CA (CONFIRMED). Trước đây cho check-in
-    // từ SCHEDULED/CSKH_CONFIRMED → vô tình BỎ QUA bước bác sĩ xác nhận (mặc định
-    // bắt bác sĩ khám) + bác sĩ không lên Lịch làm việc. Giờ BN đến rồi vẫn phải
-    // chờ bác sĩ nhận ca mới khám.
+    // D21 — BỎ HẲN bước "Bác sĩ duyệt": Lễ tân check-in THẲNG từ lịch còn sống
+    // (SCHEDULED/CSKH_CONFIRMED/CONFIRMED), KHÔNG chờ bác sĩ nhận ca. BN đến →
+    // check-in → khám được ngay. Đây là workflow appointment.status thuần —
+    // KHÔNG đụng visit.status/FINALIZED/lab/043. (Nút "Nhận ca/Từ chối" của bác sĩ
+    // vẫn còn để TỪ CHỐI → phân lại, nhưng KHÔNG còn là điều kiện để check-in.)
     newStatus = "CHECKED_IN";
-    fromStatuses = ["CONFIRMED"];
+    fromStatuses = ["SCHEDULED", "CSKH_CONFIRMED", "CONFIRMED"];
   } else if (action === "cskh_confirm") {
     // CSKH gọi xác nhận lịch với khách → SCHEDULED → CSKH_CONFIRMED. Lịch VẪN
     // chờ bác sĩ nhận ca (xác nhận 2 bước), nên vẫn nằm ở "Chờ xác nhận" của bác sĩ.

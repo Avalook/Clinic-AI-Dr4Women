@@ -104,9 +104,12 @@ export default function HomeCheckin({
           {shown.map((r) => {
             const checkedIn = r.status === "CHECKED_IN";
             const completed = r.status === "COMPLETED";
-            // CHỈ check-in được khi BÁC SĨ ĐÃ nhận ca (CONFIRMED). Lịch còn chờ bác
-            // sĩ (SCHEDULED/CSKH_CONFIRMED) → "Chờ bác sĩ xác nhận", không check-in.
-            const confirmed = r.status === "CONFIRMED";
+            // D21 — BN đến là check-in được NGAY (không chờ bác sĩ duyệt). Mọi lịch
+            // còn "sống" trước khi đến đều check-in được.
+            const canCheckIn =
+              !checkedIn &&
+              !completed &&
+              ["SCHEDULED", "CSKH_CONFIRMED", "CONFIRMED"].includes(r.status);
             const active = selId === r.id;
             return (
               <li
@@ -175,7 +178,7 @@ export default function HomeCheckin({
                     </span>
                     Hoàn tác
                   </button>
-                ) : confirmed ? (
+                ) : canCheckIn ? (
                   <div className="flex shrink-0 flex-col items-end gap-1">
                     <button
                       onClick={() => act(r.id, "checkin")}
@@ -193,19 +196,10 @@ export default function HomeCheckin({
                     </button>
                   </div>
                 ) : (
-                  // Bác sĩ CHƯA nhận ca → CHƯA check-in được; chỉ đánh "Không đến".
-                  <div className="flex shrink-0 flex-col items-end gap-1">
-                    <span className="rounded-full bg-[#fef9c3] px-2.5 py-0.5 text-center text-[10px] font-medium text-[#a16207]">
-                      Chờ bác sĩ xác nhận
-                    </span>
-                    <button
-                      onClick={() => act(r.id, "no_show")}
-                      disabled={busyId === r.id}
-                      className="text-[11px] text-[#a1a1aa] hover:text-[#dc2626] disabled:opacity-50"
-                    >
-                      Không đến
-                    </button>
-                  </div>
+                  // Trạng thái khác (vd bác sĩ đã từ chối) — không check-in từ đây.
+                  <span className="shrink-0 rounded-full bg-[#f4f4f5] px-2.5 py-0.5 text-center text-[10px] font-medium text-[#52525b]">
+                    {r.status}
+                  </span>
                 )}
               </li>
             );

@@ -87,7 +87,7 @@ export default async function PatientDetailPage({
         <h1 className="text-xl font-semibold text-[#171717]">Hồ sơ bệnh nhân</h1>
         <p className="text-sm text-[#888888]">
           Thông tin hành chính bệnh nhân + lịch hẹn. CCCD KHÔNG hiển thị (bảo mật
-          D-identity). · Hồ sơ khám bệnh (tóm tắt khám) do bác sĩ xem ở mục “Công
+          D-identity). · Hồ sơ khám bệnh (phiếu khám) do bác sĩ xem ở mục “Công
           việc của tôi”.
         </p>
       </header>

@@ -508,7 +508,7 @@ export default function ClinicalRecordForm({
       <div className="flex items-center justify-between border-b border-[#e4e4e7] px-4 py-3">
         <div>
           <h3 className="text-sm font-bold uppercase text-[#171717]">
-            Tóm tắt khám bệnh
+            Phiếu khám bệnh
             {vitalsOnly && (
               <span className="ml-2 rounded bg-[#fef9c3] px-1.5 py-0.5 text-[10px] font-medium normal-case text-[#a16207]">
                 Chỉ ghi Sinh hiệu

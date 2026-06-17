@@ -201,7 +201,7 @@ export default function MedicalSummaryPrint({ initial }: { initial: FormData }) 
         {/* ===== TITLE ===== */}
         <div style={{ textAlign: "center", margin: "8px 0 6px" }}>
           <div style={{ fontWeight: 700, fontSize: 17, letterSpacing: 1 }}>
-            TÓM TẮT KHÁM BỆNH
+            PHIẾU KHÁM BỆNH
           </div>
           <div style={{ fontWeight: 700, fontStyle: "italic", fontSize: 13 }}>
             MEDICAL SUMMARY

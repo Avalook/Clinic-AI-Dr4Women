@@ -3,6 +3,17 @@
 
 ## [LOCAL — chưa push]
 
+### 2026-06-17 · T-DASH-RECEPTION-FLOW-01 · Bỏ gate BS duyệt + Lễ tân sửa hành chính + rename phiếu khám · commit `chưa commit`
+- **Yêu cầu phòng khám:** D21 (bỏ bước bác sĩ duyệt BN), D22 (Lễ tân sửa hành chính), + rename nhãn "Tóm tắt khám bệnh"→"Phiếu khám bệnh".
+- **Đã làm:**
+  - (A) D21 — Gỡ gate "BS duyệt" (workflow `appointment.status` thuần, KHÔNG dính visit.status/FINALIZED/lab/043): check-in cho phép từ `["SCHEDULED","CSKH_CONFIRMED","CONFIRMED"]` (trước: chỉ `CONFIRMED`). HomeCheckin hiện nút Check-in cho mọi lịch còn sống, bỏ chặn "Chờ bác sĩ xác nhận". → BN đến → check-in → khám được ngay. Nút "Nhận ca/Từ chối" của bác sĩ GIỮ (Từ chối → phân lại), nhưng không còn là điều kiện check-in.
+  - (B) D22 — Lễ tân sửa hành chính: ĐÃ CÓ SẴN, không cần đổi code. `canWriteIntake` đã gồm RECEPTION; POST/PATCH `/api/patients` gate `canWriteIntake`/`canEditPatient`; mọi surface (/customers, /patient-list qua isTasksReadOnly, /patients/[id], /tasks) đã cấp `canEdit`/`canEditAdmin` cho RECEPTION. PatientAdminEditor chỉ sửa trường HÀNH CHÍNH (không CCCD, không lâm sàng) → `canWriteClinical` (Packet 4) giữ nguyên.
+  - (C) Rename 3 chuỗi hiển thị "Tóm tắt khám bệnh"/"(tóm tắt khám)"→"Phiếu khám bệnh"/"(phiếu khám)": MedicalSummaryPrint (tiêu đề in), ClinicalRecordForm (header panel), patients/[id] (mô tả). KHÔNG đổi tên biến/route/key/cột. KHÔNG đụng "Tóm tắt trước khám" (PreVisitBrief) / "Tóm tắt kết quả" (lab) — khác nghĩa.
+- **File sửa (5):** app/api/appointments/route.ts · app/(dashboard)/home/HomeCheckin.tsx · app/print/[appointmentId]/MedicalSummaryPrint.tsx · app/(dashboard)/tasks/ClinicalRecordForm.tsx · app/(dashboard)/patients/[id]/page.tsx.
+- **Migration:** none.
+- **Boundary giữ:** gate BS duyệt = hành chính thuần (appointment.status) — gỡ an toàn; KHÔNG đụng 043/visit.status/FINALIZED/lab; Lễ tân chỉ chạm hành chính (canWriteClinical nguyên); rename chỉ chuỗi hiển thị.
+- **Nợ / next:** confirm/decline của bác sĩ giờ tuỳ chọn (work_roster auto-insert vẫn gắn với `confirm` — bác sĩ không nhận ca sẽ không tự lên Lịch làm việc; nếu muốn bỏ hẳn UI nhận ca thì packet riêng). Comment file header vẫn ghi "TÓM TẮT KHÁM BỆNH" (giữ — boundary chỉ đổi chuỗi hiển thị).
+
 ### 2026-06-17 · T-DASH-CLINICAL-PERM-SIET-01 · Lâm sàng chỉ BS+ĐD, tách check-in khỏi vitals · commit `chưa commit`
 - **Yêu cầu phòng khám:** chốt họp — CHỈ Bác sĩ + Điều dưỡng được chỉnh lâm sàng (sửa lại nới quá rộng ở Packet 2 cho mọi role `canCheckin`).
 - **Đã làm:**
