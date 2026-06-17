@@ -13,7 +13,7 @@ import {
   getActiveStaff,
   getClinicStaffId,
 } from "../../../lib/clinic-session";
-import { type ClinicRole, canCheckin } from "../../../lib/roles";
+import { type ClinicRole, canCheckin, canWriteClinical } from "../../../lib/roles";
 import HomeCheckin, { type HomeCheckinRow } from "./HomeCheckin";
 import type { ActiveStaff } from "../../../lib/clinic-session";
 import { vnTodayRangeUtc, fmtDate, vnLocalToUtcISO } from "../../../lib/datetime";
@@ -61,6 +61,8 @@ export default async function HomePage({
   const staff = await getActiveStaff();
   const staffId = await getClinicStaffId();
   const showCheckin = canCheckin(role); // ĐD/Lễ tân/Quản lý: khu check-in ở đây
+  // CHỈ Bác sĩ + Điều dưỡng ghi lâm sàng; Lễ tân/QL check-in nhưng xem chỉ-đọc.
+  const writeClinical = canWriteClinical(role);
   const isReception = role === "RECEPTION"; // bảng trạng thái buổi khám: chỉ Lễ tân
   const { startUtc: dayStart, endUtc: dayEnd } = vnTodayRangeUtc();
 
@@ -249,7 +251,11 @@ export default async function HomePage({
       {/* Check-in bệnh nhân — TRÊN Lịch hẹn khám (ĐD/Lễ tân/Quản lý).
           Bấm mở danh sách ngay dưới nút; Lịch hẹn khám tự đẩy xuống. */}
       {showCheckin && (
-        <HomeCheckin rows={checkinRows} staffId={staffId} />
+        <HomeCheckin
+          rows={checkinRows}
+          staffId={staffId}
+          canWriteClinical={writeClinical}
+        />
       )}
 
       {/* Trạng thái BN buổi khám hôm nay — CHỈ Lễ tân, READ-ONLY (theo visit.status). */}

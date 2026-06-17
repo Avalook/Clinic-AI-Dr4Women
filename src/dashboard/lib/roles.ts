@@ -51,6 +51,13 @@ export function isNurseRole(role: ClinicRole | null): boolean {
   return role === "NURSE_ULTRASOUND";
 }
 
+/** Ghi LÂM SÀNG (lý do khám, sinh hiệu, bệnh án) = CHỈ Bác sĩ + Điều dưỡng.
+ *  Lễ tân / Quản lý làm hành chính (check-in, hồ sơ hành chính) — KHÔNG ghi lâm
+ *  sàng. Tách bạch với canCheckin (đón khách = hành chính, rộng hơn). */
+export function canWriteClinical(role: ClinicRole | null): boolean {
+  return isDoctorRole(role) || isNurseRole(role);
+}
+
 /** Roles allowed to create patients / appointments (data entry).
  *  Điều dưỡng (NURSE) thêm vào để nhập "khách vãng lai" + check-in. */
 export function canWriteIntake(role: ClinicRole | null): boolean {

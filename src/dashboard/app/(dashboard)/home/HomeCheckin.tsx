@@ -22,9 +22,13 @@ export interface HomeCheckinRow extends DoctorApptRow {
 export default function HomeCheckin({
   rows,
   staffId,
+  canWriteClinical = false,
 }: {
   rows: HomeCheckinRow[];
   staffId: string | null;
+  /** CHỈ Bác sĩ + Điều dưỡng được ghi lâm sàng (sinh hiệu + lý do khám). Lễ tân /
+   *  Quản lý vẫn check-in (hành chính) nhưng xem hồ sơ lâm sàng ở chế độ chỉ-đọc. */
+  canWriteClinical?: boolean;
 }) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
@@ -243,6 +247,7 @@ export default function HomeCheckin({
                   appt={sel}
                   staffId={staffId}
                   vitalsOnly
+                  readOnly={!canWriteClinical}
                   fill
                   onClose={() => setSelId(null)}
                 />

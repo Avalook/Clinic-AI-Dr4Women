@@ -3,6 +3,18 @@
 
 ## [LOCAL — chưa push]
 
+### 2026-06-17 · T-DASH-CLINICAL-PERM-SIET-01 · Lâm sàng chỉ BS+ĐD, tách check-in khỏi vitals · commit `chưa commit`
+- **Yêu cầu phòng khám:** chốt họp — CHỈ Bác sĩ + Điều dưỡng được chỉnh lâm sàng (sửa lại nới quá rộng ở Packet 2 cho mọi role `canCheckin`).
+- **Đã làm:**
+  - Thêm helper `canWriteClinical(role) = isDoctorRole || isNurseRole` trong roles.ts (`isNurseRole` đã có sẵn = NURSE_ULTRASOUND).
+  - Route `/api/clinical-record`: gate nhánh vitalsOnly đổi `canCheckin`→`isNurseRole` → `isDoctorRole(role) || (vitalsOnly && isNurseRole(role))`. Lễ tân/QL bị 403 khi ghi lâm sàng.
+  - UI: HomeCheckin nhận `canWriteClinical`, truyền `readOnly={!canWriteClinical}` cho ClinicalRecordForm → Lễ tân/QL xem hồ sơ lâm sàng chỉ-đọc (vitals + lý do khoá, ẩn nút Lưu).
+  - TÁCH check-in (hành chính) khỏi ghi vitals (lâm sàng): check-in vẫn ở `/api/appointments` action=checkin (gate `canCheckin`) — Lễ tân/QL/ĐD vẫn đón khách bình thường.
+- **File sửa (4):** lib/roles.ts · app/api/clinical-record/route.ts · app/(dashboard)/home/HomeCheckin.tsx · app/(dashboard)/home/page.tsx.
+- **Migration:** none (app-layer thuần, không đụng RLS).
+- **Boundary giữ:** không migration / không RLS / không đụng 043 / visit.status / FINALIZED (vẫn qua WRITABLE_VISIT_STATUSES). BS save full hồ sơ KHÔNG đổi (isDoctorRole bỏ qua vitalsOnly). DoctorWorkBoard & PatientListView vốn đã readOnly cho non-doctor — không leak.
+- **Nợ / next:** lab-result + service-log vẫn gate `canCheckin` (ngoài scope — ĐD nhập KQ XN/log SA; nếu muốn siết tiếp thì packet riêng).
+
 ### 2026-06-17 · T-DASH-NURSE-PERM-01 · ĐD sửa lý do khám + vital required HA/CN/CC · commit `chưa commit`
 - **Yêu cầu phòng khám:** D25 (STT 15.0) cho điều dưỡng sửa "Lý do khám bệnh"; D26 (STT 16.0) chỉ 3 sinh hiệu bắt buộc.
 - **Đã làm:**
