@@ -80,6 +80,14 @@ const EMPTY = {
 };
 type Fields = typeof EMPTY;
 
+// D26 — Sinh hiệu BẮT BUỘC: CHỈ 3 trường (Huyết áp / Cân nặng / Chiều cao).
+// Mọi vital khác (mạch, nhiệt độ, nhịp thở, SpO2, BMI) là tuỳ chọn.
+const REQUIRED_VITALS: ReadonlySet<keyof Fields> = new Set([
+  "huyet_ap",
+  "can_nang",
+  "chieu_cao",
+]);
+
 // Tiền sử (III/IV) — bác sĩ sửa, lưu patient_medical_profile.
 const EMPTY_PM = {
   allergies: "", blood_type: "", chronic: "", surgical: "",
@@ -237,6 +245,8 @@ export default function ClinicalRecordForm({
   const [labBusy, setLabBusy] = useState(false);
   const [saving, setSaving] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
+  // D26 — đã bấm Lưu sinh hiệu mà thiếu trường bắt buộc → bật viền đỏ inline.
+  const [vitalsTried, setVitalsTried] = useState(false);
 
   useEffect(() => {
     if (!p?.clinic_patient_id) return;
@@ -315,8 +325,15 @@ export default function ClinicalRecordForm({
     bmi: f.bmi,
   });
 
-  // Điều dưỡng: chỉ ghi Sinh hiệu (merge vào objective, KHÔNG đụng mục khác).
+  // Điều dưỡng (đón-khám): ghi Sinh hiệu + (D25) "Lý do khám bệnh" mà BS đưa ra.
+  // KHÔNG đụng mục khác. D26: 3 sinh hiệu BẮT BUỘC (Huyết áp/Cân nặng/Chiều cao).
   async function saveVitals() {
+    const missingReq = [...REQUIRED_VITALS].filter((k) => f[k].trim() === "");
+    if (missingReq.length) {
+      setVitalsTried(true);
+      setMsg("Bắt buộc nhập Huyết áp, Cân nặng, Chiều cao.");
+      return;
+    }
     setSaving(true);
     setMsg(null);
     const res = await fetch("/api/clinical-record", {
@@ -326,6 +343,7 @@ export default function ClinicalRecordForm({
         appointmentId: appt.id,
         clinicPatientId: p?.clinic_patient_id,
         vitalsOnly: true,
+        chief_complaint: f.ly_do,
         objective: { vitals: vitalsPayload() },
       }),
     });
@@ -634,9 +652,15 @@ export default function ClinicalRecordForm({
                     else if (n < lo || n > hi) warn = `Nên trong ${lo}–${hi}`;
                   }
                 }
+                // D26: 3 trường bắt buộc → đánh dấu * + báo "Bắt buộc" khi đã bấm Lưu.
+                const required = REQUIRED_VITALS.has(k);
+                const missing = required && v === "" && vitalsTried;
                 return (
                   <div key={k}>
-                    <label className={LABEL}>{lbl}</label>
+                    <label className={LABEL}>
+                      {lbl}
+                      {required && <span className="text-[#ec4899]"> *</span>}
+                    </label>
                     <input
                       type={ty}
                       step={ty === "number" ? st : undefined}
@@ -644,13 +668,15 @@ export default function ClinicalRecordForm({
                       min={ty === "number" ? lo : undefined}
                       max={ty === "number" ? hi : undefined}
                       placeholder={k === "huyet_ap" ? "vd 120/80" : undefined}
-                      className={INPUT + (warn ? " border-[#dc2626]" : "")}
+                      className={INPUT + (warn || missing ? " border-[#dc2626]" : "")}
                       value={f[k]}
                       disabled={ro}
                       onChange={(e) => set(k, e.target.value)}
                     />
-                    {warn && (
-                      <p className="mt-0.5 text-[11px] text-[#dc2626]">{warn}</p>
+                    {(missing || warn) && (
+                      <p className="mt-0.5 text-[11px] text-[#dc2626]">
+                        {missing ? "Bắt buộc" : warn}
+                      </p>
                     )}
                   </div>
                 );
@@ -659,8 +685,11 @@ export default function ClinicalRecordForm({
           </div>
         </Section>
 
-        <Section no="II" title="Lý do vào khám">
-          <input className={INPUT} value={f.ly_do} disabled={roRest} onChange={(e) => set("ly_do", e.target.value)} placeholder="VD: Khám thai" />
+        {/* D25 — "Lý do khám bệnh" do BÁC SĨ đưa ra, ĐIỀU DƯỠNG nhập hộ vào bệnh
+            án → mở quyền sửa cho cả luồng đón-khám (dùng `ro` thay `roRest`).
+            Tách bạch với "Vấn đề khiến BN đi khám" của CSKH (không có ở form này). */}
+        <Section no="II" title="Lý do khám bệnh" editorLabel="bác sĩ / điều dưỡng điền">
+          <input className={INPUT} value={f.ly_do} disabled={ro} onChange={(e) => set("ly_do", e.target.value)} placeholder="VD: Khám thai" />
         </Section>
 
         <Section no="III" title="Tiền sử dị ứng">

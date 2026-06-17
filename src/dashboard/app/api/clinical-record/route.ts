@@ -343,8 +343,10 @@ export async function POST(request: Request) {
     }
   }
 
-  // Điều dưỡng: CHỈ merge Sinh hiệu vào soap_objective, không đụng các mục khác
-  // (chuẩn đoán/lời dặn/tiền sử của bác sĩ giữ nguyên).
+  // Điều dưỡng: merge Sinh hiệu vào soap_objective + (D25) "Lý do khám bệnh"
+  // (BS đưa ra, ĐD nhập hộ → chief_complaint_at_visit). KHÔNG đụng các mục khác
+  // (chuẩn đoán/lời dặn/tiền sử của bác sĩ giữ nguyên). Lý do CHỈ ghi khi ĐD có
+  // nhập (non-empty) → tránh save sinh hiệu rỗng xoá mất lý do bác sĩ đã ghi.
   if (vitalsOnly) {
     const { data: cr } = await db
       .from("clinical_record")
@@ -355,14 +357,17 @@ export async function POST(request: Request) {
       ...asObj(cr?.soap_objective),
       vitals: asObj(body.objective).vitals ?? {},
     };
+    const cc = (body.chief_complaint ?? "").trim();
+    const patch: Record<string, unknown> = { soap_objective: merged };
+    if (cc) patch.chief_complaint_at_visit = cc;
     const { error } = cr
       ? await db
           .from("clinical_record")
-          .update({ soap_objective: merged })
+          .update(patch)
           .eq("visit_id", visitId)
       : await db
           .from("clinical_record")
-          .insert({ visit_id: visitId, soap_objective: merged });
+          .insert({ visit_id: visitId, ...patch });
     if (error) return NextResponse.json({ error: error.message }, { status: 500 });
     return NextResponse.json({ ok: true, visit_id: visitId, vitalsOnly: true });
   }

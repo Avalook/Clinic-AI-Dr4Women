@@ -3,6 +3,17 @@
 
 ## [LOCAL — chưa push]
 
+### 2026-06-17 · T-DASH-NURSE-PERM-01 · ĐD sửa lý do khám + vital required HA/CN/CC · commit `chưa commit`
+- **Yêu cầu phòng khám:** D25 (STT 15.0) cho điều dưỡng sửa "Lý do khám bệnh"; D26 (STT 16.0) chỉ 3 sinh hiệu bắt buộc.
+- **Đã làm:**
+  - (A) "Lý do khám bệnh" (Section II = `chief_complaint`, BS đưa ra/ĐD nhập hộ) mở quyền sửa cho luồng đón-khám: ô đổi `disabled` từ `roRest`→`ro`; `saveVitals()` gửi kèm `chief_complaint`; route `/api/clinical-record` nhánh `vitalsOnly` ghi `chief_complaint_at_visit` (CHỈ khi non-empty → không xoá lý do BS đã ghi).
+  - (B) Sinh hiệu: thêm bắt buộc CHỈ 3 trường Huyết áp / Cân nặng / Chiều cao (dấu `*` + viền đỏ + chặn lưu khi thiếu); các vital khác giữ optional (vốn chưa từng required).
+  - Xác nhận tách bạch 2 trường: "Vấn đề khiến BN đi khám" (CSKH lúc đặt lịch) KHÔNG tồn tại trong code → không đụng nhầm.
+- **File sửa (2):** app/(dashboard)/tasks/ClinicalRecordForm.tsx · app/api/clinical-record/route.ts.
+- **Migration:** none (validation frontend + ghi qua route service-role sẵn có).
+- **Boundary giữ:** quyền xử ở APP-LAYER (route gate `vitalsOnly && canCheckin`, KHÔNG đụng RLS); KHÔNG đụng visit.status/FINALIZED gate (vẫn chặn qua WRITABLE_VISIT_STATUSES)/lab_result/043.
+- **Nợ / next:** quyền mở cho mọi role `canCheckin` (ĐD/Lễ tân/QL) theo kiến trúc vitalsOnly sẵn có — nếu cần CHỈ điều dưỡng thì siết riêng sau; required HA/CN/CC enforce ở luồng đón-khám (save của bác sĩ không chặn).
+
 ### 2026-06-17 · T-DASH-GENDER-KHAC-02 · Giới tính "Khác" + bootstrap CHANGELOG · commit `chưa commit`
 - **Yêu cầu phòng khám:** D13 (giới tính cần lựa chọn "Khác" ngoài Nam/Nữ).
 - **Đã làm:**
