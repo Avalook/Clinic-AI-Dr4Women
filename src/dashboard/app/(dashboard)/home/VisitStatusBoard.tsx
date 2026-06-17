@@ -6,6 +6,10 @@
 // (badge đó dành cho appointment.status, màu khác).
 
 import { fmtTime } from "../../../lib/datetime";
+import { ProgressStepper, WaitClock } from "./VisitProgress";
+
+// BN còn đang chờ / đang khám → đồng hồ chờ chạy. Đã FINALIZED/AMENDED → dừng.
+const WAITING_STATUSES = new Set(["OPEN", "IN_PROGRESS"]);
 
 // Nhãn + màu cho visit.status (4 giá trị enum). Tông đồng bộ với StatusBadge.
 const VISIT_STATUS_STYLE: Record<string, string> = {
@@ -57,12 +61,14 @@ export default function VisitStatusBoard({ rows }: { rows: VisitStatusRow[] }) {
             <th className={TH}>Bác sĩ khám</th>
             <th className={TH}>Dịch vụ</th>
             <th className={TH}>Trạng thái</th>
+            <th className={TH}>Chờ</th>
+            <th className={TH}>Tiến trình</th>
           </tr>
         </thead>
         <tbody>
           {rows.length === 0 ? (
             <tr>
-              <td className="px-3 py-6 text-center text-[#888888]" colSpan={5}>
+              <td className="px-3 py-6 text-center text-[#888888]" colSpan={7}>
                 Chưa có buổi khám nào hôm nay.
               </td>
             </tr>
@@ -90,6 +96,15 @@ export default function VisitStatusBoard({ rows }: { rows: VisitStatusRow[] }) {
                 </td>
                 <td className={`${TD} whitespace-nowrap`}>
                   <VisitBadge status={r.status} />
+                </td>
+                <td className={`${TD} whitespace-nowrap`}>
+                  <WaitClock
+                    checkedInAt={r.checked_in_at}
+                    active={WAITING_STATUSES.has(r.status)}
+                  />
+                </td>
+                <td className={`${TD} whitespace-nowrap`}>
+                  <ProgressStepper status={r.status} />
                 </td>
               </tr>
             ))

@@ -3,6 +3,17 @@
 
 ## [LOCAL — chưa push]
 
+### 2026-06-18 · T-DASH-LETAN-PROGRESS-01 · Progress stepper + đồng hồ chờ đổi màu (board Lễ tân) · commit `chưa commit`
+- **Yêu cầu phòng khám:** board theo dõi BN của Lễ tân cần (a) thanh tiến trình các mốc khám, (b) đồng hồ chờ đổi màu theo thời gian. THUẦN PRESENTATIONAL, đọc data sẵn có.
+- **Target = `VisitStatusBoard`** (board read-only "Trạng thái BN buổi khám" cho Lễ tân, `home/page.tsx` `isReception`) — vì nó có `visit.status` + `checked_in_at`. HomeCheckin (hàng đợi appointment) KHÔNG có `checked_in_at` nên không đặt đồng hồ ở đó.
+- **Mới `VisitProgress.tsx`** (client island):
+  - `ProgressStepper(status)`: 7 mốc Hẹn→Xác nhận→Check-in→Đang khám→Chờ SA/XN→Chờ thanh toán→Xong. Backed (CÓ data): Hẹn/Xác nhận/Check-in (ngầm DONE vì visit chỉ tồn tại sau check-in) + **Đang khám** (`visit.status=IN_PROGRESS`; FINALIZED/AMENDED = done). XÁM/inactive (chưa data): **Chờ SA/XN** (chưa join sono/lab) + **Chờ thanh toán** + **Xong** (chờ billing) — title tooltip ghi rõ lý do. KHÔNG bịa data.
+  - `WaitClock(checkedInAt, active)`: `setInterval` 1s client tính `now − checked_in_at`, hiển thị `mm:ss`, đổi màu theo **ngưỡng hằng số đầu file** (`WAIT_GREEN_MAX=10`, `WAIT_YELLOW_MAX=20`): <10p xanh / 10–20p vàng / >20p đỏ. Chỉ chạy khi OPEN/IN_PROGRESS; FINALIZED/AMENDED → dừng ("—"). Guard `nowMs=null` tới khi mount → tránh hydration mismatch. Cleanup `clearTimeout`+`clearInterval` khi unmount.
+- **`VisitStatusBoard.tsx`:** thêm 2 cột "Chờ" (WaitClock) + "Tiến trình" (ProgressStepper), colSpan empty 5→7. KHÔNG đụng logic/badge cũ.
+- **Boundary giữ:** KHÔNG thêm/sửa enum status, KHÔNG migration, KHÔNG ghi DB, KHÔNG đụng visit.status/FINALIZED/043/lâm sàng. Đồng hồ thuần client từ `checked_in_at`.
+- **Build:** tsc 0 lỗi · eslint 0 lỗi (sửa `react-hooks/set-state-in-effect`: tick đầu qua `setTimeout(0)`) · next build Errors:0.
+- **Nợ:** 2 mốc cuối "Chờ thanh toán"/"Xong(thu ngân)" + "Chờ SA/XN" render xám tới khi build billing + nối hàng đợi sono/lab vào board. HomeCheckin (appointment) chưa có stepper/đồng hồ (thiếu checked_in_at — sẽ cần join visit nếu muốn).
+
 ### 2026-06-17 · T-DATA-CHIDINH-CATALOG-SEED-01 · Seed danh mục CLS + thuốc từ PHIẾU CHỈ ĐỊNH (PK) + nối picker form khám · commit `chưa commit`
 - **Nguồn:** `scripts/catalog_src/PHIEU_CHI_DINH_update.docx` (PK gửi). Parser `scripts/parse_chidinh_catalog.py` (python-docx) → `scripts/catalog_out/{services,drugs}.csv` (gitignore `*.csv` — regen bằng chạy lại script).
 - **Parse:** **29 dịch vụ/CLS** (Table0+1 theo nhóm-cột: Tầng 1 / Thủ thuật / Chụp phim ngoài / Thai / Nội tiết–phụ khoa; gộp 1 dòng trùng "Đo mật độ xương") + **64 thuốc** (Table2, 9 dòng-nhóm L1–L9; splitter tôn trọng ngoặc → giữ `Letrozole (10v, 15v)`, tách `;` cho `Diphereline…; GonaF`). **needs_review=TRUE: 3** (`Fes 1/10`, `Utrogestan (Đ) (1v/2v): (U)`, `Difavon/Diflucan/Fluconazole/Zolmed`). KHÔNG bỏ sót dòng nào.
