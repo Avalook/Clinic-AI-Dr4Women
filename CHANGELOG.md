@@ -3,6 +3,15 @@
 
 ## [LOCAL — chưa push]
 
+### 2026-06-18 · T-DASH-CSKH-FOLLOWUP-01 · Danh sách BN cần nhắc gọi (bucket 2/10/20/30 ngày) + nút "Đã gọi" · commit `chưa commit`
+- **Yêu cầu phòng khám:** trong màn CSKH ("Cần làm hôm nay"), thêm danh sách BN quá hạn/không phản hồi chia bucket theo số ngày + nút "Đã gọi" ghi nhật ký CSKH.
+- **Anchor (TÁI DÙNG, không định nghĩa mới):** `tai_kham.ngay` (soap_plan, cùng nguồn `dueLimit` khối ③). Quá hạn = `today − tai_kham.ngay` (ngày). Dùng lại đúng tập `recalls` đã loại BN có lịch hẹn tương lai.
+- **Bucket:** `FOLLOWUP_TIERS = [2,10,20,30]` khai 1 chỗ đầu `cskh-today/page.tsx`. `buildFollowupBuckets` xếp mỗi BN vào ngưỡng quá-hạn cao nhất khớp (≥30 / ≥20 / ≥10 / ≥2 ngày); <2 ngày bỏ qua (vẫn ở khối ③ tái khám thường).
+- **Action "Đã gọi":** route mới `app/api/cskh-followup/route.ts` (POST `{clinic_patient_id}`) → INSERT 1 dòng `cskh_log` (TÁI DÙNG cột `cskh_status="Đã gọi nhắc tái khám"` + `cskh_followup="Nhắc gọi tái khám"` + `last_cskh_date`+`cskh_by`), service-role (cskh_log RLS SELECT-only), gate `canWriteIntake`, có `logEvent`. Hiện ngay trong nhật ký CSKH của BN (`PatientCskhLog`).
+- **UI:** client `CskhFollowupList.tsx` group theo bucket, mỗi dòng BN + nút "Đã gọi" (busy guard, optimistic "✓ Đã ghi", `router.refresh()` sau bấm). Section mới ③b trong page (server tính bucket, truyền xuống client).
+- **Boundary giữ:** KHÔNG migration (cskh_log/cskh_followup đã có mig 037); KHÔNG đụng visit.status/FINALIZED/043/lâm sàng; KHÔNG đụng home/VisitProgress*. Build: tsc/eslint/next build Errors:0.
+- **Nợ:** hiện DB có **0** visit với `soap_plan.tai_kham.ngay` → bucket rỗng tới khi BS điền ngày tái khám (data contract mới, chưa có data thật — giống khối ③). "Không phản hồi" hiện = quá hạn theo ngày; chưa lọc theo "đã gọi gần đây" (có thể chặn spam gọi lại ở Phase sau bằng cách đọc `cskh_log.last_cskh_date`).
+
 ### 2026-06-18 · T-DASH-LETAN-PROGRESS-01 · Progress stepper + đồng hồ chờ đổi màu (board Lễ tân) · commit `chưa commit`
 - **Yêu cầu phòng khám:** board theo dõi BN của Lễ tân cần (a) thanh tiến trình các mốc khám, (b) đồng hồ chờ đổi màu theo thời gian. THUẦN PRESENTATIONAL, đọc data sẵn có.
 - **Target = `VisitStatusBoard`** (board read-only "Trạng thái BN buổi khám" cho Lễ tân, `home/page.tsx` `isReception`) — vì nó có `visit.status` + `checked_in_at`. HomeCheckin (hàng đợi appointment) KHÔNG có `checked_in_at` nên không đặt đồng hồ ở đó.

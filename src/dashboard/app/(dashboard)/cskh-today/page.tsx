@@ -17,10 +17,47 @@ import {
   nowMs,
   VN_TZ,
 } from "../../../lib/datetime";
+import CskhFollowupList, {
+  type FollowupBucket,
+} from "./CskhFollowupList";
 
 export const dynamic = "force-dynamic";
 
 const DAY_MS = 24 * 60 * 60 * 1000;
+
+// Ngưỡng (SỐ NGÀY QUÁ HẠN) chia bucket nhắc gọi — khai 1 chỗ DUY NHẤT.
+// Anchor số ngày = tai_kham.ngay (cùng anchor dueLimit khối ③) → quá hạn = today − ngay.
+const FOLLOWUP_TIERS = [2, 10, 20, 30] as const;
+
+/** Chia recalls QUÁ HẠN vào bucket theo số ngày quá hạn (>= ngưỡng cao nhất khớp). */
+function buildFollowupBuckets(
+  recalls: RecallRow[],
+  todayYmd: string,
+): FollowupBucket[] {
+  const tiersDesc = [...FOLLOWUP_TIERS].sort((a, b) => b - a); // 30,20,10,2
+  const buckets: FollowupBucket[] = tiersDesc.map((t) => ({
+    tier: t,
+    label: `Quá hạn ≥ ${t} ngày`,
+    rows: [],
+  }));
+  for (const r of recalls) {
+    const overdue = Math.floor(
+      (Date.parse(todayYmd) - Date.parse(r.tai_kham.ngay)) / DAY_MS,
+    );
+    if (overdue < FOLLOWUP_TIERS[0]) continue; // chưa đủ ngưỡng nhắc gọi
+    const b = buckets.find((bk) => overdue >= bk.tier);
+    if (b) {
+      b.rows.push({
+        clinic_patient_id: r.clinic_patient_id,
+        full_name: r.full_name,
+        phone_primary: r.phone_primary,
+        ngay: r.tai_kham.ngay,
+        overdue_days: overdue,
+      });
+    }
+  }
+  return buckets;
+}
 
 // ---------- kiểu dữ liệu ----------
 
@@ -261,6 +298,10 @@ export default async function CskhTodayPage() {
   }
   recalls.sort((a, b) => a.tai_kham.ngay.localeCompare(b.tai_kham.ngay));
 
+  // BN QUÁ HẠN tái khám (chưa đặt lịch mới) → chia bucket 2/10/20/30 ngày để nhắc gọi.
+  const followupBuckets = buildFollowupBuckets(recalls, vnYmd(0));
+  const followupTotal = followupBuckets.reduce((n, b) => n + b.rows.length, 0);
+
   return (
     <div className="space-y-6">
       <header>
@@ -389,6 +430,16 @@ export default async function CskhTodayPage() {
             ))}
           </ul>
         )}
+      </section>
+
+      {/* ③b BN quá hạn tái khám — nhắc gọi (bucket 2/10/20/30 ngày) */}
+      <section>
+        <SectionHeader
+          title="Bệnh nhân quá hạn — cần nhắc gọi"
+          count={followupTotal}
+          sub="Quá hạn ngày tái khám bác sĩ dặn mà chưa đặt lịch mới. Bấm “Đã gọi” để ghi nhật ký CSKH."
+        />
+        <CskhFollowupList buckets={followupBuckets} />
       </section>
 
       {/* ④ Kết quả XN mới về hôm nay */}
