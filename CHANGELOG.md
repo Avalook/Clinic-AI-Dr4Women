@@ -3,6 +3,16 @@
 
 ## [LOCAL — chưa push]
 
+### 2026-06-17 · T-DASH-BO-BS-CHIDINH-01 · Gỡ UI "Bác sĩ phụ trách chỉ định" → NO-OP (field chưa từng tồn tại) · commit `chưa commit`
+- **Yêu cầu phòng khám (họp 17/6):** bỏ field/label "Bác sĩ phụ trách chỉ định" (thuật ngữ sai), GIỮ "Chỉ định CLS".
+- **Kết quả khảo sát:** label này **KHÔNG tồn tại** trong code dashboard và **chưa từng tồn tại**.
+  - Grep literal `"Bác sĩ phụ trách chỉ định"` toàn repo (trừ node_modules/.next): 0 hit.
+  - `git log -S "Bác sĩ phụ trách chỉ định"` / `-S "phụ trách chỉ định"`: 0 commit → chưa bao giờ vào code.
+  - Chuỗi "phụ trách" chỉ ở 2 chỗ KHÁC target: `print/sono/[id]/SonoResultPrint.tsx:167` (dòng ký tên footer phiếu in) + `api/clinical-record/route.ts:297` (comment). Các `<label>Bác sĩ</label>` (AppointmentBooking/NewPatientForm/ConfirmBoard) = dropdown PHÂN BÁC SĨ cho lịch hẹn, lõi luồng đặt lịch — KHÔNG đụng.
+- **"Chỉ định CLS" còn nguyên:** = các section "Cận lâm sàng" (field `cls_*`) trong `lib/form-schemas/{pk,nt,nk,sk,hmvs}.ts`.
+- **Kết luận:** R4 = **no-op**. Field chỉ sống trong doc thiết kế/recap họp, chưa bao giờ build vào UI. KHÔNG sửa code, KHÔNG migration, KHÔNG drop cột (đúng boundary). Quyết định "đóng no-op" do Quang chốt.
+- **Nợ:** không có cột mồ côi để dọn (vì chưa từng build). Nếu PK vẫn thấy field này ở đâu đó → đang nhìn bản mockup/doc cũ, không phải dashboard hiện hành.
+
 ### 2026-06-17 · T-DASH-TRUONGCA-01 · Role Trưởng ca (hành chính, KHÔNG lâm sàng) · commit `chưa commit`
 - **Yêu cầu phòng khám:** thêm vai "Trưởng ca" (quản 1 ca/ngày, thay phiên) = quyền HÀNH CHÍNH như Lễ tân/CSKH, TUYỆT ĐỐI không lâm sàng.
 - **Đã làm:**
