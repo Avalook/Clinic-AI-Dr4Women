@@ -15,7 +15,7 @@ import {
   getClinicStaffId,
   requireNavAccess,
 } from "../../../lib/clinic-session";
-import { isDoctorRole, canManageAppt, isTasksReadOnly, isCashierRole } from "../../../lib/roles";
+import { isDoctorRole, canManageAppt, isTasksReadOnly, isCashierRole, isThuKyRole } from "../../../lib/roles";
 import ConfirmBoard, { type ApptRow, type Opt } from "./ConfirmBoard";
 import CskhActionBoard, { type CskhActionRow } from "./CskhActionBoard";
 import DoctorWorkBoard, { type DoctorApptRow } from "./DoctorWorkBoard";
@@ -40,7 +40,9 @@ const DOCTOR_SELECT = `
 // VẪN có clinic_staff_id (cookie set cho mọi vai trò) nhưng KHÔNG phải bác sĩ →
 // khi readOnly ta BỎ lọc doctor_id để thấy lịch của MỌI bác sĩ (góc nhìn front
 // desk). Nếu lọc theo staffId của lễ tân thì board sẽ rỗng (không lịch nào của họ).
-async function DoctorTasks(readOnly = false, showPreVisitBrief = false) {
+// allDoctors = TKYK: KHÔNG lọc theo doctor_id (TKYK không phải BS trên lịch) → thấy
+// hàng đợi của MỌI bác sĩ để nhập hộ bệnh án, NHƯNG vẫn GHI được (readOnly=false).
+async function DoctorTasks(readOnly = false, showPreVisitBrief = false, allDoctors = false) {
   const supabase = await getSupabaseServer();
   const staffId = await getClinicStaffId();
   const { startUtc } = vnTodayRangeUtc();
@@ -63,8 +65,8 @@ async function DoctorTasks(readOnly = false, showPreVisitBrief = false) {
     .lt("slot_start", endUtc)
     .order("slot_start", { ascending: true })
     .limit(400);
-  // Bác sĩ: chỉ lịch của MÌNH. Lễ tân (readOnly): KHÔNG lọc → mọi bác sĩ.
-  if (staffId && !readOnly) q = q.eq("doctor_id", staffId);
+  // Bác sĩ: chỉ lịch của MÌNH. Lễ tân (readOnly) + TKYK (allDoctors): KHÔNG lọc → mọi bác sĩ.
+  if (staffId && !readOnly && !allDoctors) q = q.eq("doctor_id", staffId);
   const { data, error } = await q;
   const rows = (data as DoctorApptRow[] | null) ?? [];
 
@@ -118,6 +120,16 @@ async function DoctorTasks(readOnly = false, showPreVisitBrief = false) {
             </span>
           </p>
         )}
+        {allDoctors && !readOnly && (
+          <p className="mt-0.5 inline-flex items-center gap-1.5 text-sm text-[#9d2463]">
+            <span className="rounded bg-[#fce7f3] px-1.5 py-0.5 text-[11px] font-medium">
+              ✍ Nhập hộ bệnh án
+            </span>
+            <span className="text-[#888888]">
+              Xem hàng đợi của tất cả bác sĩ & nhập hồ sơ — bác sĩ chốt khám xong.
+            </span>
+          </p>
+        )}
       </header>
       {error ? (
         <div className="rounded-md bg-[#fee2e2] px-3 py-2 text-sm text-[#dc2626]">
@@ -163,6 +175,10 @@ export default async function TasksPage() {
   // để mọi vai thu ngân không rơi vào nhánh read-only board (tránh lộ lịch/BN của BS).
   if (isCashierRole(role)) return <CashierWorkBoard />;
   if (isDoctorRole(role)) return DoctorTasks(false, true);
+  // TKYK: nhập HỘ bệnh án cho BS → cùng board bác sĩ, GHI được, thấy MỌI bác sĩ
+  // (allDoctors). KHÔNG complete được lịch (gate isDoctorRole ở /api/appointments)
+  // → "TKYK nhập, BS chốt".
+  if (isThuKyRole(role)) return DoctorTasks(false, true, true);
   // Lễ tân: CLONE Y HỆT board bác sĩ nhưng CHỈ ĐỌC (khóa mọi nút sửa).
   if (isTasksReadOnly(role)) return DoctorTasks(true);
 

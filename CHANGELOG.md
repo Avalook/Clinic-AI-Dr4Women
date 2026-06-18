@@ -3,6 +3,15 @@
 
 ## [LOCAL — chưa push]
 
+### 2026-06-18 · T-DASH-TKYK-ENABLE-01 · Mở menu + đường vào form khám cho TKYK (nhập hộ bệnh án) · commit `chưa commit`
+- **Vấn đề (từ audit T-DASH-AUDIT-TKYK-SCOPE-01):** TKYK chỉ thấy "Trang chủ", bị khóa khỏi mọi UI lâm sàng. Tệ hơn: clinical-record route dùng gate RIÊNG `isDoctorRole || (vitalsOnly && isNurseRole)` (KHÔNG phải canWriteClinical) → TKYK lưu bệnh án sẽ 403.
+- **(1) `roles.ts` NAV:** thêm `TKYK` vào `/tasks` + `/patient-list` (mở menu + qua requireNavAccess).
+- **(2) `tasks/page.tsx`:** thêm param `allDoctors` cho `DoctorTasks` (bỏ lọc `doctor_id` mà vẫn GHI) + nhánh `isThuKyRole → DoctorTasks(false,true,true)`. Chọn **NHÁNH B**: TKYK thấy hàng đợi MỌI bác sĩ (TKYK là vai chung, không buộc 1 BS) + header báo "✍ Nhập hộ bệnh án".
+- **(3) `clinical-record/route.ts`:** (a) thêm `isThuKyRole` vào gate `allowed` → TKYK ghi full nháp; (b) khi TẠO visit, `attending_doctor_id` lấy từ `appointment.doctor_id` cho TKYK (như ĐD vitalsOnly) — **TKYK KHÔNG bị ghi nhầm là bác sĩ khám**.
+- **GIỮ "TKYK nhập, BS chốt":** action `complete` ở `/api/appointments` vẫn gate `isDoctorRole` → TKYK lưu xong KHÔNG tự chuyển "Đã khám xong" (BS làm). Visit FINALIZE không đụng. TKYK ≤ BS.
+- **VERIFY:** tsc + eslint + `next build` sạch.
+- **NỢ:** (a) "Chỉ định XN" (`orderLab`→`/api/lab-result` gate `isDoctorRole`) vẫn chặn TKYK — order CLS là quyết định BS, để nguyên (ghi nhận, chưa mở). (b) TKYK lưu khi đủ chẩn đoán+lời dặn hiện báo "Chưa tự chuyển Khám xong — hãy tải lại" (cosmetic, do 403 complete by-design). (c) roleLanding(TKYK) vẫn `/home` (chưa cho đáp thẳng /tasks như BS — ngoài scope).
+
 ### 2026-06-18 · T-DASH-DOCTOR-CLEANUP-01 · Bỏ nút nhận/trả lịch BS + tên BS đầy đủ · commit `chưa commit`
 - **(A) Gỡ nút "Nhận/Từ chối lịch" khỏi màn BS** (`tasks/DoctorWorkBoard.tsx`): xoá 2 nút Nhận/Từ chối + hàm `act()` + state `busyId/error/router` + import `useRouter,Check,X`. Lịch chưa check-in (SCHEDULED/CSKH_CONFIRMED/CONFIRMED) nay chỉ hiện "Chờ lễ tân check-in" (passive). Luồng mới: Lễ tân check-in → BN tự vào hàng BS (CHECKED_IN) → BS "Mở hồ sơ → khám" → điền Chẩn đoán+Lời dặn, Lưu → TỰ COMPLETED. KHÔNG còn bước trung gian.
 - **KHÔNG đụng:** check-in của Lễ tân (`api/appointments` action=checkin nguyên vẹn), finalize/FINALIZED, GROUP_C lab gate D022 (`cskh-today`), ConfirmBoard (CSKH/QL) + AppointmentActions (QL) vẫn còn confirm/decline cho luồng quản lý lịch.

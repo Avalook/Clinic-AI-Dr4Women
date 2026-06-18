@@ -10,7 +10,7 @@ import { NextResponse } from "next/server";
 import { getSupabaseServer } from "../../../lib/supabase-server";
 import { getSupabaseService } from "../../../lib/supabase-service";
 import { getClinicRole, getClinicStaffId } from "../../../lib/clinic-session";
-import { isDoctorRole, isNurseRole } from "../../../lib/roles";
+import { isDoctorRole, isNurseRole, isThuKyRole } from "../../../lib/roles";
 
 interface ClinicalRecordRow {
   chief_complaint_at_visit: string | null;
@@ -233,10 +233,12 @@ export async function POST(request: Request) {
   const vitalsOnly = body.vitalsOnly === true;
 
   const role = await getClinicRole();
-  // GHI LÂM SÀNG = CHỈ Bác sĩ + Điều dưỡng. Bác sĩ ghi full hồ sơ; ĐIỀU DƯỠNG
+  // GHI LÂM SÀNG = Bác sĩ + Thư ký Y khoa (nhập hộ) ghi FULL hồ sơ; ĐIỀU DƯỠNG
   // (vitalsOnly) chỉ ghi Sinh hiệu + lý do khám. Lễ tân/Quản lý KHÔNG ghi lâm sàng
   // (check-in/hành chính tách riêng ở /api/appointments — vẫn canCheckin).
-  const allowed = isDoctorRole(role) || (vitalsOnly && isNurseRole(role));
+  // TKYK chỉ NHẬP nháp (IN_PROGRESS); KHÔNG complete/finalize được (gate riêng).
+  const allowed =
+    isDoctorRole(role) || isThuKyRole(role) || (vitalsOnly && isNurseRole(role));
   if (!allowed) {
     return NextResponse.json(
       {
@@ -294,9 +296,10 @@ export async function POST(request: Request) {
 
   // Chưa có lượt khám → tạo NHÁP (IN_PROGRESS), KHÔNG chốt.
   if (!visitId) {
-    // Điều dưỡng tạo nháp: bác sĩ phụ trách = bác sĩ của LỊCH HẸN (không phải ĐD).
+    // Điều dưỡng / Thư ký Y khoa tạo nháp: bác sĩ phụ trách = bác sĩ của LỊCH HẸN
+    // (KHÔNG phải người đang nhập). Chỉ BÁC SĨ tự ghi mới lấy staffId làm attending.
     let attendingId: string | null = staffId;
-    if (vitalsOnly) {
+    if (vitalsOnly || isThuKyRole(role)) {
       const { data: ap } = await db
         .from("appointment")
         .select("doctor_id")
