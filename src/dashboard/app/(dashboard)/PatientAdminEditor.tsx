@@ -15,6 +15,7 @@ import { todayVn } from "../../lib/roster";
 import { digitsOnly, phoneError } from "../../lib/validation";
 import { INPUT, LABEL } from "./form-ui";
 import DateField from "./DateField";
+import { linhVucLabel } from "../../lib/linh-vuc";
 
 export interface PatientAdmin {
   clinic_patient_id: string;
@@ -29,6 +30,10 @@ export interface PatientAdmin {
   patient_objection: string | null;
   address: string | null;
   guardian_name: string | null;
+  // CSKH (đặt lịch) — CHỈ HIỂN THỊ ở đây (đọc), KHÔNG sửa trong editor này nên
+  // PATCH KHÔNG đụng (tránh ghi đè null). Optional: nguồn nào không select vẫn build được.
+  van_de_di_kham?: string | null;
+  linh_vuc?: string | null;
 }
 
 type Form = {
@@ -135,6 +140,14 @@ export default function PatientAdminEditor({
           <div className="sm:col-span-2">
             <Row label="Địa chỉ" value={cur.address} />
           </div>
+          {cur.linh_vuc && (
+            <Row label="Lĩnh vực" value={linhVucLabel(cur.linh_vuc)} />
+          )}
+          {cur.van_de_di_kham && (
+            <div className="sm:col-span-2">
+              <Row label="Vấn đề đi khám" value={cur.van_de_di_kham} />
+            </div>
+          )}
         </dl>
         <div className="flex items-center gap-2">
           <button

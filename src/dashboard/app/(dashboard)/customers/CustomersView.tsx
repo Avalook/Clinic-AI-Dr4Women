@@ -32,6 +32,8 @@ export interface CustomerRow {
   guardian_name: string | null;
   location_id: string | null;
   created_at: string | null;
+  van_de_di_kham: string | null;
+  linh_vuc: string | null;
 }
 /** Lịch hẹn "đại diện" của 1 khách (sắp tới gần nhất, else gần nhất quá khứ). */
 export interface ApptInfo {
@@ -325,6 +327,8 @@ export default function CustomersView({
                       patient_objection: selected.patient_objection,
                       address: selected.address,
                       guardian_name: selected.guardian_name,
+                      van_de_di_kham: selected.van_de_di_kham,
+                      linh_vuc: selected.linh_vuc,
                     }}
                   />
                   <dl className="mt-2 space-y-1.5 text-sm">

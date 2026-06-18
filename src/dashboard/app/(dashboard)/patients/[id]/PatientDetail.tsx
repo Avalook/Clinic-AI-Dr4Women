@@ -24,6 +24,8 @@ interface PatientRow {
   patient_objection: string | null;
   address: string | null;
   guardian_name: string | null;
+  van_de_di_kham: string | null;
+  linh_vuc: string | null;
   created_at: string;
 }
 
@@ -39,7 +41,7 @@ interface AppointmentRow {
 const PATIENT_COLUMNS_BASE =
   "clinic_patient_id, patient_code, full_name, date_of_birth, gender, " +
   "phone_primary, phone_secondary, ethnicity, nationality, occupation, " +
-  "patient_objection, address, guardian_name, created_at";
+  "patient_objection, address, guardian_name, van_de_di_kham, linh_vuc, created_at";
 // birth_year cần migration 040; nếu chưa apply → fallback PATIENT_COLUMNS_BASE.
 const PATIENT_COLUMNS = PATIENT_COLUMNS_BASE + ", birth_year";
 
@@ -173,6 +175,8 @@ export default async function PatientDetail({
                 patient_objection: patient.patient_objection,
                 address: patient.address,
                 guardian_name: patient.guardian_name,
+                van_de_di_kham: patient.van_de_di_kham,
+                linh_vuc: patient.linh_vuc,
               }}
             />
           </div>

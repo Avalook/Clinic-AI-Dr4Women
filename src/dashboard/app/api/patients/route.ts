@@ -38,6 +38,10 @@ interface Body {
   ward_code?: string;
   ward_name?: string;
   address_detail?: string;
+  // CSKH khai thác lúc đặt lịch: "Vấn đề khiến BN đi khám" (KHÁC chief_complaint
+  // của BS) + "Lĩnh vực" (mã chuyên khoa PK/SK/NT/HMVS/NK).
+  van_de_di_kham?: string;
+  linh_vuc?: string;
   guardian_name?: string;
   force?: boolean;
 }
@@ -181,6 +185,12 @@ export async function POST(request: Request) {
     ward_code: nn(body.ward_code),
     ward_name: nn(body.ward_name),
     address_detail: nn(body.address_detail),
+    // CSKH (đặt lịch): vấn đề đi khám + lĩnh vực. linh_vuc whitelist 5 mã (khớp
+    // CHECK DB); giá trị lạ → null (KHÔNG để 400 chặn tạo BN vì 1 field phụ).
+    van_de_di_kham: nn(body.van_de_di_kham),
+    linh_vuc: ["PK", "SK", "NT", "HMVS", "NK"].includes(body.linh_vuc ?? "")
+      ? body.linh_vuc
+      : null,
     guardian_name: nn(body.guardian_name),
     is_active: true,
   };

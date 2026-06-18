@@ -3,6 +3,15 @@
 
 ## [LOCAL — chưa push]
 
+### 2026-06-18 · T-DASH-CSKH-VANDE-LINHVUC-01 · Field "Vấn đề khiến BN đi khám" + "Lĩnh vực" (CSKH) · commit `chưa commit`
+- **2 field CSKH** (khâu đặt lịch/tạo BN), gắn vào bảng **patient** (như address, sống cả khi không có lịch hẹn): `van_de_di_kham` (text — KHÁC `clinical_record.chief_complaint_at_visit` "Lý do khám" của BS, KHÔNG đụng) + `linh_vuc` (mã chuyên khoa).
+- **Lĩnh vực DÙNG LẠI 5 service_code có sẵn** (PK/SK/NT/HMVS/NK = 5 form chuyên khoa, `lib/form-schemas`) → lưu MÃ, map được sang form khám sau (getFormSchema/resolveServiceCode). KHÔNG tạo enum mới. Const `lib/linh-vuc.ts`.
+- **Migration 055** (`20260618_055_patient_vande_linhvuc.sql`, apply LẺ + `--mark-applied`, **has_043=False**): ADD 2 cột nullable + CHECK `linh_vuc IN (5 mã)`. Verify: cột landed, 'PK' nhận / 'XYZ' từ chối (rollback, không ghi rác). DOWN drop constraint + 2 cột.
+- **UI:** `NewPatientForm` thêm dropdown "Lĩnh vực" (5) + ô text "Vấn đề khiến BN đi khám" → POST `/api/patients` (whitelist 5 mã, giá trị lạ→null không chặn tạo BN). **Hiển thị lại** ở `PatientAdminEditor` (view-row có điều kiện, label hoá mã) — wired select ở `/customers` + `/patients/[id]`.
+- **An toàn:** 2 field CHỈ capture qua POST intake + **CHỈ hiển thị** ở editor (KHÔNG đưa vào Form edit → PATCH KHÔNG đụng → không ghi đè null). PatientAdmin field optional → nguồn chưa select vẫn build (BS clinical form ẩn 2 row). KHÔNG đụng "Lý do khám"/lâm sàng/quyền.
+- **VERIFY:** tsc + eslint + `next build` sạch.
+- **NỢ:** (a) sửa 2 field SAU intake chưa hỗ trợ (như address) — chỉ POST; (b) BS clinical form chưa thread DOCTOR_SELECT (2 field ẩn trong popup BS); (c) **CHỜ PK xác nhận: "Lĩnh vực" có AUTO chọn form khám tương ứng không** (mã đã trùng service_code, sẵn sàng map nhưng chưa wire auto).
+
 ### 2026-06-18 · T-DASH-WORDING-NAMEFIX-01 · Sửa wording Lễ tân + tên BS 3 chỗ sót · commit `chưa commit`
 - **(1.5) Wording board readOnly** (`tasks/page.tsx`): "👁 Chế độ chỉ xem … không chỉnh sửa" → "👁 Chỉ xem phần lâm sàng … KHÔNG sửa lâm sàng, NHƯNG ĐƯỢC sửa thông tin hành chính (mục I) — bấm tên BN để sửa". Khớp quyền thật (Lễ tân/Thu ngân có canEditAdmin=true ở board này). KHÔNG đụng logic.
 - **(2.1) short_name → full_name** 3 chỗ CÒN SÓT (audit FINAL phát hiện): `home/page.tsx:55` (lời chào), `tasks/TasksRealtime.tsx:125,174` (bảng staff_task cũ), `schedule/edit/page.tsx:59` (editor ca trực). Cùng 3 chỗ roster/chip/picker đã fix ở T-DASH-DOCTOR-CLEANUP-01 → giờ tên BS đầy đủ ở MỌI nơi render.

@@ -23,6 +23,7 @@ import {
   birthYearError,
 } from "../../../../lib/validation";
 import DateField from "../../DateField";
+import { LINH_VUC_OPTIONS } from "../../../../lib/linh-vuc";
 import {
   INPUT,
   LABEL,
@@ -142,6 +143,9 @@ export default function NewPatientForm({
   const [wards, setWards] = useState<WardOpt[]>([]);
   const [wardsLoading, setWardsLoading] = useState(false);
   const [addressDetail, setAddressDetail] = useState("");
+  // CSKH khai thác lúc đặt lịch: vấn đề khiến đi khám + lĩnh vực (chuyên khoa).
+  const [vanDe, setVanDe] = useState("");
+  const [linhVuc, setLinhVuc] = useState("");
 
   // Chọn tỉnh → reset + load phường/xã của tỉnh đó (trong handler, KHÔNG dùng
   // effect → tránh set-state-in-effect + extra render).
@@ -355,6 +359,8 @@ export default function NewPatientForm({
         ward_code: wardCode || undefined,
         ward_name: wardSel?.name || undefined,
         address_detail: addressDetail.trim() || undefined,
+        van_de_di_kham: vanDe.trim() || undefined,
+        linh_vuc: linhVuc || undefined,
         force,
       }),
     });
@@ -616,6 +622,30 @@ export default function NewPatientForm({
               onChange={(e) => setAddressDetail(e.target.value)}
               className={INPUT}
               placeholder="VD: 123 Lê Lợi"
+            />
+          </div>
+          <div>
+            <label className={LABEL}>Lĩnh vực</label>
+            <select
+              value={linhVuc}
+              onChange={(e) => setLinhVuc(e.target.value)}
+              className={INPUT}
+            >
+              <option value="">— Chọn lĩnh vực —</option>
+              {LINH_VUC_OPTIONS.map((o) => (
+                <option key={o.code} value={o.code}>
+                  {o.label}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div className="sm:col-span-2">
+            <label className={LABEL}>Vấn đề khiến bệnh nhân đi khám</label>
+            <input
+              value={vanDe}
+              onChange={(e) => setVanDe(e.target.value)}
+              className={INPUT}
+              placeholder="CSKH ghi theo lời bệnh nhân (khác Lý do khám của bác sĩ)"
             />
           </div>
 

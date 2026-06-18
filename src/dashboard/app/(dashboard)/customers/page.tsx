@@ -58,7 +58,8 @@ function windowFor(period: Period): { start: string; end: string } | null {
 const SELECT = `
   clinic_patient_id, patient_code, full_name, date_of_birth, birth_year,
   phone_primary, phone_secondary, gender, ethnicity, nationality,
-  occupation, patient_objection, address, guardian_name, location_id, created_at
+  occupation, patient_objection, address, guardian_name, location_id, created_at,
+  van_de_di_kham, linh_vuc
 `;
 
 export default async function CustomersPage({
