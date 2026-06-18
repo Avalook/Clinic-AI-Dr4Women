@@ -32,6 +32,12 @@ interface Body {
   occupation?: string;
   patient_objection?: string;
   address?: string;
+  // Địa chỉ có cấu trúc sau sáp nhập (tỉnh → phường, bỏ huyện).
+  province_code?: string;
+  province_name?: string;
+  ward_code?: string;
+  ward_name?: string;
+  address_detail?: string;
   guardian_name?: string;
   force?: boolean;
 }
@@ -168,6 +174,13 @@ export async function POST(request: Request) {
     occupation: nn(body.occupation),
     patient_objection: nn(body.patient_objection),
     address: nn(body.address),
+    // Địa chỉ có cấu trúc (sau sáp nhập: tỉnh → phường, bỏ huyện). Chỉ điền khi
+    // nhập qua dropdown; BN cũ vẫn dùng address free-text ở trên (cột này NULL).
+    province_code: nn(body.province_code),
+    province_name: nn(body.province_name),
+    ward_code: nn(body.ward_code),
+    ward_name: nn(body.ward_name),
+    address_detail: nn(body.address_detail),
     guardian_name: nn(body.guardian_name),
     is_active: true,
   };

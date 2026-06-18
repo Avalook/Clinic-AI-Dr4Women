@@ -3,6 +3,14 @@
 
 ## [LOCAL — chưa push]
 
+### 2026-06-18 · T-DASH-ADDRESS-DROPDOWN-01 · Địa chỉ hành chính sau sáp nhập (tỉnh → phường, bỏ huyện) · commit `chưa commit`
+- **Data nguồn:** github.com/ThangLeQuoc/vietnamese-provinces-database **tag v3.1.0** (mới nhất, sau bug Gia Lai của v3.0.x). Cấu trúc NQ 202/2025 + QĐ 19/2025: **34 tỉnh + 3321 phường/xã**, KHÔNG cấp huyện. Verify count khớp, 0 orphan FK, 0 dup code.
+- **Migration 054** (`20260618_054_create_province_ward_address.sql`, apply LẺ out-of-band + `--mark-applied`, KHÔNG sequential-to-max, **has_043=False** giữ nguyên): tạo `province`(code PK) + `ward`(code PK, `province_code` FK + index) + **ADD 5 cột patient** (`province_code` FK, `province_name`, `ward_code` FK, `ward_name`, `address_detail`) NULLABLE — `patient.address` free-text GIỮ NGUYÊN (BN cũ hiển thị được). DOWN drop cột + 2 bảng.
+- **Seed** `seed/054_province_ward.sql` (219KB, idempotent ON CONFLICT DO NOTHING) sinh bằng `scripts/gen_province_ward_seed.py` (ghim URL v3.1.0, regen được). Verify: province 34, ward 3321.
+- **UI** form intake (`NewPatientForm`): ô địa chỉ free-text → **2 select phụ thuộc** (Tỉnh → Phường, load `/api/wards?province=` runtime) + 1 ô **địa chỉ chi tiết**. Lưu: address (gộp full để back-compat) + mã/tên tỉnh + mã/tên phường + chi tiết. API `/api/wards` (GET) + `/api/patients` POST nhận 5 field mới.
+- **VERIFY:** tsc + eslint + `next build` sạch (sửa `set-state-in-effect`: load ward trong handler thay vì effect).
+- **NỢ:** (a) Chỉ wire ở **POST create**; PUT/update (`PatientAdminEditor` sửa BN cũ) chưa nhận structured field — vẫn free-text. (b) Địa chỉ cấu trúc chỉ ở form nhập; các nơi khác vẫn đọc `address` text. (c) Đổi địa giới tương lai → regen seed bằng gen script + tag mới. (d) seed/054 219KB committed (như postgres ImportData nguồn).
+
 ### 2026-06-18 · T-DASH-TKYK-ENABLE-01 · Mở menu + đường vào form khám cho TKYK (nhập hộ bệnh án) · commit `chưa commit`
 - **Vấn đề (từ audit T-DASH-AUDIT-TKYK-SCOPE-01):** TKYK chỉ thấy "Trang chủ", bị khóa khỏi mọi UI lâm sàng. Tệ hơn: clinical-record route dùng gate RIÊNG `isDoctorRole || (vitalsOnly && isNurseRole)` (KHÔNG phải canWriteClinical) → TKYK lưu bệnh án sẽ 403.
 - **(1) `roles.ts` NAV:** thêm `TKYK` vào `/tasks` + `/patient-list` (mở menu + qua requireNavAccess).

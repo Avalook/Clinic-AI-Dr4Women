@@ -36,6 +36,18 @@ import Time24Input from "../../Time24Input";
 
 export type { Option };
 
+/** Tỉnh/thành (sau sáp nhập) — server cấp sẵn; phường/xã load runtime. */
+export interface ProvinceOpt {
+  code: string;
+  name: string;
+  fullName: string;
+}
+interface WardOpt {
+  code: string;
+  name: string;
+  full_name: string;
+}
+
 interface DupMatch {
   clinic_patient_id: string;
   patient_code: string;
@@ -81,11 +93,13 @@ export default function NewPatientForm({
   locations,
   services,
   doctors,
+  provinces,
   variant = "full",
 }: {
   locations: Option[];
   services: Option[];
   doctors: Option[];
+  provinces: ProvinceOpt[];
   /** "walkin" = điều dưỡng ghi khách vãng lai: bỏ lịch hẹn, gộp dịch vụ/bác sĩ
    *  vào ô thông tin, lưu xong tạo luôn lượt khám HÔM NAY (giờ hiện tại). */
   variant?: "full" | "walkin";
@@ -121,7 +135,33 @@ export default function NewPatientForm({
   const [nationality, setNationality] = useState("Việt Nam");
   const [occupation, setOccupation] = useState("");
   const [objection, setObjection] = useState("");
-  const [address, setAddress] = useState("");
+  // Địa chỉ SAU sáp nhập: chọn Tỉnh → Phường/xã (load runtime) + ô chi tiết (số
+  // nhà/đường). BN cũ free-text giữ ở cột address (xem hồ sơ); form mới dựng dropdown.
+  const [provinceCode, setProvinceCode] = useState("");
+  const [wardCode, setWardCode] = useState("");
+  const [wards, setWards] = useState<WardOpt[]>([]);
+  const [wardsLoading, setWardsLoading] = useState(false);
+  const [addressDetail, setAddressDetail] = useState("");
+
+  // Chọn tỉnh → reset + load phường/xã của tỉnh đó (trong handler, KHÔNG dùng
+  // effect → tránh set-state-in-effect + extra render).
+  async function onProvinceChange(code: string) {
+    setProvinceCode(code);
+    setWardCode("");
+    setWards([]);
+    if (!code) return;
+    setWardsLoading(true);
+    try {
+      const d = await fetch(
+        `/api/wards?province=${encodeURIComponent(code)}`,
+      ).then((r) => r.json());
+      setWards((d.wards as WardOpt[]) ?? []);
+    } catch {
+      setWards([]);
+    } finally {
+      setWardsLoading(false);
+    }
+  }
 
   // Appointment (optional)
   const [serviceId, setServiceId] = useState("");
@@ -286,6 +326,13 @@ export default function NewPatientForm({
       }
     }
     setSubmitting(true);
+    // Gộp địa chỉ đầy đủ (chi tiết + phường full + tỉnh full) cho cột address
+    // free-text (back-compat hiển thị) + gửi kèm mã/tên có cấu trúc.
+    const provSel = provinces.find((p) => p.code === provinceCode);
+    const wardSel = wards.find((w) => w.code === wardCode);
+    const composedAddress = [addressDetail.trim(), wardSel?.full_name, provSel?.fullName]
+      .filter(Boolean)
+      .join(", ");
     const res = await fetch("/api/patients", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -302,7 +349,12 @@ export default function NewPatientForm({
         nationality,
         occupation,
         patient_objection: objection,
-        address,
+        address: composedAddress,
+        province_code: provinceCode || undefined,
+        province_name: provSel?.name || undefined,
+        ward_code: wardCode || undefined,
+        ward_name: wardSel?.name || undefined,
+        address_detail: addressDetail.trim() || undefined,
         force,
       }),
     });
@@ -520,13 +572,50 @@ export default function NewPatientForm({
               placeholder="DV / BHYT / ..."
             />
           </div>
-          <div className="sm:col-span-2">
-            <label className={LABEL}>Địa chỉ</label>
-            <input
-              value={address}
-              onChange={(e) => setAddress(e.target.value)}
+          <div>
+            <label className={LABEL}>Tỉnh / Thành phố</label>
+            <select
+              value={provinceCode}
+              onChange={(e) => onProvinceChange(e.target.value)}
               className={INPUT}
-              placeholder="Số nhà, đường, phường/xã, tỉnh/thành"
+            >
+              <option value="">— Chọn tỉnh/thành —</option>
+              {provinces.map((p) => (
+                <option key={p.code} value={p.code}>
+                  {p.fullName}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div>
+            <label className={LABEL}>Phường / Xã</label>
+            <select
+              value={wardCode}
+              onChange={(e) => setWardCode(e.target.value)}
+              className={INPUT}
+              disabled={!provinceCode || wardsLoading}
+            >
+              <option value="">
+                {!provinceCode
+                  ? "— Chọn tỉnh trước —"
+                  : wardsLoading
+                    ? "Đang tải…"
+                    : "— Chọn phường/xã —"}
+              </option>
+              {wards.map((w) => (
+                <option key={w.code} value={w.code}>
+                  {w.full_name}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div className="sm:col-span-2">
+            <label className={LABEL}>Địa chỉ chi tiết (số nhà, đường)</label>
+            <input
+              value={addressDetail}
+              onChange={(e) => setAddressDetail(e.target.value)}
+              className={INPUT}
+              placeholder="VD: 123 Lê Lợi"
             />
           </div>
 

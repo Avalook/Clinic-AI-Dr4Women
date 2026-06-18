@@ -6,7 +6,7 @@ import { redirect } from "next/navigation";
 import { getSupabaseServer } from "../../../../lib/supabase-server";
 import { getClinicRole } from "../../../../lib/clinic-session";
 import { canWriteIntake, isNurseRole } from "../../../../lib/roles";
-import NewPatientForm, { type Option } from "./NewPatientForm";
+import NewPatientForm, { type Option, type ProvinceOpt } from "./NewPatientForm";
 
 export const dynamic = "force-dynamic";
 
@@ -16,7 +16,7 @@ export default async function NewPatientPage() {
   const nurse = isNurseRole(role);
 
   const supabase = await getSupabaseServer();
-  const [locRes, svcRes, docRes] = await Promise.all([
+  const [locRes, svcRes, docRes, provRes] = await Promise.all([
     supabase.from("clinic_location").select("id, name").order("name"),
     supabase.from("service_type").select("id, name").order("name"),
     supabase
@@ -25,6 +25,8 @@ export default async function NewPatientPage() {
       .in("primary_department", ["DOCTOR", "ULTRASOUND_DOCTOR"])
       .eq("is_active", true)
       .order("full_name"),
+    // 34 tỉnh/thành sau sáp nhập — phường/xã load runtime theo tỉnh (/api/wards).
+    supabase.from("province").select("code, name, full_name").order("name"),
   ]);
 
   const locations: Option[] = (locRes.data ?? []).map((r) => ({
@@ -43,6 +45,11 @@ export default async function NewPatientPage() {
     id: r.id as string,
     label: r.full_name as string,
   }));
+  const provinces: ProvinceOpt[] = (provRes.data ?? []).map((r) => ({
+    code: r.code as string,
+    name: r.name as string,
+    fullName: r.full_name as string,
+  }));
 
   return (
     <div className="mx-auto max-w-3xl space-y-4">
@@ -55,6 +62,7 @@ export default async function NewPatientPage() {
         locations={locations}
         services={services}
         doctors={doctors}
+        provinces={provinces}
         variant={nurse ? "walkin" : "full"}
       />
     </div>
