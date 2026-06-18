@@ -3,6 +3,12 @@
 
 ## [LOCAL — chưa push]
 
+### 2026-06-18 · T-DASH-PROVINCE-DROPDOWN-FIX-01 · Fix dropdown Tỉnh rỗng (RLS thiếu policy) · commit `chưa commit`
+- **Vỡ ở tầng DB-quyền-đọc (RLS), KHÔNG phải API/form logic:** bảng `province`/`ward` có **RLS = bật nhưng KHÔNG có policy SELECT** (khác `service_type` có `*_select_authenticated`) → role `authenticated` của dashboard đọc về **0 dòng**. Data vẫn đủ (34 tỉnh / 3321 phường). **Chứng minh:** PostgREST anon key → `content-range */0` (0); service key → `0-0/34`.
+- **Sửa (chỉ tầng API/fetch, KHÔNG đụng DB/policy/migration theo boundary):** đọc province (`patients/new/page.tsx`) + ward (`api/wards/route.ts`) bằng **service-role client** (`getSupabaseService`, bypass RLS) thay vì `getSupabaseServer`. Data tham chiếu hành chính CÔNG KHAI, server-only → an toàn.
+- **VERIFY:** tsc + eslint + `next build` sạch; service-role trả 34 tỉnh (proof trên).
+- **NỢ / thay thế:** fix "idiomatic" hơn = thêm RLS policy SELECT cho province/ward giống service_type (1 migration nhỏ) — boundary cấm migration nên dùng service-role; nếu sau muốn đọc bằng authenticated thì thêm policy. Cần Tuyền login `/patients/new` test lại: dropdown Tỉnh hiện 34 → chọn tỉnh → phường lọc đúng.
+
 ### 2026-06-18 · T-DASH-SONO-BIOMETRY-01 · Form số đo siêu âm thai (CRL/NT/BPD/HC/AC/FL/EFW) · commit `chưa commit`
 - **KHÔNG migration:** `ultrasound_record` (mig 018) đã có cột **`findings` JSONB** (comment ghi rõ "measurement payload BPD/FL/AC/EFW") → 7 số đo + cờ `is_abnormal` + `status` lưu vào findings. Verify insert/readback (rollback txn, FK OK).
 - **Gắn vào đâu (quyết định):** `ultrasound_record` cần `visit_id`, mà `/sono` (service_log queue, gated ĐD) KHÔNG có visit_id → gắn form vào **ClinicalRecordForm cho Bác sĩ Siêu âm** (ULTRASOUND_DOCTOR, có visit qua /tasks). API `/api/ultrasound` find-or-create visit (BS siêu âm tự khám → attending = chính mình).
