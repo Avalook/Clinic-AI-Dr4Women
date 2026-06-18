@@ -54,6 +54,11 @@ export function isAdminRole(role: ClinicRole | null): boolean {
   return role === "MANAGEMENT";
 }
 
+/** Bác sĩ Siêu âm — nhập số đo siêu âm thai (CRL/NT/BPD/HC/AC/FL/EFW). */
+export function isUltrasoundDoctorRole(role: ClinicRole | null): boolean {
+  return role === "ULTRASOUND_DOCTOR";
+}
+
 /** Điều dưỡng / phụ siêu âm. */
 export function isNurseRole(role: ClinicRole | null): boolean {
   return role === "NURSE_ULTRASOUND";

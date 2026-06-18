@@ -3,6 +3,15 @@
 
 ## [LOCAL — chưa push]
 
+### 2026-06-18 · T-DASH-SONO-BIOMETRY-01 · Form số đo siêu âm thai (CRL/NT/BPD/HC/AC/FL/EFW) · commit `chưa commit`
+- **KHÔNG migration:** `ultrasound_record` (mig 018) đã có cột **`findings` JSONB** (comment ghi rõ "measurement payload BPD/FL/AC/EFW") → 7 số đo + cờ `is_abnormal` + `status` lưu vào findings. Verify insert/readback (rollback txn, FK OK).
+- **Gắn vào đâu (quyết định):** `ultrasound_record` cần `visit_id`, mà `/sono` (service_log queue, gated ĐD) KHÔNG có visit_id → gắn form vào **ClinicalRecordForm cho Bác sĩ Siêu âm** (ULTRASOUND_DOCTOR, có visit qua /tasks). API `/api/ultrasound` find-or-create visit (BS siêu âm tự khám → attending = chính mình).
+- **API** `app/api/ultrasound/route.ts` (GET + POST), gate **CHỈ `isUltrasoundDoctorRole`** (helper mới roles.ts) — KHÔNG mở rộng. Chặn ghi khi visit FINALIZED/AMENDED (whitelist OPEN/IN_PROGRESS). KHÔNG suy luận bất thường (cờ do BS bấm).
+- **UI** `SonoBiometry.tsx`: 7 ô (CRL/NT/BPD/HC/AC/FL mm + **EFW gram nhập TAY**) + 4 nút **Bắt đầu siêu âm / Lưu kết quả / Đánh dấu bất thường / Hoàn tất** + badge trạng thái/bất thường. Thread `showSono` qua tasks/page.tsx → DoctorWorkBoard → ClinicalRecordForm.
+- **EFW NHẬP TAY** — `// TODO auto-EFW` chờ BS Thắng xác nhận công thức (Hadlock). KHÔNG tự tính (cấm bịa số y khoa).
+- **VERIFY:** tsc + eslint + `next build` sạch (/api/ultrasound build).
+- **NỢ:** (a) **auto-EFW chờ công thức BS Thắng**; (b) `/sono` (ĐD, service_log) vẫn tách — số đo nằm ở luồng BS siêu âm (vì /sono không có visit_id); (c) in phiếu chưa hiện số đo (chưa wire print); (d) `is_abnormal` lưu trong findings JSONB (chưa cột riêng → muốn query "ca bất thường" sau cần promote cột).
+
 ### 2026-06-18 · T-DASH-CSKH-VANDE-LINHVUC-01 · Field "Vấn đề khiến BN đi khám" + "Lĩnh vực" (CSKH) · commit `chưa commit`
 - **2 field CSKH** (khâu đặt lịch/tạo BN), gắn vào bảng **patient** (như address, sống cả khi không có lịch hẹn): `van_de_di_kham` (text — KHÁC `clinical_record.chief_complaint_at_visit` "Lý do khám" của BS, KHÔNG đụng) + `linh_vuc` (mã chuyên khoa).
 - **Lĩnh vực DÙNG LẠI 5 service_code có sẵn** (PK/SK/NT/HMVS/NK = 5 form chuyên khoa, `lib/form-schemas`) → lưu MÃ, map được sang form khám sau (getFormSchema/resolveServiceCode). KHÔNG tạo enum mới. Const `lib/linh-vuc.ts`.

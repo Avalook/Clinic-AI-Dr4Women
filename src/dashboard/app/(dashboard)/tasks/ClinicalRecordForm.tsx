@@ -14,6 +14,7 @@ import { fmtDate, fmtDateTimeOrDate } from "../../../lib/datetime";
 import { INPUT, LABEL } from "../form-ui";
 import PatientAdminEditor from "../PatientAdminEditor";
 import PreVisitBrief from "../PreVisitBrief";
+import SonoBiometry from "./SonoBiometry";
 import ServiceFormEngine from "./ServiceFormEngine";
 import { resolveServiceCode } from "../../../lib/form-schemas";
 import type { DoctorApptRow } from "./DoctorWorkBoard";
@@ -216,6 +217,7 @@ export default function ClinicalRecordForm({
   readOnly = false,
   canEditAdmin = false,
   showPreVisitBrief = false,
+  showSono = false,
 }: {
   appt: DoctorApptRow;
   staffId: string | null;
@@ -234,6 +236,9 @@ export default function ClinicalRecordForm({
    *  Chỉ BÁC SĨ (isDoctorRole) bật từ server. ĐỘC LẬP với readOnly — nút chỉ đọc
    *  nên vẫn hiện khi form khóa ghi. */
   showPreVisitBrief?: boolean;
+  /** showSono = BÁC SĨ SIÊU ÂM (ULTRASOUND_DOCTOR): hiện form số đo siêu âm thai
+   *  (CRL/NT/BPD/HC/AC/FL/EFW) → /api/ultrasound. Server bật theo vai. */
+  showSono?: boolean;
 }) {
   const router = useRouter();
   const p = appt.patient;
@@ -624,6 +629,17 @@ export default function ClinicalRecordForm({
         {showPreVisitBrief && p?.clinic_patient_id && (
           <div className="border-t border-[#f4f4f5] pt-3">
             <PreVisitBrief id={p.clinic_patient_id} />
+          </div>
+        )}
+
+        {/* Số đo siêu âm thai — CHỈ Bác sĩ Siêu âm (showSono). Lưu riêng qua
+            /api/ultrasound (ultrasound_record), KHÔNG dính nút Lưu hồ sơ chính. */}
+        {showSono && p?.clinic_patient_id && (
+          <div className="border-t border-[#f4f4f5] pt-3">
+            <SonoBiometry
+              appointmentId={appt.id}
+              clinicPatientId={p.clinic_patient_id}
+            />
           </div>
         )}
 

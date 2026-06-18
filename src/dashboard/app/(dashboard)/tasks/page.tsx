@@ -15,7 +15,14 @@ import {
   getClinicStaffId,
   requireNavAccess,
 } from "../../../lib/clinic-session";
-import { isDoctorRole, canManageAppt, isTasksReadOnly, isCashierRole, isThuKyRole } from "../../../lib/roles";
+import {
+  isDoctorRole,
+  canManageAppt,
+  isTasksReadOnly,
+  isCashierRole,
+  isThuKyRole,
+  isUltrasoundDoctorRole,
+} from "../../../lib/roles";
 import ConfirmBoard, { type ApptRow, type Opt } from "./ConfirmBoard";
 import CskhActionBoard, { type CskhActionRow } from "./CskhActionBoard";
 import DoctorWorkBoard, { type DoctorApptRow } from "./DoctorWorkBoard";
@@ -42,7 +49,12 @@ const DOCTOR_SELECT = `
 // desk). Nếu lọc theo staffId của lễ tân thì board sẽ rỗng (không lịch nào của họ).
 // allDoctors = TKYK: KHÔNG lọc theo doctor_id (TKYK không phải BS trên lịch) → thấy
 // hàng đợi của MỌI bác sĩ để nhập hộ bệnh án, NHƯNG vẫn GHI được (readOnly=false).
-async function DoctorTasks(readOnly = false, showPreVisitBrief = false, allDoctors = false) {
+async function DoctorTasks(
+  readOnly = false,
+  showPreVisitBrief = false,
+  allDoctors = false,
+  showSono = false,
+) {
   const supabase = await getSupabaseServer();
   const staffId = await getClinicStaffId();
   const { startUtc } = vnTodayRangeUtc();
@@ -147,6 +159,8 @@ async function DoctorTasks(readOnly = false, showPreVisitBrief = false, allDocto
           /* Nút tóm tắt trước khám: chỉ board của BÁC SĨ (DoctorTasks() — nhánh
              isDoctorRole), lễ tân (DoctorTasks(true)) không bật. */
           showPreVisitBrief={showPreVisitBrief}
+          /* Form số đo siêu âm: chỉ Bác sĩ Siêu âm (ULTRASOUND_DOCTOR). */
+          showSono={showSono}
         />
       )}
     </div>
@@ -175,7 +189,9 @@ export default async function TasksPage() {
   // riêng (2 mode thuốc/dịch vụ) — KHÔNG dùng board bác sĩ. Đặt TRƯỚC isTasksReadOnly
   // để mọi vai thu ngân không rơi vào nhánh read-only board (tránh lộ lịch/BN của BS).
   if (isCashierRole(role)) return <CashierWorkBoard />;
-  if (isDoctorRole(role)) return DoctorTasks(false, true);
+  // Bác sĩ: board lâm sàng. Bác sĩ Siêu âm thêm form số đo siêu âm thai (showSono).
+  if (isDoctorRole(role))
+    return DoctorTasks(false, true, false, isUltrasoundDoctorRole(role));
   // TKYK: nhập HỘ bệnh án cho BS → cùng board bác sĩ, GHI được, thấy MỌI bác sĩ
   // (allDoctors). KHÔNG complete được lịch (gate isDoctorRole ở /api/appointments)
   // → "TKYK nhập, BS chốt".
