@@ -3,6 +3,12 @@
 
 ## [LOCAL — chưa push]
 
+### 2026-06-18 · T-DASH-TRUONGCA-LANDING-01 · Trưởng ca đăng nhập vào thẳng màn riêng "Theo dõi buổi" · commit `chưa commit`
+- **Bối cảnh:** Kiểm tra yêu cầu PK "tạo màn hình riêng cho Trưởng ca như vai bác sĩ". Khảo sát code+DB: role `TRUONG_CA` ĐÃ làm đủ ở commit `c3cef3f` (account seed trong DB active, constraint 9 value có TRUONG_CA, sidebar đủ: Trang chủ·Thông tin khách hàng·Danh sách bệnh nhân·Nhập KH·Theo dõi buổi·Công việc của tôi; `canWriteIntake` += TRUONG_CA; KHÔNG lâm sàng). Chỉ thiếu 1 điểm để "giống bác sĩ": landing.
+- **Fix:** `lib/roles.ts` `roleLanding()` — thêm `if (isTruongCaRole(role)) return "/truong-ca"`. Trước đó Trưởng ca đáp xuống `/home` chung; nay vào thẳng board riêng "Theo dõi buổi" (đối xứng bác sĩ → `/tasks`).
+- **Phạm vi an toàn:** 1 nhánh `if`; KHÔNG đụng quyền/lâm sàng/migration/DB. tsc + eslint sạch.
+- **Còn chờ:** "Công việc của tôi" vẫn placeholder (chờ mẫu báo cáo PK 24/6 — đúng yêu cầu PK). CM CHƯA làm (dùng tài khoản Admin MANAGEMENT có sẵn).
+
 ### 2026-06-18 · T-DASH-CHECKIN-AT-01 · Set visit.checked_in_at lúc tạo lượt khám → đồng hồ chờ chạy thật · commit `chưa commit`
 - **Vấn đề:** `WaitClock` (board Lễ tân) hiện "—" cho mọi visit tạo từ dashboard vì `visit.checked_in_at` chưa bao giờ được ghi (chỉ luồng import/FastAPI set).
 - **Fix:** `api/clinical-record/route.ts` — thêm `checked_in_at: new Date().toISOString()` vào **INSERT visit** (block chỉ chạy khi CHƯA có visit → set đúng 1 lần lúc tạo, lần lưu sau KHÔNG ghi đè). Cột `visit.checked_in_at` (timestamptz, nullable) đã có sẵn (mig 017) → KHÔNG migration.

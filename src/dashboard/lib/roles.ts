@@ -130,6 +130,8 @@ export function isTasksReadOnly(role: ClinicRole | null): boolean {
 /** Landing path after a role is picked. */
 export function roleLanding(role: ClinicRole | null): string {
   if (isDoctorRole(role)) return "/tasks";
+  // Trưởng ca có màn làm việc riêng (board "Theo dõi buổi") như bác sĩ vào /tasks.
+  if (isTruongCaRole(role)) return "/truong-ca";
   return "/home";
 }
 
