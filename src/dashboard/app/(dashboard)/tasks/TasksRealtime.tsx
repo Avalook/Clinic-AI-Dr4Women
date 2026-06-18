@@ -122,7 +122,7 @@ export default function TasksRealtime({
               <span className="font-mono">{t.task_type}</span>
             </p>
             <p className="mt-1 text-xs text-gray-500">
-              {t.staff?.short_name ?? t.staff?.full_name ?? "—"}
+              {t.staff?.full_name ?? t.staff?.short_name ?? "—"}
               {" · "}SLA {t.sla_hours}h{" · "}
               <span className="font-mono">
                 {t.created_at.slice(0, 16).replace("T", " ")}
@@ -171,7 +171,7 @@ export default function TasksRealtime({
                 </td>
                 <td className="px-3 py-2">{t.title}</td>
                 <td className="px-3 py-2">
-                  {t.staff?.short_name ?? t.staff?.full_name ?? "—"}
+                  {t.staff?.full_name ?? t.staff?.short_name ?? "—"}
                 </td>
                 <td className="px-3 py-2 font-mono text-xs">{t.sla_hours}</td>
                 <td className="px-3 py-2 font-mono text-xs">

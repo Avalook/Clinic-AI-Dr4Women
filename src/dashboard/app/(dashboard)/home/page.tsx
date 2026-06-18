@@ -52,7 +52,7 @@ function cleanName(name: string): string {
 
 function greet(role: ClinicRole | null, staff: ActiveStaff | null): string {
   if (!role || !staff) return "Trang chủ";
-  return `Chào ${GREET_LABEL[role]} ${cleanName(staff.short_name ?? staff.full_name)}`;
+  return `Chào ${GREET_LABEL[role]} ${cleanName(staff.full_name ?? staff.short_name)}`;
 }
 
 export default async function HomePage({

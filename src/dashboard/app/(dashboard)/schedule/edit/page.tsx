@@ -56,7 +56,7 @@ export default async function ScheduleEditPage({
       | null) ?? []
   ).map((s) => ({
     id: s.id,
-    name: s.short_name ?? s.full_name,
+    name: s.full_name ?? s.short_name,
     role: departmentToRole(s.primary_department),
   }));
 

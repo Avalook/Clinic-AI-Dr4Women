@@ -3,6 +3,12 @@
 
 ## [LOCAL — chưa push]
 
+### 2026-06-18 · T-DASH-WORDING-NAMEFIX-01 · Sửa wording Lễ tân + tên BS 3 chỗ sót · commit `chưa commit`
+- **(1.5) Wording board readOnly** (`tasks/page.tsx`): "👁 Chế độ chỉ xem … không chỉnh sửa" → "👁 Chỉ xem phần lâm sàng … KHÔNG sửa lâm sàng, NHƯNG ĐƯỢC sửa thông tin hành chính (mục I) — bấm tên BN để sửa". Khớp quyền thật (Lễ tân/Thu ngân có canEditAdmin=true ở board này). KHÔNG đụng logic.
+- **(2.1) short_name → full_name** 3 chỗ CÒN SÓT (audit FINAL phát hiện): `home/page.tsx:55` (lời chào), `tasks/TasksRealtime.tsx:125,174` (bảng staff_task cũ), `schedule/edit/page.tsx:59` (editor ca trực). Cùng 3 chỗ roster/chip/picker đã fix ở T-DASH-DOCTOR-CLEANUP-01 → giờ tên BS đầy đủ ở MỌI nơi render.
+- **VERIFY:** tsc + eslint + `next build` sạch. Chỉ đổi text + field render, KHÔNG migration/quyền/lâm sàng.
+- **NỢ:** TasksRealtime là màn staff_task cũ chưa dùng (chưa xoá) — sửa cho nhất quán. Test tay: login Lễ tân xem wording rõ; tên BS đầy đủ ở lời chào + board.
+
 ### 2026-06-18 · T-DASH-ADDRESS-DROPDOWN-01 · Địa chỉ hành chính sau sáp nhập (tỉnh → phường, bỏ huyện) · commit `chưa commit`
 - **Data nguồn:** github.com/ThangLeQuoc/vietnamese-provinces-database **tag v3.1.0** (mới nhất, sau bug Gia Lai của v3.0.x). Cấu trúc NQ 202/2025 + QĐ 19/2025: **34 tỉnh + 3321 phường/xã**, KHÔNG cấp huyện. Verify count khớp, 0 orphan FK, 0 dup code.
 - **Migration 054** (`20260618_054_create_province_ward_address.sql`, apply LẺ out-of-band + `--mark-applied`, KHÔNG sequential-to-max, **has_043=False** giữ nguyên): tạo `province`(code PK) + `ward`(code PK, `province_code` FK + index) + **ADD 5 cột patient** (`province_code` FK, `province_name`, `ward_code` FK, `ward_name`, `address_detail`) NULLABLE — `patient.address` free-text GIỮ NGUYÊN (BN cũ hiển thị được). DOWN drop cột + 2 bảng.

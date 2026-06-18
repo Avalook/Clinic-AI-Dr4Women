@@ -113,10 +113,11 @@ async function DoctorTasks(readOnly = false, showPreVisitBrief = false, allDocto
         {readOnly && (
           <p className="mt-0.5 inline-flex items-center gap-1.5 text-sm text-[#9d2463]">
             <span className="rounded bg-[#fce7f3] px-1.5 py-0.5 text-[11px] font-medium">
-              👁 Chế độ chỉ xem
+              👁 Chỉ xem phần lâm sàng
             </span>
             <span className="text-[#888888]">
-              Lễ tân xem lịch & hồ sơ của tất cả bác sĩ — không chỉnh sửa.
+              Xem lịch & hồ sơ của tất cả bác sĩ. KHÔNG sửa phần lâm sàng, nhưng
+              ĐƯỢC sửa thông tin hành chính (mục I) — bấm tên bệnh nhân để sửa.
             </span>
           </p>
         )}
