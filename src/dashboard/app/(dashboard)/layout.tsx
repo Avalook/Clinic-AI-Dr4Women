@@ -32,7 +32,7 @@ export default async function DashboardLayout({
       .select("full_name, short_name")
       .eq("id", staffId)
       .maybeSingle();
-    if (data) identity = `${ROLE_LABEL[role]} · ${data.short_name ?? data.full_name}`;
+    if (data) identity = `${ROLE_LABEL[role]} · ${data.full_name ?? data.short_name}`;
   }
 
   // Reception / CSKH / management get a top-right notice of appointments a

@@ -3,6 +3,14 @@
 
 ## [LOCAL — chưa push]
 
+### 2026-06-18 · T-DASH-DOCTOR-CLEANUP-01 · Bỏ nút nhận/trả lịch BS + tên BS đầy đủ · commit `chưa commit`
+- **(A) Gỡ nút "Nhận/Từ chối lịch" khỏi màn BS** (`tasks/DoctorWorkBoard.tsx`): xoá 2 nút Nhận/Từ chối + hàm `act()` + state `busyId/error/router` + import `useRouter,Check,X`. Lịch chưa check-in (SCHEDULED/CSKH_CONFIRMED/CONFIRMED) nay chỉ hiện "Chờ lễ tân check-in" (passive). Luồng mới: Lễ tân check-in → BN tự vào hàng BS (CHECKED_IN) → BS "Mở hồ sơ → khám" → điền Chẩn đoán+Lời dặn, Lưu → TỰ COMPLETED. KHÔNG còn bước trung gian.
+- **KHÔNG đụng:** check-in của Lễ tân (`api/appointments` action=checkin nguyên vẹn), finalize/FINALIZED, GROUP_C lab gate D022 (`cskh-today`), ConfirmBoard (CSKH/QL) + AppointmentActions (QL) vẫn còn confirm/decline cho luồng quản lý lịch.
+- **(B1) UPDATE staff.full_name 17 BS** tên tắt→đầy đủ có học hàm (seed `src/migrations/seed/053_doctor_full_names.sql`, apply lẻ out-of-band). Idempotent (WHERE full_name=tên tắt; chạy lại 0 row). short_name GIỮ NGUYÊN làm khóa ổn định. 17/17 BS đổi, 0 tên "BS …" sót. Đối chiếu bảng map PK: đủ 17, không tên lạ.
+- **(B2) Đổi short_name→full_name 3 chỗ render:** `api/roster/route.ts:50` (tên ghi vào ca trực), `layout.tsx:35` (chip danh tính top-bar), `StaffPicker.tsx:100` (role-picker). Dropdown chọn BS đã full_name từ trước.
+- **VERIFY:** tsc + eslint + `next build` sạch.
+- **NỢ:** 88 row `work_roster.staff_name` cũ vẫn lưu tên tắt (denormalized; chỉ ca đăng ký MỚI dùng full_name) — chưa backfill, ngoài scope. **ROLLBACK (B1)** = chạy UPDATE đảo: tra short_name→full_name cũ (`Thành`→`BS Thành`, `Linh Nam khoa`→`BS Linh Nam khoa`, `Bá Linh/Đạt/Minh/Hoàng/Tiến/Giáp`→`BS SA <x>`, còn lại `<x>`→`BS <x>`).
+
 ### 2026-06-18 · T-DASH-TRUONGCA-LANDING-01 · Trưởng ca đăng nhập vào thẳng màn riêng "Theo dõi buổi" · commit `chưa commit`
 - **Bối cảnh:** Kiểm tra yêu cầu PK "tạo màn hình riêng cho Trưởng ca như vai bác sĩ". Khảo sát code+DB: role `TRUONG_CA` ĐÃ làm đủ ở commit `c3cef3f` (account seed trong DB active, constraint 9 value có TRUONG_CA, sidebar đủ: Trang chủ·Thông tin khách hàng·Danh sách bệnh nhân·Nhập KH·Theo dõi buổi·Công việc của tôi; `canWriteIntake` += TRUONG_CA; KHÔNG lâm sàng). Chỉ thiếu 1 điểm để "giống bác sĩ": landing.
 - **Fix:** `lib/roles.ts` `roleLanding()` — thêm `if (isTruongCaRole(role)) return "/truong-ca"`. Trước đó Trưởng ca đáp xuống `/home` chung; nay vào thẳng board riêng "Theo dõi buổi" (đối xứng bác sĩ → `/tasks`).

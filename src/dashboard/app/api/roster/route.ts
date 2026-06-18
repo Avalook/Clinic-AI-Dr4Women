@@ -47,7 +47,7 @@ async function authorize(): Promise<Auth> {
   const isAdmin = isAdminRole(await getClinicRole());
   const staffId = await getClinicStaffId();
   const staff = await getActiveStaff();
-  const staffName = staff?.short_name ?? staff?.full_name ?? "";
+  const staffName = staff?.full_name ?? staff?.short_name ?? "";
   // Không phải quản lý mà chưa chọn danh tính → không tự đăng ký ca được.
   if (!isAdmin && !staffId) {
     return {

@@ -97,7 +97,7 @@ export default function StaffPicker({ staff }: { staff: StaffPerson[] }) {
                     type="submit"
                     className="w-full rounded-xl border border-[#e4e4e7] bg-white px-3 py-3 text-left text-sm font-medium text-[#171717] shadow-[0_1px_2px_rgba(0,0,0,0.04)] transition-colors hover:border-[#ec4899] hover:bg-[#fdf2f8] active:bg-[#fce7f3]"
                   >
-                    {p.short_name ?? p.full_name}
+                    {p.full_name}
                   </button>
                 </form>
               ))}

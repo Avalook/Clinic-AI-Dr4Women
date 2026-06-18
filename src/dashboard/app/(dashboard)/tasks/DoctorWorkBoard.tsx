@@ -3,12 +3,12 @@
 // "Công việc của tôi" cho BÁC SĨ — LỊCH theo NGÀY (như board CSKH): cột Ngày · Giờ
 // · Bệnh nhân · Phân loại · Trạng thái · Hành động; lọc theo KỲ (Hôm nay/Tuần/Tháng)
 // + TRẠNG THÁI. Bấm tên BN → hồ sơ lâm sàng (ClinicalRecordForm) ở cột PHẢI
-// (SplitPane). Nút Hành động: Nhận khám / Từ chối (lịch mới). KHÔNG còn nút "Khám
-// xong" thủ công — bác sĩ điền Chuẩn đoán + Lời dặn rồi Lưu thì lịch TỰ COMPLETED.
+// (SplitPane). LUỒNG ĐƠN GIẢN (T-DASH-DOCTOR-CLEANUP-01): KHÔNG còn bước "Nhận/Từ
+// chối lịch" — Lễ tân check-in → BN tự vào hàng BS (CHECKED_IN) → BS mở hồ sơ khám →
+// điền Chuẩn đoán + Lời dặn rồi Lưu thì lịch TỰ COMPLETED (không nút "Khám xong").
 
 import { useState } from "react";
-import { useRouter } from "next/navigation";
-import { Check, X, FileText, Printer } from "lucide-react";
+import { FileText, Printer } from "lucide-react";
 import { fmtTimeOrNone } from "../../../lib/datetime";
 import { compareQueue } from "../../../lib/queue";
 import {
@@ -99,33 +99,11 @@ export default function DoctorWorkBoard({
   /** Hiện nút "Xem tóm tắt trước khám" trong hồ sơ — chỉ BÁC SĨ bật từ server. */
   showPreVisitBrief?: boolean;
 }) {
-  const router = useRouter();
   const [openId, setOpenId] = useState<string | null>(null);
-  const [busyId, setBusyId] = useState<string | null>(null);
-  const [error, setError] = useState<string | null>(null);
   const [period, setPeriod] = useState("all");
   const [statusFilter, setStatusFilter] = useState("all");
 
   const open = rows.find((a) => a.id === openId) ?? null;
-
-  async function act(id: string, action: "confirm" | "decline") {
-    if (readOnly) return; // Lễ tân chỉ-đọc: không gọi API ghi (phòng vệ tầng UI).
-    setBusyId(id);
-    setError(null);
-    const res = await fetch("/api/appointments", {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ id, action }),
-    });
-    if (!res.ok) {
-      setBusyId(null);
-      setError((await res.json()).error ?? "Lỗi thao tác.");
-      return;
-    }
-    // GIỮ busyId qua suốt router.refresh() (bất đồng bộ) để tránh double-click
-    // trong cửa sổ re-render → server đổi trạng thái, nút Nhận/Từ chối tự biến mất.
-    router.refresh();
-  }
 
   // ---- Lọc theo KỲ + TRẠNG THÁI; gom theo NGÀY, trong ngày theo thứ tự khám ----
   const vnDate = (iso: string) =>
@@ -228,8 +206,6 @@ export default function DoctorWorkBoard({
                 const d = vnDate(a.slot_start);
                 const newDay = i === 0 || vnDate(filtered[i - 1].slot_start) !== d;
                 const active = openId === a.id;
-                const pending =
-                  a.status === "SCHEDULED" || a.status === "CSKH_CONFIRMED";
                 return (
                   <tr
                     key={a.id}
@@ -291,23 +267,6 @@ export default function DoctorWorkBoard({
                             </a>
                           )}
                         </span>
-                      ) : pending ? (
-                        <span className="flex gap-1">
-                          <button
-                            onClick={() => act(a.id, "confirm")}
-                            disabled={busyId === a.id}
-                            className="inline-flex min-h-8 items-center gap-1 rounded-md bg-[#16a34a] px-2.5 text-xs font-semibold text-white hover:bg-[#15803d] disabled:opacity-50"
-                          >
-                            <Check size={12} /> Nhận
-                          </button>
-                          <button
-                            onClick={() => act(a.id, "decline")}
-                            disabled={busyId === a.id}
-                            className="inline-flex min-h-8 items-center gap-1 rounded-md border border-[#e4e4e7] bg-white px-2.5 text-xs font-medium text-[#dc2626] hover:bg-[#fef2f2] disabled:opacity-50"
-                          >
-                            <X size={12} /> Từ chối
-                          </button>
-                        </span>
                       ) : a.status === "CHECKED_IN" ? (
                         <button
                           onClick={() => setOpenId(a.id)}
@@ -315,7 +274,9 @@ export default function DoctorWorkBoard({
                         >
                           Mở hồ sơ → khám
                         </button>
-                      ) : a.status === "CONFIRMED" ? (
+                      ) : a.status === "SCHEDULED" ||
+                        a.status === "CSKH_CONFIRMED" ||
+                        a.status === "CONFIRMED" ? (
                         <span className="text-[11px] text-[#a1a1aa]">Chờ lễ tân check-in</span>
                       ) : a.status === "COMPLETED" ? (
                         <a
@@ -342,12 +303,6 @@ export default function DoctorWorkBoard({
 
   return (
     <>
-      {error && (
-        <div className="mb-2 rounded-md bg-[#fee2e2] px-3 py-2 text-sm text-[#dc2626]">
-          {error}
-        </div>
-      )}
-
       {open ? (
         <>
           <p className="mb-2 text-[11px] text-[#c084a8]">
