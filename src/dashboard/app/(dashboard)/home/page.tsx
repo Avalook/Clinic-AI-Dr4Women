@@ -25,6 +25,7 @@ import WeeklyAppointmentsTable, {
 } from "./WeeklyAppointmentsTable";
 import WorkRosterTable, { type RosterRow } from "./WorkRosterTable";
 import VisitStatusBoard, { type VisitStatusRow } from "./VisitStatusBoard";
+import VisitStatusRealtime from "./VisitStatusRealtime";
 
 export const dynamic = "force-dynamic";
 
@@ -262,12 +263,16 @@ export default async function HomePage({
         />
       )}
 
-      {/* Trạng thái BN buổi khám hôm nay — CHỈ Lễ tân, READ-ONLY (theo visit.status). */}
+      {/* Trạng thái BN buổi khám hôm nay — CHỈ Lễ tân, READ-ONLY (theo visit.status).
+          Thanh tiến trình kiểu Grab + tự cập nhật liên tục (realtime visit). */}
       {isReception && (
         <section>
-          <h2 className="mb-2 text-sm font-semibold text-[#171717]">
-            Trạng thái BN buổi khám hôm nay
-          </h2>
+          <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+            <h2 className="text-sm font-semibold text-[#171717]">
+              Trạng thái BN buổi khám hôm nay
+            </h2>
+            <VisitStatusRealtime />
+          </div>
           <VisitStatusBoard rows={visitStatusRows} />
         </section>
       )}

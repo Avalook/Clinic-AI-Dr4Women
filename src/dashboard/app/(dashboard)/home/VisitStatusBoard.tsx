@@ -47,8 +47,8 @@ export interface VisitStatusRow {
 }
 
 const TH =
-  "border-b border-[#ececec] px-3 py-2 text-left font-semibold text-[#525252]";
-const TD = "border-b border-[#f3f3f3] px-3 py-2 align-middle text-[#171717]";
+  "border-b border-[#ececec] px-4 py-2.5 text-left font-semibold text-[#525252]";
+const TD = "border-b border-[#f3f3f3] px-4 py-3 align-middle text-[#171717]";
 
 export default function VisitStatusBoard({ rows }: { rows: VisitStatusRow[] }) {
   return (
@@ -56,54 +56,55 @@ export default function VisitStatusBoard({ rows }: { rows: VisitStatusRow[] }) {
       <table className="w-full min-w-max border-collapse text-sm">
         <thead className="bg-[#fafafa]">
           <tr>
-            <th className={TH}>Giờ vào</th>
-            <th className={TH}>Bệnh nhân</th>
-            <th className={TH}>Bác sĩ khám</th>
-            <th className={TH}>Dịch vụ</th>
-            <th className={TH}>Trạng thái</th>
-            <th className={TH}>Chờ</th>
-            <th className={TH}>Tiến trình</th>
+            {/* Ô đầu: thông tin BN gộp. Còn lại: thanh tiến trình 3 mốc. */}
+            <th className={`${TH} min-w-[240px]`}>Bệnh nhân</th>
+            <th className={`${TH} min-w-[340px]`}>Tiến trình buổi khám</th>
           </tr>
         </thead>
         <tbody>
           {rows.length === 0 ? (
             <tr>
-              <td className="px-3 py-6 text-center text-[#888888]" colSpan={7}>
+              <td className="px-4 py-6 text-center text-[#888888]" colSpan={2}>
                 Chưa có buổi khám nào hôm nay.
               </td>
             </tr>
           ) : (
             rows.map((r) => (
               <tr key={r.visit_id} className="hover:bg-[#fafafa]">
-                <td className={`${TD} whitespace-nowrap tabular-nums`}>
-                  {fmtTime(r.checked_in_at ?? r.created_at)}
-                </td>
+                {/* Ô 1 — thông tin gộp: tên BN + mã · bác sĩ · dịch vụ · trạng thái
+                    (live badge) + đồng hồ chờ (đếm liên tục từ check-in). */}
                 <td className={TD}>
-                  <span className="font-medium">
-                    {r.patient?.full_name ?? "—"}
-                  </span>
-                  {r.patient?.patient_code && (
-                    <span className="ml-1.5 text-xs text-[#888888]">
-                      {r.patient.patient_code}
-                    </span>
-                  )}
+                  <div className="space-y-1">
+                    <div className="flex items-baseline gap-1.5">
+                      <span className="font-semibold text-[#171717]">
+                        {r.patient?.full_name ?? "—"}
+                      </span>
+                      {r.patient?.patient_code && (
+                        <span className="font-mono text-xs text-[#888888]">
+                          {r.patient.patient_code}
+                        </span>
+                      )}
+                    </div>
+                    <div className="text-xs text-[#71717a]">
+                      <span className="text-[#a1a1aa]">BS:</span>{" "}
+                      {r.doctor?.full_name ?? "—"}
+                      <span className="mx-1 text-[#d4d4d8]">·</span>
+                      {r.service?.name ?? "—"}
+                    </div>
+                    <div className="flex flex-wrap items-center gap-2 pt-0.5">
+                      <VisitBadge status={r.status} />
+                      <WaitClock
+                        checkedInAt={r.checked_in_at}
+                        active={WAITING_STATUSES.has(r.status)}
+                      />
+                      <span className="text-[10px] text-[#bcbcbc] tabular-nums">
+                        vào {fmtTime(r.checked_in_at ?? r.created_at)}
+                      </span>
+                    </div>
+                  </div>
                 </td>
-                <td className={`${TD} whitespace-nowrap`}>
-                  {r.doctor?.full_name ?? <span className="text-[#bbbbbb]">—</span>}
-                </td>
+                {/* Ô 2 — thanh tiến trình kiểu Grab (Đang khám → Khám xong → Thanh toán). */}
                 <td className={TD}>
-                  {r.service?.name ?? <span className="text-[#bbbbbb]">—</span>}
-                </td>
-                <td className={`${TD} whitespace-nowrap`}>
-                  <VisitBadge status={r.status} />
-                </td>
-                <td className={`${TD} whitespace-nowrap`}>
-                  <WaitClock
-                    checkedInAt={r.checked_in_at}
-                    active={WAITING_STATUSES.has(r.status)}
-                  />
-                </td>
-                <td className={`${TD} whitespace-nowrap`}>
                   <ProgressStepper status={r.status} />
                 </td>
               </tr>

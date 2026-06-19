@@ -6,62 +6,68 @@
 // KHÔNG ghi DB, KHÔNG đụng enum/visit.status — chỉ render từ props.
 
 import { useEffect, useState } from "react";
+import { Check } from "lucide-react";
 
 // ── Ngưỡng đổi màu đồng hồ chờ (PHÚT kể từ check-in) — cấu hình DUY NHẤT ở đây ──
 const WAIT_GREEN_MAX = 10; // < 10p  → xanh
 const WAIT_YELLOW_MAX = 20; // 10–20p → vàng;  > 20p → đỏ
 
-// Các mốc tiến trình 1 buổi khám. backed=false → CHƯA có nguồn data → render XÁM.
-//   Hẹn/Xác nhận/Check-in: ngầm ĐÃ QUA (visit chỉ tồn tại sau khi check-in).
-//   Đang khám: visit.status = IN_PROGRESS. Xong(lâm sàng): FINALIZED/AMENDED.
-//   Chờ SA/XN: board chưa join sono/lab. Chờ thanh toán/Xong: chờ vertical billing.
-const STEPS: { key: string; label: string; backed: boolean; note?: string }[] = [
-  { key: "hen", label: "Hẹn", backed: true },
-  { key: "xac_nhan", label: "Xác nhận", backed: true },
-  { key: "checkin", label: "Check-in", backed: true },
-  { key: "dang_kham", label: "Đang khám", backed: true },
-  { key: "cho_cls", label: "Chờ SA/XN", backed: false, note: "chưa nối hàng đợi sono/lab" },
-  { key: "cho_tt", label: "Chờ thanh toán", backed: false, note: "chờ billing (thu ngân)" },
-  { key: "xong", label: "Xong", backed: false, note: "chờ billing (thu ngân)" },
+// Thanh tiến trình kiểu Grab — 3 MỐC: Đang khám → Khám xong → Thanh toán.
+// "Đến mốc nào tích xanh mốc ấy" (reached) suy từ visit.status:
+//   • Đang khám   → IN_PROGRESS / FINALIZED / AMENDED
+//   • Khám xong   → FINALIZED / AMENDED
+//   • Thanh toán  → CHƯA nối billing (thu ngân) → unbacked: luôn xám, không tự xanh.
+// OPEN = vừa check-in, đang chờ khám → mốc "Đang khám" là bước KẾ (current).
+const MILESTONES: { key: string; label: string; unbacked?: boolean; note?: string }[] = [
+  { key: "dang_kham", label: "Đang khám" },
+  { key: "kham_xong", label: "Khám xong" },
+  {
+    key: "thanh_toan",
+    label: "Thanh toán",
+    unbacked: true,
+    note: "Chờ thu ngân — chưa nối dữ liệu thanh toán",
+  },
 ];
 
-// visit.status → index mốc backed CAO NHẤT đã đạt.
-function reachedIndex(status: string): number {
+// Số mốc BACKED đã đạt (tích xanh). OPEN=0, IN_PROGRESS=1, FINALIZED/AMENDED=2.
+function reachedCount(status: string): number {
   switch (status) {
-    case "IN_PROGRESS":
     case "FINALIZED":
     case "AMENDED":
-      return 3; // đang/đã khám
+      return 2; // Đang khám + Khám xong
+    case "IN_PROGRESS":
+      return 1; // Đang khám
     case "OPEN":
     default:
-      return 2; // đã check-in, đang chờ bác sĩ
+      return 0; // mới check-in, đang chờ khám
   }
 }
 
 export function ProgressStepper({ status }: { status: string }) {
-  const reached = reachedIndex(status);
-  const clinicalDone = status === "FINALIZED" || status === "AMENDED";
+  const reached = reachedCount(status);
 
   return (
-    <div className="flex items-center">
-      {STEPS.map((s, i) => {
+    <div className="flex items-start">
+      {MILESTONES.map((m, i) => {
         let state: "done" | "current" | "upcoming" | "disabled";
-        if (!s.backed) state = "disabled";
-        else if (i < reached) state = "done";
-        else if (i === reached) state = clinicalDone ? "done" : "current";
+        if (i < reached) state = "done";
+        else if (m.unbacked) state = "disabled";
+        else if (i === reached) state = "current";
         else state = "upcoming";
 
-        const dot =
+        // Node tròn kiểu Grab: done = xanh đặc + ✓; current = viền hồng nhấn (pulse);
+        // upcoming = viền nhạt; disabled = nét đứt xám.
+        const node =
           state === "done"
-            ? "bg-[#ec4899] border-[#ec4899]"
+            ? "bg-[#16a34a] border-[#16a34a] text-white"
             : state === "current"
-              ? "bg-white border-[#ec4899] ring-2 ring-[#ec4899]/30"
+              ? "bg-white border-[#ec4899] ring-4 ring-[#ec4899]/15 animate-pulse"
               : state === "upcoming"
-                ? "bg-white border-[#f3cfe0]"
-                : "bg-[#f4f4f5] border-[#e4e4e7] border-dashed";
+                ? "bg-white border-[#e4e4e7]"
+                : "border-dashed bg-[#fafafa] border-[#e4e4e7]";
         const txt =
           state === "done"
-            ? "text-[#9d2463]"
+            ? "text-[#15803d] font-medium"
             : state === "current"
               ? "text-[#ec4899] font-semibold"
               : state === "disabled"
@@ -69,21 +75,34 @@ export function ProgressStepper({ status }: { status: string }) {
                 : "text-[#a1a1aa]";
 
         return (
-          <div key={s.key} className="flex items-center">
+          <div key={m.key} className="flex flex-1 items-start">
             <div
-              className="flex flex-col items-center gap-0.5"
-              title={state === "disabled" ? `${s.label} — ${s.note}` : s.label}
+              className="flex w-full min-w-0 flex-col items-center gap-1"
+              title={m.unbacked ? `${m.label} — ${m.note}` : m.label}
             >
-              <span className={`h-2.5 w-2.5 rounded-full border ${dot}`} />
-              <span className={`whitespace-nowrap text-[9px] leading-none ${txt}`}>
-                {s.label}
+              <div className="flex w-full items-center">
+                {/* nửa đoạn nối TRÁI (ẩn ở mốc đầu) — xanh khi mốc trước đã done */}
+                <span
+                  className={`h-0.5 flex-1 ${i === 0 ? "opacity-0" : i <= reached ? "bg-[#16a34a]" : "bg-[#e4e4e7]"}`}
+                />
+                <span
+                  className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-full border-2 ${node}`}
+                >
+                  {state === "done" ? (
+                    <Check size={13} strokeWidth={3} />
+                  ) : state === "current" ? (
+                    <span className="h-2 w-2 rounded-full bg-[#ec4899]" />
+                  ) : null}
+                </span>
+                {/* nửa đoạn nối PHẢI (ẩn ở mốc cuối) — xanh khi mốc này đã done */}
+                <span
+                  className={`h-0.5 flex-1 ${i === MILESTONES.length - 1 ? "opacity-0" : i < reached ? "bg-[#16a34a]" : "bg-[#e4e4e7]"}`}
+                />
+              </div>
+              <span className={`whitespace-nowrap text-[11px] leading-none ${txt}`}>
+                {m.label}
               </span>
             </div>
-            {i < STEPS.length - 1 && (
-              <span
-                className={`mx-0.5 mb-3 h-px w-4 ${i < reached ? "bg-[#ec4899]" : "bg-[#e4e4e7]"}`}
-              />
-            )}
           </div>
         );
       })}

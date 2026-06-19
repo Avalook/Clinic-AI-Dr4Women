@@ -3,6 +3,14 @@
 
 ## [LOCAL — chưa push]
 
+### 2026-06-19 · T-DASH-VISIT-PROGRESS-GRAB-01 · Bảng "Trạng thái BN buổi khám" kiểu thanh tiến trình Grab + cập nhật liên tục · commit `chưa commit`
+- **Redesign `VisitStatusBoard`** (Lễ tân trang chủ + dùng chung Trưởng ca): bảng 2 cột — **Ô 1** gộp đủ thông tin (tên BN + mã · bác sĩ · dịch vụ · **badge trạng thái live** + đồng hồ chờ đếm liên tục từ check-in + giờ vào); **Ô 2** = thanh tiến trình.
+- **`ProgressStepper` viết lại kiểu Grab — 3 MỐC:** `Đang khám → Khám xong → Thanh toán`. Node tròn + đoạn nối; **đến mốc nào tích xanh (✓) mốc ấy**; mốc đang tới = chấm hồng pulse. Map từ `visit.status`: Đang khám=IN_PROGRESS, Khám xong=FINALIZED/AMENDED.
+- **"Thanh toán" = unbacked (xám, KHÔNG tự xanh):** chưa có nguồn dữ liệu billing/thu ngân → giữ honest (không bịa tích xanh), tooltip "Chờ thu ngân — chưa nối dữ liệu thanh toán". Khi nối vertical thu ngân sau sẽ cho tích.
+- **"Cập nhật liên tục"** = `VisitStatusRealtime` (client): subscribe `postgres_changes` bảng `visit` → debounce 1.5s → `router.refresh()` (cùng khuôn AppointmentsRealtime). Pill "● Cập nhật liên tục +N" ở cạnh tiêu đề (chỉ section Lễ tân).
+- **VERIFY:** tsc + eslint + `next build` sạch (0 lỗi). File: `VisitProgress.tsx`, `VisitStatusBoard.tsx`, `VisitStatusRealtime.tsx` (mới), `home/page.tsx`.
+- **NỢ:** mốc "Thanh toán" chờ nối thu ngân; bỏ 4 mốc cũ (Hẹn/Xác nhận/Check-in/Chờ SA-XN) — gộp gọn còn 3 mốc theo yêu cầu sếp 19/6.
+
 ### 2026-06-19 · T-DASH-TAIKHAM-PAGER-01 · Nút "Tái khám" (CSKH/Lễ tân) + pager ◀▶ lượt khám (Bác sĩ/TKYK) · commit `chưa commit`
 - **Phần 1 — Nút "Tái khám":** trong popup "Phiếu khám bệnh" ở *Danh sách bệnh nhân*, thêm nút **Tái khám** cạnh **Đóng** → `router.push('/patients/[id]')` (trang đã có sẵn: hành chính giữ nguyên + form đặt lịch bên dưới). Gate `showRebook` = CSKH || Lễ tân (server `patient-list/page.tsx`). Bác sĩ KHÔNG thấy (không thuộc canWriteIntake).
 - **Phần 2 — Pager lượt khám:** thêm `◀ trang i/n ▶` trên dòng tiêu đề "Phiếu khám bệnh". Trang 1 = lượt mới nhất; ▶ lùi về lượt cũ, ◀ tiến tới lượt mới. Lượt cũ **luôn khóa ghi** (`viewingPast` → `ro`, ẩn nút Lưu, ẩn form siêu âm, `save()` chặn sớm). Gate `enableVisitPager`: DoctorWorkBoard (bác sĩ/TKYK/lễ-tân-clone) bật cứng; patient-list bật cho bác sĩ. `pages` dựng 1 lần từ lượt-hiện-tại + lịch sử; component remount theo `key={appt.id}` nên tự reset.
