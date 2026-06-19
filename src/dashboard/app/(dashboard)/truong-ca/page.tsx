@@ -15,7 +15,8 @@ const VISIT_STATUS_SELECT = `
   visit_id, status, checked_in_at, created_at,
   patient:patient!clinic_patient_id ( full_name, patient_code ),
   doctor:staff!attending_doctor_id ( full_name ),
-  service:service_type!service_type_id ( name )
+  service:service_type!service_type_id ( name ),
+  appointment:appointment!appointment_id ( status )
 `;
 
 export default async function TruongCaPage() {

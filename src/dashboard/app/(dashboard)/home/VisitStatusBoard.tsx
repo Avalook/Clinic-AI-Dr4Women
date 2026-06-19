@@ -8,30 +8,37 @@
 import { fmtTime } from "../../../lib/datetime";
 import { ProgressStepper, WaitClock } from "./VisitProgress";
 
-// BN còn đang chờ / đang khám → đồng hồ chờ chạy. Đã FINALIZED/AMENDED → dừng.
-const WAITING_STATUSES = new Set(["OPEN", "IN_PROGRESS"]);
+// Trạng thái HIỂN THỊ suy từ visit.status + appointment.status. "Khám xong" đọc từ
+// appointment.COMPLETED (dashboard KHÔNG tự set visit.FINALIZED) — nếu chỉ nhìn
+// visit.status thì BN đã khám xong vẫn kẹt ở "Đang khám".
+function displayStatus(
+  visitStatus: string,
+  apptStatus: string | null,
+): { label: string; style: string } {
+  if (visitStatus === "AMENDED")
+    return { label: "Đã bổ sung", style: "bg-[#f3e8ff] text-[#7e22ce]" };
+  if (visitStatus === "FINALIZED")
+    return { label: "Đã chốt hồ sơ", style: "bg-[#dcfce7] text-[#15803d]" };
+  if (apptStatus === "COMPLETED")
+    return { label: "Đã khám xong", style: "bg-[#dcfce7] text-[#15803d]" };
+  if (visitStatus === "IN_PROGRESS")
+    return { label: "Đang khám", style: "bg-[#fef9c3] text-[#a16207]" };
+  return { label: "Chờ khám", style: "bg-[#dbeafe] text-[#1d4ed8]" };
+}
 
-// Nhãn + màu cho visit.status (4 giá trị enum). Tông đồng bộ với StatusBadge.
-const VISIT_STATUS_STYLE: Record<string, string> = {
-  OPEN: "bg-[#dbeafe] text-[#1d4ed8]",
-  IN_PROGRESS: "bg-[#fef9c3] text-[#a16207]",
-  FINALIZED: "bg-[#dcfce7] text-[#15803d]",
-  AMENDED: "bg-[#f3e8ff] text-[#7e22ce]",
-};
-const VISIT_STATUS_LABEL: Record<string, string> = {
-  OPEN: "Chờ khám",
-  IN_PROGRESS: "Đang khám",
-  FINALIZED: "Đã khám xong",
-  AMENDED: "Đã bổ sung",
-};
+// Đồng hồ chờ chạy tới khi KHÁM XONG (appt COMPLETED) / hồ sơ chốt. Sau đó dừng.
+function stillWaiting(visitStatus: string, apptStatus: string | null): boolean {
+  if (apptStatus === "COMPLETED") return false;
+  if (visitStatus === "FINALIZED" || visitStatus === "AMENDED") return false;
+  return visitStatus === "OPEN" || visitStatus === "IN_PROGRESS";
+}
 
-function VisitBadge({ status }: { status: string }) {
-  const style = VISIT_STATUS_STYLE[status] ?? "bg-[#f4f4f5] text-[#71717a]";
+function VisitBadge({ label, style }: { label: string; style: string }) {
   return (
     <span
       className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${style}`}
     >
-      {VISIT_STATUS_LABEL[status] ?? status}
+      {label}
     </span>
   );
 }
@@ -44,6 +51,8 @@ export interface VisitStatusRow {
   patient: { full_name: string | null; patient_code: string | null } | null;
   doctor: { full_name: string | null } | null;
   service: { name: string | null } | null;
+  /** appointment.status (join) — nguồn THẬT cho mốc "Khám xong" (COMPLETED). */
+  appointment: { status: string | null } | null;
 }
 
 const TH =
@@ -69,46 +78,50 @@ export default function VisitStatusBoard({ rows }: { rows: VisitStatusRow[] }) {
               </td>
             </tr>
           ) : (
-            rows.map((r) => (
-              <tr key={r.visit_id} className="hover:bg-[#fafafa]">
-                {/* Ô 1 — thông tin gộp: tên BN + mã · bác sĩ · dịch vụ · trạng thái
-                    (live badge) + đồng hồ chờ (đếm liên tục từ check-in). */}
-                <td className={TD}>
-                  <div className="space-y-1">
-                    <div className="flex items-baseline gap-1.5">
-                      <span className="font-semibold text-[#171717]">
-                        {r.patient?.full_name ?? "—"}
-                      </span>
-                      {r.patient?.patient_code && (
-                        <span className="font-mono text-xs text-[#888888]">
-                          {r.patient.patient_code}
+            rows.map((r) => {
+              const apptStatus = r.appointment?.status ?? null;
+              const disp = displayStatus(r.status, apptStatus);
+              return (
+                <tr key={r.visit_id} className="hover:bg-[#fafafa]">
+                  {/* Ô 1 — thông tin gộp: tên BN + mã · bác sĩ · dịch vụ · trạng thái
+                      (live badge) + đồng hồ chờ (đếm liên tục từ check-in). */}
+                  <td className={TD}>
+                    <div className="space-y-1">
+                      <div className="flex items-baseline gap-1.5">
+                        <span className="font-semibold text-[#171717]">
+                          {r.patient?.full_name ?? "—"}
                         </span>
-                      )}
+                        {r.patient?.patient_code && (
+                          <span className="font-mono text-xs text-[#888888]">
+                            {r.patient.patient_code}
+                          </span>
+                        )}
+                      </div>
+                      <div className="text-xs text-[#71717a]">
+                        <span className="text-[#a1a1aa]">BS:</span>{" "}
+                        {r.doctor?.full_name ?? "—"}
+                        <span className="mx-1 text-[#d4d4d8]">·</span>
+                        {r.service?.name ?? "—"}
+                      </div>
+                      <div className="flex flex-wrap items-center gap-2 pt-0.5">
+                        <VisitBadge label={disp.label} style={disp.style} />
+                        <WaitClock
+                          checkedInAt={r.checked_in_at}
+                          active={stillWaiting(r.status, apptStatus)}
+                        />
+                        <span className="text-[10px] text-[#bcbcbc] tabular-nums">
+                          vào {fmtTime(r.checked_in_at ?? r.created_at)}
+                        </span>
+                      </div>
                     </div>
-                    <div className="text-xs text-[#71717a]">
-                      <span className="text-[#a1a1aa]">BS:</span>{" "}
-                      {r.doctor?.full_name ?? "—"}
-                      <span className="mx-1 text-[#d4d4d8]">·</span>
-                      {r.service?.name ?? "—"}
-                    </div>
-                    <div className="flex flex-wrap items-center gap-2 pt-0.5">
-                      <VisitBadge status={r.status} />
-                      <WaitClock
-                        checkedInAt={r.checked_in_at}
-                        active={WAITING_STATUSES.has(r.status)}
-                      />
-                      <span className="text-[10px] text-[#bcbcbc] tabular-nums">
-                        vào {fmtTime(r.checked_in_at ?? r.created_at)}
-                      </span>
-                    </div>
-                  </div>
-                </td>
-                {/* Ô 2 — thanh tiến trình kiểu Grab (Đang khám → Khám xong → Thanh toán). */}
-                <td className={TD}>
-                  <ProgressStepper status={r.status} />
-                </td>
-              </tr>
-            ))
+                  </td>
+                  {/* Ô 2 — thanh tiến trình kiểu Grab (Đang khám → Khám xong → Hoàn tất). */}
+                  <td className={TD}>
+                    <ProgressStepper visitStatus={r.status} apptStatus={apptStatus} />
+                  </td>
+                </tr>
+              );
+            })
           )}
         </tbody>
       </table>

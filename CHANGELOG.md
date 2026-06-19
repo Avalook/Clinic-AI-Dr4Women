@@ -3,6 +3,12 @@
 
 ## [LOCAL — chưa push]
 
+### 2026-06-19 · T-DASH-VISIT-PROGRESS-GRAB-02 · Mốc cuối "Thanh toán"→"Hoàn tất" + FIX "Khám xong" đọc đúng nguồn · commit `chưa commit`
+- **Đổi mốc 3 "Thanh toán" → "Hoàn tất"** (yêu cầu sếp). Lý do bỏ "Thanh toán": thu ngân hiện CHỈ là **bảng giá + placeholder**, CHƯA có luồng billing — `CashierWorkBoard` tự ghi "chưa có dữ liệu phiếu thu"; grep toàn migration **0 cột** paid/payment/invoice. Không có dữ liệu để tự tích → không đặt mốc "Thanh toán".
+- **FIX QUAN TRỌNG — "Khám xong" phải đọc `appointment.status=COMPLETED`, KHÔNG phải `visit.FINALIZED`:** dashboard KHÔNG bao giờ tự set `visit.FINALIZED` (mọi route ghi rõ "KHÔNG đụng visit.status/FINALIZED"); "khám xong" = bác sĩ "Lưu & Khám xong" → `appointment.COMPLETED`. Map cũ (Khám xong=FINALIZED) sẽ **không bao giờ xanh** → thanh kẹt ở "Đang khám". Nay join `appointment.status` vào query (home + truong-ca).
+- **Map mới 3 mốc:** Đang khám = visit IN_PROGRESS · Khám xong = appt COMPLETED · Hoàn tất = visit FINALIZED/AMENDED (hồ sơ chốt — gate riêng, chưa nối nút chốt nên thường còn ở bước "đang tới"). Badge + đồng hồ chờ cũng suy từ appt COMPLETED (BN khám xong → badge "Đã khám xong", đồng hồ dừng) thay vì kẹt "Đang khám".
+- **VERIFY:** tsc + eslint + `next build` sạch. File: `VisitProgress.tsx`, `VisitStatusBoard.tsx`, `home/page.tsx`, `truong-ca/page.tsx`.
+
 ### 2026-06-19 · T-DASH-VISIT-PROGRESS-GRAB-01 · Bảng "Trạng thái BN buổi khám" kiểu thanh tiến trình Grab + cập nhật liên tục · commit `chưa commit`
 - **Redesign `VisitStatusBoard`** (Lễ tân trang chủ + dùng chung Trưởng ca): bảng 2 cột — **Ô 1** gộp đủ thông tin (tên BN + mã · bác sĩ · dịch vụ · **badge trạng thái live** + đồng hồ chờ đếm liên tục từ check-in + giờ vào); **Ô 2** = thanh tiến trình.
 - **`ProgressStepper` viết lại kiểu Grab — 3 MỐC:** `Đang khám → Khám xong → Thanh toán`. Node tròn + đoạn nối; **đến mốc nào tích xanh (✓) mốc ấy**; mốc đang tới = chấm hồng pulse. Map từ `visit.status`: Đang khám=IN_PROGRESS, Khám xong=FINALIZED/AMENDED.

@@ -12,73 +12,66 @@ import { Check } from "lucide-react";
 const WAIT_GREEN_MAX = 10; // < 10p  → xanh
 const WAIT_YELLOW_MAX = 20; // 10–20p → vàng;  > 20p → đỏ
 
-// Thanh tiến trình kiểu Grab — 3 MỐC: Đang khám → Khám xong → Thanh toán.
-// "Đến mốc nào tích xanh mốc ấy" (reached) suy từ visit.status:
-//   • Đang khám   → IN_PROGRESS / FINALIZED / AMENDED
-//   • Khám xong   → FINALIZED / AMENDED
-//   • Thanh toán  → CHƯA nối billing (thu ngân) → unbacked: luôn xám, không tự xanh.
-// OPEN = vừa check-in, đang chờ khám → mốc "Đang khám" là bước KẾ (current).
-const MILESTONES: { key: string; label: string; unbacked?: boolean; note?: string }[] = [
+// Thanh tiến trình kiểu Grab — 3 MỐC: Đang khám → Khám xong → Hoàn tất.
+// "Đến mốc nào tích xanh mốc ấy" (reached) suy từ visit.status + appointment.status:
+//   • Đang khám  → visit IN_PROGRESS (BN đã vào khám).
+//   • Khám xong  → appointment COMPLETED (bác sĩ "Lưu & Khám xong"). LƯU Ý: dashboard
+//     KHÔNG tự set visit.FINALIZED, nên "khám xong" PHẢI đọc từ appointment, không
+//     phải visit — nếu không mốc này không bao giờ xanh.
+//   • Hoàn tất   → visit FINALIZED/AMENDED (hồ sơ chốt pháp lý — gate chốt riêng,
+//     hiện chưa nối nút chốt trên dashboard nên thường còn ở bước "đang tới").
+const MILESTONES: { key: string; label: string }[] = [
   { key: "dang_kham", label: "Đang khám" },
   { key: "kham_xong", label: "Khám xong" },
-  {
-    key: "thanh_toan",
-    label: "Thanh toán",
-    unbacked: true,
-    note: "Chờ thu ngân — chưa nối dữ liệu thanh toán",
-  },
+  { key: "hoan_tat", label: "Hoàn tất" },
 ];
 
-// Số mốc BACKED đã đạt (tích xanh). OPEN=0, IN_PROGRESS=1, FINALIZED/AMENDED=2.
-function reachedCount(status: string): number {
-  switch (status) {
-    case "FINALIZED":
-    case "AMENDED":
-      return 2; // Đang khám + Khám xong
-    case "IN_PROGRESS":
-      return 1; // Đang khám
-    case "OPEN":
-    default:
-      return 0; // mới check-in, đang chờ khám
-  }
+// Số mốc đã đạt (tích xanh). OPEN=0 (chờ khám), IN_PROGRESS=1, appt COMPLETED=2,
+// visit FINALIZED/AMENDED=3 (hồ sơ chốt). Lấy mốc CAO NHẤT đạt được.
+export function reachedCount(visitStatus: string, apptStatus: string | null): number {
+  if (visitStatus === "FINALIZED" || visitStatus === "AMENDED") return 3;
+  if (apptStatus === "COMPLETED") return 2;
+  if (visitStatus === "IN_PROGRESS") return 1;
+  return 0; // OPEN — mới check-in, đang chờ khám
 }
 
-export function ProgressStepper({ status }: { status: string }) {
-  const reached = reachedCount(status);
+export function ProgressStepper({
+  visitStatus,
+  apptStatus,
+}: {
+  visitStatus: string;
+  apptStatus: string | null;
+}) {
+  const reached = reachedCount(visitStatus, apptStatus);
 
   return (
     <div className="flex items-start">
       {MILESTONES.map((m, i) => {
-        let state: "done" | "current" | "upcoming" | "disabled";
+        let state: "done" | "current" | "upcoming";
         if (i < reached) state = "done";
-        else if (m.unbacked) state = "disabled";
         else if (i === reached) state = "current";
         else state = "upcoming";
 
         // Node tròn kiểu Grab: done = xanh đặc + ✓; current = viền hồng nhấn (pulse);
-        // upcoming = viền nhạt; disabled = nét đứt xám.
+        // upcoming = viền nhạt.
         const node =
           state === "done"
             ? "bg-[#16a34a] border-[#16a34a] text-white"
             : state === "current"
               ? "bg-white border-[#ec4899] ring-4 ring-[#ec4899]/15 animate-pulse"
-              : state === "upcoming"
-                ? "bg-white border-[#e4e4e7]"
-                : "border-dashed bg-[#fafafa] border-[#e4e4e7]";
+              : "bg-white border-[#e4e4e7]";
         const txt =
           state === "done"
             ? "text-[#15803d] font-medium"
             : state === "current"
               ? "text-[#ec4899] font-semibold"
-              : state === "disabled"
-                ? "text-[#c4c4c8]"
-                : "text-[#a1a1aa]";
+              : "text-[#a1a1aa]";
 
         return (
           <div key={m.key} className="flex flex-1 items-start">
             <div
               className="flex w-full min-w-0 flex-col items-center gap-1"
-              title={m.unbacked ? `${m.label} — ${m.note}` : m.label}
+              title={m.label}
             >
               <div className="flex w-full items-center">
                 {/* nửa đoạn nối TRÁI (ẩn ở mốc đầu) — xanh khi mốc trước đã done */}
