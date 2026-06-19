@@ -8,7 +8,7 @@ import { redirect } from "next/navigation";
 import StatCard from "../StatCard";
 import { getSupabaseServer } from "../../../lib/supabase-server";
 import { getClinicRole } from "../../../lib/clinic-session";
-import { isAdminRole } from "../../../lib/roles";
+import { isOpsAdmin } from "../../../lib/roles";
 import { vnTodayRangeUtc, fmtDate, VN_TZ } from "../../../lib/datetime";
 
 export const dynamic = "force-dynamic";
@@ -48,7 +48,7 @@ export default async function ReportsPage() {
   // Defense-in-depth: server-side gate even though Nav only renders the
   // link for admins.
   const role = await getClinicRole();
-  if (!isAdminRole(role)) redirect("/home");
+  if (!isOpsAdmin(role)) redirect("/home");
 
   const supabase = await getSupabaseServer();
 

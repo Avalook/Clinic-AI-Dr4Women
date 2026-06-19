@@ -89,10 +89,19 @@ export function canWriteIntake(role: ClinicRole | null): boolean {
   );
 }
 
-/** Trưởng ca — vai HÀNH CHÍNH (đổi ca/ngày), sửa intake + hồ sơ hành chính như
- *  Lễ tân/CSKH. TUYỆT ĐỐI KHÔNG lâm sàng (KHÔNG có trong canWriteClinical). */
+/** Trưởng ca — vai VẬN HÀNH: toàn quyền sửa phần vận hành (lịch hẹn, BN, bảng
+ *  giá, ca trực, báo cáo) để xử lý phát sinh. Lâm sàng thì CHỈ XEM (KHÔNG có
+ *  trong canWriteClinical). */
 export function isTruongCaRole(role: ClinicRole | null): boolean {
   return role === "TRUONG_CA";
+}
+
+/** Quản trị VẬN HÀNH = Quản lý + Trưởng ca. Trưởng ca có quyền như Quản lý cho
+ *  các màn VẬN HÀNH (báo cáo, tra cứu BN, xếp ca, sửa bảng giá…) NHƯNG THẤP HƠN
+ *  quản lý hệ thống: KHÔNG vào /settings (tạo user / cấu hình) — đó vẫn chỉ
+ *  isAdminRole (MANAGEMENT). Dùng cho các gate vận hành thay cho isAdminRole. */
+export function isOpsAdmin(role: ClinicRole | null): boolean {
+  return isAdminRole(role) || isTruongCaRole(role);
 }
 
 /** Roles lo check-in (đón khách đã đến). Khu check-in giờ nằm ở TRANG CHỦ
@@ -105,9 +114,10 @@ export function canCheckin(role: ClinicRole | null): boolean {
   );
 }
 
-/** Roles quản trị vòng đời lịch hẹn: HỦY lịch + PHÂN LẠI bác sĩ (CSKH + Quản lý). */
+/** Roles quản trị vòng đời lịch hẹn: HỦY lịch + PHÂN LẠI bác sĩ (CSKH + Quản lý
+ *  + Trưởng ca — vận hành, xử lý phát sinh). */
 export function canManageAppt(role: ClinicRole | null): boolean {
-  return role === "CSKH" || role === "MANAGEMENT";
+  return role === "CSKH" || role === "MANAGEMENT" || role === "TRUONG_CA";
 }
 
 /** Roles được SỬA thông tin hành chính BN (mục I): nhóm intake (CSKH/Lễ tân/QL/ĐD)
@@ -171,8 +181,8 @@ const NAV_ROLES: Record<string, "all" | ClinicRole[]> = {
   "/home": "all",
   // "Cần làm hôm nay" — danh sách việc CSKH tự sinh từ dữ liệu (gọi xác nhận,
   // phân lại lịch bị từ chối, tái khám đến hạn, KQ XN mới về).
-  "/cskh-today": ["CSKH", "MANAGEMENT"],
-  "/appointments": ["MANAGEMENT"],
+  "/cskh-today": ["CSKH", "MANAGEMENT", "TRUONG_CA"],
+  "/appointments": ["MANAGEMENT", "TRUONG_CA"],
   // Thông tin khách hàng (danh bạ + chi tiết + tra cứu tên/mã/SĐT) — CSKH/Lễ tân/QL
   // + Thu ngân (xem để đối chiếu khi thu tiền; canWriteIntake KHÔNG gồm CASHIER → chỉ xem).
   "/customers": ["CSKH", "RECEPTION", "MANAGEMENT", "CASHIER", "CASHIER_THUOC", "CASHIER_DV", "TRUONG_CA"],
@@ -184,8 +194,8 @@ const NAV_ROLES: Record<string, "all" | ClinicRole[]> = {
   // Bác sĩ thấy TOÀN BỘ BN đã khám (như front desk); mở hồ sơ vẫn bị guard
   // patients/[id] (chỉ mở được BN của mình) — đúng mô hình quyền hiện tại.
   "/patient-list": ["CSKH", "RECEPTION", "MANAGEMENT", "CASHIER", "CASHIER_THUOC", "CASHIER_DV", "TRUONG_CA", "TKYK", ...DOCTOR_ROLES_LIST],
-  // Tra cứu BN đầy đủ (phân trang) — Quản lý. CSKH/Lễ tân dùng /customers.
-  "/patients": ["MANAGEMENT"],
+  // Tra cứu BN đầy đủ (phân trang) — Quản lý + Trưởng ca. CSKH/Lễ tân dùng /customers.
+  "/patients": ["MANAGEMENT", "TRUONG_CA"],
   // Điều dưỡng cũng nhập được (khách vãng lai).
   "/patients/new": ["CSKH", "RECEPTION", "MANAGEMENT", "NURSE_ULTRASOUND", "TRUONG_CA"],
   // /checkin đã chuyển hẳn lên Trang chủ (HomeCheckin) — route cũ đã xóa.
@@ -202,12 +212,14 @@ const NAV_ROLES: Record<string, "all" | ClinicRole[]> = {
   // Thu ngân: bảng giá tách 2 trang (thuốc / dịch vụ), gate theo VAI tách (mỗi
   // vai chỉ thấy màn của mình). CASHIER = superset (thấy cả hai), Quản lý xem/sửa cả hai.
   // ("Công việc của tôi" thu ngân nằm ở /tasks, gate bằng entry /tasks bên dưới.)
-  "/cashier/thuoc": ["CASHIER_THUOC", "CASHIER", "MANAGEMENT"],
-  "/cashier/dich-vu": ["CASHIER_DV", "CASHIER", "MANAGEMENT"],
-  // Bác sĩ + Lễ tân + Điều dưỡng tự đăng ký ca của mình; Quản lý xếp cả bảng (feedback C4).
-  "/schedule": [...DOCTOR_ROLES_LIST, "NURSE_ULTRASOUND", "RECEPTION", "MANAGEMENT"],
-  "/work-sessions": ["MANAGEMENT"],
-  "/reports": ["MANAGEMENT"],
+  "/cashier/thuoc": ["CASHIER_THUOC", "CASHIER", "MANAGEMENT", "TRUONG_CA"],
+  "/cashier/dich-vu": ["CASHIER_DV", "CASHIER", "MANAGEMENT", "TRUONG_CA"],
+  // Bác sĩ + Lễ tân + Điều dưỡng tự đăng ký ca của mình; Quản lý + Trưởng ca xếp cả bảng.
+  "/schedule": [...DOCTOR_ROLES_LIST, "NURSE_ULTRASOUND", "RECEPTION", "MANAGEMENT", "TRUONG_CA"],
+  "/work-sessions": ["MANAGEMENT", "TRUONG_CA"],
+  "/reports": ["MANAGEMENT", "TRUONG_CA"],
+  // Cài đặt (tạo user / cấu hình hệ thống) = CHỈ Quản lý — ranh giới "thấp hơn
+  // quản lý hệ thống" của Trưởng ca.
   "/settings": ["MANAGEMENT"],
 };
 

@@ -21,7 +21,7 @@ import {
   ClipboardCheck,
   type LucideIcon,
 } from "lucide-react";
-import { type ClinicRole, isNurseRole } from "../../lib/roles";
+import { type ClinicRole } from "../../lib/roles";
 
 export interface NavItem {
   href: string;
@@ -62,8 +62,8 @@ export const NAV: NavItem[] = [
   { href: "/patients", label: "Bệnh nhân (tra cứu)", shortLabel: "Tra cứu", icon: Users },
   {
     href: "/patients/new",
-    label: "Nhập thông tin khách hàng mới",
-    shortLabel: "Nhập KH",
+    label: "Tạo bệnh nhân",
+    shortLabel: "Tạo BN",
     icon: UserPlus,
   },
   // Check-in ĐÃ chuyển lên TRANG CHỦ (HomeCheckin) — không còn ở sidebar.
@@ -107,15 +107,13 @@ export const NAV: NavItem[] = [
   { href: "/settings", label: "Cài đặt", icon: Settings },
 ];
 
-// Nhãn theo vai trò: điều dưỡng thấy "khách vãng lai" thay cho "khách hàng mới".
+// Nhãn nav theo vai. Wording ĐỒNG BỘ: mọi vai (kể cả điều dưỡng) đều "Tạo bệnh
+// nhân" — bỏ khái niệm "khách vãng lai"/"khách hàng".
 export function navLabelFor(
   item: NavItem,
   role: ClinicRole | null,
   short = false,
 ): string {
-  if (item.href === "/patients/new" && isNurseRole(role)) {
-    return short ? "Vãng lai" : "Nhập thông tin khách vãng lai";
-  }
   return short ? (item.shortLabel ?? item.label) : item.label;
 }
 

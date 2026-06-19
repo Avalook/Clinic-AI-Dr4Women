@@ -9,7 +9,7 @@ import { NextResponse } from "next/server";
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { getSupabaseServer } from "../../../lib/supabase-server";
 import { getClinicRole } from "../../../lib/clinic-session";
-import { isCashierRole } from "../../../lib/roles";
+import { isCashierRole, isTruongCaRole } from "../../../lib/roles";
 
 type PriceGroup = "thuoc" | "dich_vu";
 
@@ -40,11 +40,11 @@ async function authorize(): Promise<Auth> {
     };
   }
   const role = await getClinicRole();
-  if (!isCashierRole(role) && role !== "MANAGEMENT") {
+  if (!isCashierRole(role) && role !== "MANAGEMENT" && !isTruongCaRole(role)) {
     return {
       ok: false,
       res: NextResponse.json(
-        { error: "Chỉ Thu ngân / Quản lý được sửa bảng giá." },
+        { error: "Chỉ Thu ngân / Quản lý / Trưởng ca được sửa bảng giá." },
         { status: 403 },
       ),
     };

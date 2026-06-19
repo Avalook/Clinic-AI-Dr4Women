@@ -222,7 +222,10 @@ export default function NewPatientForm({
   const wantsAppointment = walkin
     ? !!serviceId
     : !!(serviceId && apptDate && apptTime);
-  const canSubmit = fullName.trim() && locationId && !submitting;
+  // Bắt buộc trước khi lưu: Họ tên + SĐT + Giới tính + Cơ sở (Ngày sinh kiểm
+  // trong save() vì có toggle "Chỉ biết năm"). Nút khoá tới khi đủ.
+  const canSubmit =
+    fullName.trim() && locationId && phone.trim() && gender && !submitting;
   // Giờ mở cửa PK theo ngày khám đã chọn (T2–T6 17–23h; T7+CN cả ngày).
   const apptCh = apptDate ? clinicHoursForDate(apptDate) : null;
   const apptMinHour = apptCh ? Number(apptCh.open.slice(0, 2)) : 0;
@@ -290,6 +293,19 @@ export default function NewPatientForm({
 
   async function save(force: boolean) {
     setError(null);
+    // BẮT BUỘC điền (mục có dấu *): Họ tên + SĐT + Giới tính.
+    if (!fullName.trim()) {
+      setError("Nhập họ tên bệnh nhân.");
+      return;
+    }
+    if (!phone.trim()) {
+      setError("Nhập số điện thoại chính (10 chữ số).");
+      return;
+    }
+    if (!gender) {
+      setError("Chọn giới tính.");
+      return;
+    }
     // Quy tắc nhập liệu CỨNG: SĐT 10 số / CCCD 12 số (chặn ngay trước khi gửi).
     const ve = phoneError(phone) || phoneError(phone2) || cccdError(cccd);
     if (ve) {
@@ -386,12 +402,8 @@ export default function NewPatientForm({
       <section className={CARD}>
         <SectionHeader
           icon={<UserRound size={16} />}
-          title={walkin ? "Thông tin khách vãng lai" : "Thông tin khách hàng"}
-          hint={
-            walkin
-              ? "Họ tên bắt buộc · chọn dịch vụ + bác sĩ để tạo lượt khám hôm nay."
-              : "Họ tên là bắt buộc; còn lại điền nếu có."
-          }
+          title="Thông tin bệnh nhân"
+          hint="Mục có dấu * là bắt buộc (Họ tên, Ngày sinh, SĐT, Giới tính, Cơ sở)."
         />
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
           <div>
@@ -408,7 +420,7 @@ export default function NewPatientForm({
           <div>
             <div className="mb-1 flex items-center justify-between gap-2">
               <label className={LABEL + " mb-0"}>
-                {dobYearOnly ? "Năm sinh" : "Ngày sinh"}
+                {dobYearOnly ? "Năm sinh" : "Ngày sinh"} <Req />
               </label>
               <label className="flex cursor-pointer items-center gap-1 text-[12px] text-[#888888]">
                 <input
@@ -452,7 +464,9 @@ export default function NewPatientForm({
             )}
           </div>
           <div>
-            <label className={LABEL}>SĐT chính</label>
+            <label className={LABEL}>
+              SĐT chính <Req />
+            </label>
             <input
               value={phone}
               onChange={(e) => setPhone(digitsOnly(e.target.value).slice(0, 10))}
@@ -533,7 +547,9 @@ export default function NewPatientForm({
             </select>
           </div>
           <div>
-            <label className={LABEL}>Giới tính</label>
+            <label className={LABEL}>
+              Giới tính <Req />
+            </label>
             <select
               value={gender}
               onChange={(e) => setGender(e.target.value)}
@@ -794,7 +810,7 @@ export default function NewPatientForm({
       {dupes && dupes.length > 0 && (
         <div className="space-y-2 rounded-xl border border-[#fde68a] bg-[#fffbeb] px-4 py-3 text-sm text-[#a16207]">
           <p className="font-medium">
-            ⚠️ Đã có khách hàng dùng SĐT này. Chọn đúng người để đặt lịch, hoặc
+            ⚠️ Đã có bệnh nhân dùng SĐT này. Chọn đúng người để đặt lịch, hoặc
             vẫn tạo mới:
           </p>
           <ul className="space-y-1.5">
@@ -819,7 +835,7 @@ export default function NewPatientForm({
                   disabled={submitting}
                   className="min-h-10 shrink-0 rounded-lg bg-[#ec4899] px-3 py-2 text-xs font-semibold text-white hover:bg-[#db2777] active:bg-[#db2777] disabled:opacity-50 sm:min-h-0 sm:py-1.5"
                 >
-                  Dùng khách này
+                  Dùng bệnh nhân này
                 </button>
               </li>
             ))}
@@ -829,7 +845,7 @@ export default function NewPatientForm({
             disabled={submitting}
             className="text-xs font-medium text-[#dc2626] underline disabled:opacity-50"
           >
-            Vẫn tạo khách hàng mới
+            Vẫn tạo bệnh nhân mới
           </button>
         </div>
       )}
@@ -846,11 +862,11 @@ export default function NewPatientForm({
             ? "Đang lưu..."
             : walkin
               ? wantsAppointment
-                ? "Tạo khách vãng lai & lượt khám"
-                : "Tạo khách vãng lai"
+                ? "Tạo bệnh nhân & lượt khám"
+                : "Tạo bệnh nhân"
               : wantsAppointment
-                ? "Tạo hồ sơ & đặt lịch"
-                : "Tạo hồ sơ khách hàng"}
+                ? "Tạo bệnh nhân & đặt lịch"
+                : "Tạo bệnh nhân"}
         </button>
         <Link href="/patients" className={BTN_GHOST + " text-center"}>
           Huỷ

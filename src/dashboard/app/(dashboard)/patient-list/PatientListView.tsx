@@ -8,6 +8,7 @@
 import { useState, useMemo } from "react";
 import Link from "next/link";
 import { fmtDate } from "../../../lib/datetime";
+import { unaccentVi } from "../../../lib/validation";
 import { TBL_WRAP, TBL_HEAD, TBL_DIV } from "../form-ui";
 import ClinicalRecordForm from "../tasks/ClinicalRecordForm";
 import type { DoctorApptRow } from "../tasks/DoctorWorkBoard";
@@ -71,15 +72,17 @@ export default function PatientListView({
   const [openAppt, setOpenAppt] = useState<DoctorApptRow | null>(null);
 
   const shown = useMemo(() => {
-    const t = term.trim().toLowerCase();
+    // Tìm KHÔNG phân biệt dấu / hoa-thường + khớp MỘT PHẦN (unaccentVi: "Hoà"/"Hòa"
+    // /"HOA" đều ra). Trước dùng toLowerCase → kẹt dấu tiếng Việt (feedback PM).
+    const t = unaccentVi(term.trim());
     return rows.filter((r) => {
       if (filter === "first" && r.phan_loai !== "Khám lần đầu") return false;
       if (filter === "return" && r.phan_loai !== "Tái khám") return false;
       if (!t) return true;
       return (
-        r.full_name.toLowerCase().includes(t) ||
-        r.patient_code.toLowerCase().includes(t) ||
-        (r.phone_primary ?? "").toLowerCase().includes(t)
+        unaccentVi(r.full_name).includes(t) ||
+        unaccentVi(r.patient_code).includes(t) ||
+        unaccentVi(r.phone_primary ?? "").includes(t)
       );
     });
   }, [rows, term, filter]);

@@ -8,7 +8,7 @@
 import Link from "next/link";
 import { getSupabaseServer } from "../../../lib/supabase-server";
 import { getClinicRole, getClinicStaffId } from "../../../lib/clinic-session";
-import { isAdminRole } from "../../../lib/roles";
+import { isOpsAdmin } from "../../../lib/roles";
 import {
   fmtDayMonth,
   weekDates,
@@ -40,7 +40,7 @@ export default async function SchedulePage({
   const dates = weekDates(week);
 
   const role = await getClinicRole();
-  const isAdmin = isAdminRole(role);
+  const isAdmin = isOpsAdmin(role);
   const myStaffId = isAdmin ? null : await getClinicStaffId();
 
   // Lấy TOÀN BỘ phân công của tuần (cho mọi vai trò) → bảng ma trận đồng bộ với

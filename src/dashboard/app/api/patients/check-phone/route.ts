@@ -3,22 +3,23 @@
 //   KHÔNG chặn. Mẹ đăng ký bằng số của mình cho con là hợp lệ → để nhân viên
 //   tự quyết; ta chỉ hiện trùng với ai.
 //
-// Đi qua FastAPI (giống brief): chuẩn hoá +84/0 + tra DB nằm ở backend, trả về
-// TỐI THIỂU (tên + mã BN + năm sinh) — KHÔNG CCCD, KHÔNG địa chỉ. Proxy chạy
-// phía server: né CORS + giữ BACKEND_API_KEY ở server.
-//
-// Cảnh báo là tính năng PHỤ: backend tắt/timeout/lỗi → trả rỗng (không cảnh
-// báo), KHÔNG để vỡ màn nhập. Guard trùng LÚC SUBMIT ở POST /api/patients vẫn
-// là lưới chặn cuối.
+// Tra THẲNG Supabase (giống guard trùng LÚC SUBMIT ở POST /api/patients) — KHÔNG
+// qua FastAPI nữa: deploy không chắc reachable nên trước đây luôn trả rỗng →
+// KHÔNG bao giờ cảnh báo. Trả TỐI THIỂU (tên + mã BN + năm sinh) — KHÔNG CCCD/địa chỉ.
 
 import { NextResponse } from "next/server";
 import { getSupabaseServer } from "../../../../lib/supabase-server";
+import { getSupabaseService } from "../../../../lib/supabase-service";
 import { getClinicRole } from "../../../../lib/clinic-session";
 import { canWriteIntake } from "../../../../lib/roles";
 
-const API_BASE = process.env.CLINIC_API_URL ?? "http://localhost:8000";
-
 const EMPTY = { exists: false, matches: [] as unknown[] };
+
+interface PatientRow {
+  full_name: string | null;
+  patient_code: string | null;
+  date_of_birth: string | null;
+}
 
 export async function GET(request: Request) {
   // 1) Phải đăng nhập (cổng chung Supabase).
@@ -37,47 +38,31 @@ export async function GET(request: Request) {
   }
 
   const phone = new URL(request.url).searchParams.get("phone")?.trim() ?? "";
-  // Chỉ tra khi đã đủ 10 chữ số (sau khi bỏ ký tự thừa) → tránh gọi backend
-  // mỗi lần gõ + tránh match nửa vời.
+  // Chỉ tra khi đủ 10 chữ số → tránh match nửa vời + tránh tra mỗi lần gõ.
   const digits = phone.replace(/\D/g, "");
   if (digits.length < 10) {
     return NextResponse.json(EMPTY);
   }
+  const ten = digits.slice(-10); // chuẩn hoá: 10 số cuối (bỏ +84/84 nếu lỡ dán vào)
 
-  const headers: Record<string, string> = {};
-  const apiKey = process.env.BACKEND_API_KEY;
-  if (apiKey) headers["X-API-Key"] = apiKey;
-
-  // Tra DB thuần → nhanh; trần 8s để backend treo không kéo theo request này.
-  const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), 8_000);
-
-  let res: Response;
-  try {
-    res = await fetch(
-      `${API_BASE}/api/v1/patients/check-phone?phone=${encodeURIComponent(phone)}`,
-      { method: "GET", headers, signal: controller.signal, cache: "no-store" },
-    );
-  } catch {
-    // ECONNREFUSED / timeout / DNS… — cảnh báo là phụ, im lặng trả rỗng.
-    return NextResponse.json(EMPTY);
-  } finally {
-    clearTimeout(timeout);
-  }
-
-  if (!res.ok) {
+  // Service-role (bypass RLS) cho chắc; rớt về client authenticated (patient có
+  // RLS SELECT) nếu chưa cấu hình service key.
+  const db = getSupabaseService() ?? supabase;
+  const { data, error } = await db
+    .from("patient")
+    .select("full_name, patient_code, date_of_birth")
+    .or(`phone_primary.eq.${ten},phone_secondary.eq.${ten}`)
+    .limit(5);
+  if (error) {
+    // Cảnh báo là tính năng PHỤ — lỗi tra thì im lặng, guard lúc submit vẫn chặn.
     return NextResponse.json(EMPTY);
   }
 
-  let payload: { exists?: boolean; matches?: unknown[] };
-  try {
-    payload = (await res.json()) as { exists?: boolean; matches?: unknown[] };
-  } catch {
-    return NextResponse.json(EMPTY);
-  }
+  const matches = ((data as PatientRow[] | null) ?? []).map((p) => ({
+    full_name: p.full_name ?? "",
+    patient_code: p.patient_code ?? "",
+    birth_year: p.date_of_birth ? Number(String(p.date_of_birth).slice(0, 4)) || null : null,
+  }));
 
-  return NextResponse.json({
-    exists: !!payload.exists,
-    matches: Array.isArray(payload.matches) ? payload.matches : [],
-  });
+  return NextResponse.json({ exists: matches.length > 0, matches });
 }

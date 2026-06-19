@@ -13,7 +13,7 @@ import {
   getClinicStaffId,
   getActiveStaff,
 } from "../../../lib/clinic-session";
-import { isAdminRole } from "../../../lib/roles";
+import { isOpsAdmin } from "../../../lib/roles";
 
 type Auth =
   | {
@@ -44,7 +44,7 @@ async function authorize(): Promise<Auth> {
   if (!user) {
     return { ok: false, res: NextResponse.json({ error: "Unauthorised" }, { status: 401 }) };
   }
-  const isAdmin = isAdminRole(await getClinicRole());
+  const isAdmin = isOpsAdmin(await getClinicRole());
   const staffId = await getClinicStaffId();
   const staff = await getActiveStaff();
   const staffName = staff?.full_name ?? staff?.short_name ?? "";

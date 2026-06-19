@@ -60,9 +60,7 @@ export default async function NewPatientPage() {
   return (
     <div className="mx-auto max-w-3xl space-y-4">
       <header>
-        <h1 className="text-xl font-semibold text-[#171717]">
-          {nurse ? "Nhập thông tin khách vãng lai" : "Nhập thông tin khách hàng"}
-        </h1>
+        <h1 className="text-xl font-semibold text-[#171717]">Tạo bệnh nhân</h1>
       </header>
       <NewPatientForm
         locations={locations}

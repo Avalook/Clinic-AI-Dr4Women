@@ -3,6 +3,20 @@
 
 ## [LOCAL — chưa push]
 
+### 2026-06-19 · T-DASH-INTAKE-WORDING-REQ-SEARCH-01 · Wording "Tạo bệnh nhân" + mục bắt buộc (*) + cảnh báo SĐT trùng (deploy) + tìm bỏ dấu · commit `chưa commit`
+- **Wording đồng bộ → "Tạo bệnh nhân":** bỏ "khách vãng lai" / "khách hàng mới" / "khách hàng" ở luồng tạo BN. Sửa `NewPatientForm` (tiêu đề, nút Tạo, cảnh báo trùng), `nav-items` (nhãn + bỏ override "Vãng lai" của ĐD), `patients/new/page`, `CustomersView`.
+- **Bắt buộc điền + dấu `*`:** thêm `*` cho Ngày sinh / SĐT chính / Giới tính (ngoài Họ tên + Cơ sở). Khoá nút Lưu tới khi đủ (`canSubmit`) + chặn trong `save()` với báo lỗi rõ.
+- **FIX cảnh báo SĐT trùng KHÔNG hiện trên deploy:** `/api/patients/check-phone` trước gọi FastAPI (deploy không reachable → luôn rỗng → không cảnh báo). Nay tra THẲNG Supabase `patient.phone_primary/secondary` (như guard lúc submit) → cảnh báo ngay khi gõ đủ 10 số.
+- **Tìm bỏ dấu + hoa-thường:** `PatientListView` đổi `toLowerCase` → `unaccentVi` ("Hoà"/"Hòa"/"HOA" + khớp một phần). Các list khác (customers/patients/home checkin) vốn đã dùng unaccent.
+- **"PT":** chỉ còn ở `sk.ts`/`hmvs.ts` = "Đông máu cơ bản (PT, APTT, Fibrinogen)" — PT ở đây là xét nghiệm Prothrombin Time, KHÁC "Phẫu thuật" (đã đổi từ T-DASH-INTAKE-UX-01) → GIỮ.
+- **VERIFY:** tsc + eslint + `next build` sạch.
+
+### 2026-06-19 · T-DASH-TRUONGCA-OPSADMIN-01 · Trưởng ca = quản trị VẬN HÀNH (dưới Quản lý) · commit `chưa commit`
+- **Mở rộng quyền Trưởng ca** (theo yêu cầu sếp, ĐẢO quyết định 17/6 cũ "chỉ hành chính"): thêm helper `isOpsAdmin = MANAGEMENT || TRUONG_CA`. TC giờ vào + sửa được phần vận hành: `/appointments` (+ `canManageAppt` hủy/phân lại lịch), `/patients`, `/cskh-today`, `/cashier/thuoc|dich-vu` (+ ghi bảng giá), `/schedule` + `/schedule/edit` (+ ghi roster), `/work-sessions`, `/reports`.
+- **Ranh giới "thấp hơn quản lý":** `/settings` (tạo user / cấu hình hệ thống) VẪN chỉ `isAdminRole` (MANAGEMENT). **LÂM SÀNG = CHỈ XEM** (TC không thuộc `canWriteClinical`; xem tiến trình khám qua "Theo dõi buổi"). "Công việc của tôi" của TC giữ placeholder (chờ PK xem xét).
+- Đổi gate `isAdminRole` → `isOpsAdmin` ở: reports, patients, schedule/edit, schedule, api/roster; thêm TRUONG_CA vào gate ghi `service-price`.
+- **VERIFY:** tsc + eslint + `next build` sạch.
+
 ### 2026-06-19 · T-DASH-LETAN-DD-TESTACCT-01 · Tài khoản test rõ tên cho Lễ tân + Điều dưỡng · seed `chưa apply`
 - **CHECK:** 2 vai ĐÃ tách sẵn ở `lib/roles.ts` — Điều dưỡng (`NURSE_ULTRASOUND`) = `canWriteClinical` (ghi Sinh hiệu + nhập hộ "Lý do khám bệnh"); Lễ tân (`RECEPTION`) = hành chính, KHÔNG lâm sàng. DB có staff cả 2 (ĐD 16, Lễ tân 2) NHƯNG 2 lễ tân tên "ĐD Huế/ĐD Quỳnh Anh" (dễ nhầm), CHƯA có tài khoản test rõ tên như các vai khác ("Thu ngân"/"Trưởng ca"/"Thư ký Y khoa").
 - **Seed `057_letan_dieuduong_staff.sql`** (re-runnable, IF NOT EXISTS): thêm 2 staff "Lễ tân" (RECEPTION) + "Điều dưỡng" (NURSE_ULTRASOUND) để hiện rõ ở role-picker cho PK test phân quyền. KHÔNG cần migration CHECK (2 dept vốn hợp lệ). **CHƯA APPLY** — cần Quang chạy (lệnh ở báo cáo).

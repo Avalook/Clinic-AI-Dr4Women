@@ -5,7 +5,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { getSupabaseServer } from "../../../../lib/supabase-server";
 import { getClinicRole } from "../../../../lib/clinic-session";
-import { isAdminRole, departmentToRole } from "../../../../lib/roles";
+import { isOpsAdmin, departmentToRole } from "../../../../lib/roles";
 import {
   weekStartOf,
   weekDates,
@@ -23,7 +23,7 @@ export default async function ScheduleEditPage({
   searchParams: Promise<{ week?: string }>;
 }) {
   const role = await getClinicRole();
-  if (!isAdminRole(role)) redirect("/schedule");
+  if (!isOpsAdmin(role)) redirect("/schedule");
 
   const { week: rawWeek } = await searchParams;
   const week = rawWeek ? weekStartOf(rawWeek) : currentWeekStartVn();

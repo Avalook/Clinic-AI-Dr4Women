@@ -207,7 +207,7 @@ export default function CustomersView({
               <p className="px-4 py-12 text-center text-sm text-[#a1a1aa]">
                 {by === "appt"
                   ? "Không có khách nào có lịch hẹn trong kỳ này."
-                  : "Chưa có khách hàng nào trong khoảng lọc này. Nhập ở “Nhập thông tin khách hàng mới”."}
+                  : "Chưa có bệnh nhân nào trong khoảng lọc này. Tạo ở “Tạo bệnh nhân”."}
               </p>
             ) : (
               <ul className="divide-y divide-[#f6e0ec]">

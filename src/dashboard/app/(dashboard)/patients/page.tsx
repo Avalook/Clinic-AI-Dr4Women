@@ -7,7 +7,7 @@ import StatCard from "../StatCard";
 import { redirect } from "next/navigation";
 import { getSupabaseServer } from "../../../lib/supabase-server";
 import { getClinicRole, getClinicStaffId } from "../../../lib/clinic-session";
-import { isDoctorRole, isAdminRole } from "../../../lib/roles";
+import { isDoctorRole, isOpsAdmin } from "../../../lib/roles";
 import { vnTodayRangeUtc, vnMonthStartUtc } from "../../../lib/datetime";
 
 export const dynamic = "force-dynamic";
@@ -22,7 +22,7 @@ export default async function PatientsPage({
   // Quản lý xem tất cả; bác sĩ xem BN của mình (URL này còn là đích redirect
   // từ patients/[id]). CSKH/Lễ tân/ĐD gõ thẳng URL → đẩy về Trang chủ — họ
   // tra cứu qua /customers, không được xem TOÀN BỘ danh sách BN ở đây.
-  if (!isAdminRole(role) && !isDoctorRole(role)) redirect("/home");
+  if (!isOpsAdmin(role) && !isDoctorRole(role)) redirect("/home");
   const isDoctor = isDoctorRole(role);
   const doctorId = isDoctor ? await getClinicStaffId() : null;
 
