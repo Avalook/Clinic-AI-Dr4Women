@@ -3,6 +3,11 @@
 
 ## [LOCAL — chưa push]
 
+### 2026-06-19 · T-DASH-LETAN-DD-TESTACCT-01 · Tài khoản test rõ tên cho Lễ tân + Điều dưỡng · seed `chưa apply`
+- **CHECK:** 2 vai ĐÃ tách sẵn ở `lib/roles.ts` — Điều dưỡng (`NURSE_ULTRASOUND`) = `canWriteClinical` (ghi Sinh hiệu + nhập hộ "Lý do khám bệnh"); Lễ tân (`RECEPTION`) = hành chính, KHÔNG lâm sàng. DB có staff cả 2 (ĐD 16, Lễ tân 2) NHƯNG 2 lễ tân tên "ĐD Huế/ĐD Quỳnh Anh" (dễ nhầm), CHƯA có tài khoản test rõ tên như các vai khác ("Thu ngân"/"Trưởng ca"/"Thư ký Y khoa").
+- **Seed `057_letan_dieuduong_staff.sql`** (re-runnable, IF NOT EXISTS): thêm 2 staff "Lễ tân" (RECEPTION) + "Điều dưỡng" (NURSE_ULTRASOUND) để hiện rõ ở role-picker cho PK test phân quyền. KHÔNG cần migration CHECK (2 dept vốn hợp lệ). **CHƯA APPLY** — cần Quang chạy (lệnh ở báo cáo).
+- Xác nhận distinction "Lý do khám bệnh" (BS đưa, ĐD nhập — chief_complaint) vs "Vấn đề khiến BN đi khám" (CSKH khai — `patient.van_de_di_kham`) ĐÃ có sẵn trong hệ thống.
+
 ### 2026-06-19 · T-DASH-PAYMENT-01 · Bảng payment: 2 màn thu ngân + thanh tiến trình Lễ tân ĐỒNG BỘ thật · commit `chưa commit`
 - **Migration 056 `create_payment`** (forward+down): bảng `payment(visit_id, kind∈{thuoc,dich_vu}, status PAID, amount, paid_by_staff_id, paid_at)`, UNIQUE(visit_id,kind), RLS SELECT authenticated (ghi service-role). **CHƯA APPLY DB** — classifier chặn DDL lên prod; cần Quang chạy (lệnh ở báo cáo). Code degrade graceful nếu bảng chưa có (query lỗi → coi như rỗng, không crash).
 - **API `/api/payment`** (POST upsert PAID / DELETE hoàn tác): gate vai thu ngân + kind thuộc quyền vai (CASHIER_THUOC→thuoc, CASHIER_DV→dich_vu, CASHIER→cả hai). 42P01 (bảng chưa có) → 503 báo rõ.
