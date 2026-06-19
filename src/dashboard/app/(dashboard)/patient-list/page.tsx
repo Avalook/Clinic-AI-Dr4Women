@@ -46,6 +46,10 @@ export default async function PatientListPage() {
   // chi tiết (còn nút đặt lịch tái khám ở đó; trang đó cũng đã sửa được hành chính).
   const enablePopup =
     isTasksReadOnly(role) || isDoctorRole(role) || role === "CSKH";
+  // CSKH + Lễ tân: nút "Tái khám" trong popup → trang đặt lịch /patients/[id].
+  const showRebook = role === "CSKH" || role === "RECEPTION";
+  // Bác sĩ: pager ◀ ▶ xem lượt khám trước/sau ngay trong phiếu.
+  const showPager = isDoctorRole(role);
   const supabase = await getSupabaseServer();
 
   // COMPLETED = đã khám xong. Sắp xếp mới→cũ để lần xuất hiện ĐẦU của mỗi BN
@@ -119,6 +123,9 @@ export default async function PatientListPage() {
           canEditAdmin={enablePopup}
           /* Nút tóm tắt trước khám chỉ cho BÁC SĨ (CSKH/lễ tân mở popup nhưng không thấy). */
           showPreVisitBrief={isDoctorRole(role)}
+          /* Nút Tái khám: CSKH/Lễ tân. Pager lượt khám: Bác sĩ. */
+          showRebook={showRebook}
+          enableVisitPager={showPager}
         />
       )}
     </div>

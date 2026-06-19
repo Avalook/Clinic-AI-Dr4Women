@@ -48,6 +48,8 @@ export default function PatientListView({
   enablePopup = false,
   canEditAdmin = false,
   showPreVisitBrief = false,
+  showRebook = false,
+  enableVisitPager = false,
 }: {
   rows: ExaminedRow[];
   /** Lễ tân + Bác sĩ: bấm tên BN mở hồ sơ (chỉ đọc) trượt sang phải (SplitPane)
@@ -58,6 +60,10 @@ export default function PatientListView({
   canEditAdmin?: boolean;
   /** Hiện nút "Xem tóm tắt trước khám" trong popup — chỉ BÁC SĨ bật từ server. */
   showPreVisitBrief?: boolean;
+  /** Hiện nút "Tái khám" trong popup hồ sơ — CSKH + Lễ tân (server bật theo vai). */
+  showRebook?: boolean;
+  /** Hiện pager ◀ ▶ lượt khám trong phiếu — BÁC SĨ (server bật theo vai). */
+  enableVisitPager?: boolean;
 }) {
   const [term, setTerm] = useState("");
   const [filter, setFilter] = useState<Filter>("all");
@@ -200,6 +206,8 @@ export default function PatientListView({
             readOnly
             canEditAdmin={canEditAdmin}
             showPreVisitBrief={showPreVisitBrief}
+            showRebook={showRebook}
+            enableVisitPager={enableVisitPager}
             onClose={() => setOpenAppt(null)}
           />
         }

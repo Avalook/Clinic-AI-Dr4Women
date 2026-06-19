@@ -66,6 +66,9 @@ export async function GET(request: Request) {
   const url = new URL(request.url);
   const patientId = url.searchParams.get("patientId");
   const appointmentId = url.searchParams.get("appointmentId");
+  // visitId = xem 1 LƯỢT KHÁM cũ cụ thể (pager ◀▶ trong phiếu khám, chỉ đọc).
+  // Khi có visitId → nạp đúng visit đó (draft + đơn thuốc); appointmentId bỏ qua.
+  const visitId = url.searchParams.get("visitId");
   if (!patientId) {
     return NextResponse.json({ error: "Thiếu patientId." }, { status: 400 });
   }
@@ -93,17 +96,26 @@ export async function GET(request: Request) {
       .eq("clinic_patient_id", patientId)
       .order("result_received_at", { ascending: false })
       .limit(20),
-    appointmentId
+    visitId
       ? supabase
           .from("visit")
           .select(
             "visit_id, status, clinical_record ( chief_complaint_at_visit, soap_subjective, soap_objective, soap_assessment, soap_plan )",
           )
-          .eq("appointment_id", appointmentId)
-          .order("created_at", { ascending: false })
-          .limit(1)
+          .eq("visit_id", visitId)
+          .eq("clinic_patient_id", patientId)
           .maybeSingle()
-      : Promise.resolve({ data: null }),
+      : appointmentId
+        ? supabase
+            .from("visit")
+            .select(
+              "visit_id, status, clinical_record ( chief_complaint_at_visit, soap_subjective, soap_objective, soap_assessment, soap_plan )",
+            )
+            .eq("appointment_id", appointmentId)
+            .order("created_at", { ascending: false })
+            .limit(1)
+            .maybeSingle()
+        : Promise.resolve({ data: null }),
     // Lịch sử khám các đợt TRƯỚC của BN (feedback C5#4) — đọc qua RLS, read-only.
     supabase
       .from("visit")

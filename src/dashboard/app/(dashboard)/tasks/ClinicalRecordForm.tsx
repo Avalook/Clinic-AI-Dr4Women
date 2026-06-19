@@ -7,9 +7,9 @@
 //   điền → LƯU NHÁP vào visit (IN_PROGRESS) + clinical_record qua /api/clinical-record.
 // AN TOÀN: nếu visit đã FINALIZED → khóa (luật cấm sửa). KHÔNG tự chốt hồ sơ.
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { X, Plus } from "lucide-react";
+import { X, Plus, ChevronLeft, ChevronRight, CalendarPlus } from "lucide-react";
 import { fmtDate, fmtDateTimeOrDate } from "../../../lib/datetime";
 import { INPUT, LABEL } from "../form-ui";
 import PatientAdminEditor from "../PatientAdminEditor";
@@ -218,6 +218,8 @@ export default function ClinicalRecordForm({
   canEditAdmin = false,
   showPreVisitBrief = false,
   showSono = false,
+  enableVisitPager = false,
+  showRebook = false,
 }: {
   appt: DoctorApptRow;
   staffId: string | null;
@@ -239,6 +241,12 @@ export default function ClinicalRecordForm({
   /** showSono = BÁC SĨ SIÊU ÂM (ULTRASOUND_DOCTOR): hiện form số đo siêu âm thai
    *  (CRL/NT/BPD/HC/AC/FL/EFW) → /api/ultrasound. Server bật theo vai. */
   showSono?: boolean;
+  /** enableVisitPager = BÁC SĨ / TKYK: hiện nút ◀ ▶ + "trang i/n" ở tiêu đề phiếu
+   *  để xem các lượt khám TRƯỚC/SAU của BN (CHỈ ĐỌC). Lượt cũ luôn khóa ghi. */
+  enableVisitPager?: boolean;
+  /** showRebook = CSKH / Lễ tân: hiện nút "Tái khám" cạnh "Đóng" → mở trang đặt
+   *  lịch của BN (/patients/[id]: hành chính giữ nguyên + form đặt lịch bên dưới). */
+  showRebook?: boolean;
 }) {
   const router = useRouter();
   const p = appt.patient;
@@ -260,11 +268,37 @@ export default function ClinicalRecordForm({
   const [msg, setMsg] = useState<string | null>(null);
   // D26 — đã bấm Lưu sinh hiệu mà thiếu trường bắt buộc → bật viền đỏ inline.
   const [vitalsTried, setVitalsTried] = useState(false);
+  // Pager lượt khám (◀ ▶): trang 0 = LƯỢT NÀY (lịch đang mở, ghi được); trang >0 =
+  // lượt khám CŨ (chỉ đọc). `pages` dựng 1 lần ở lần nạp trang 0 (ref để đọc trong
+  // effect mà không phải thêm vào deps). Lượt cũ nạp bằng visitId.
+  interface PageRef { visitId: string | null; date: string; service: string | null }
+  const [pages, setPages] = useState<PageRef[]>([]);
+  const [pageIdx, setPageIdx] = useState(0);
+  const pagesRef = useRef<PageRef[]>([]);
+  const viewingPast = pageIdx > 0;
+  // Đổi BN / lịch → component REMOUNT (cả 2 board truyền key={appt.id}) nên
+  // pages/pageIdx tự reset, KHÔNG cần effect reset thủ công.
+  // Đổi trang qua pager: bật loading NGAY trong handler (không setState trong
+  // effect) rồi đổi pageIdx → effect dưới nạp lượt khám tương ứng.
+  const goPage = (idx: number) => {
+    setLoading(true);
+    setPageIdx(idx);
+  };
+  // Hằng số ổn định theo từng lần mount (appt cố định vì board truyền key).
+  const apptSlotStart = appt.slot_start;
+  const apptServiceName = appt.service?.name ?? null;
 
   useEffect(() => {
     if (!p?.clinic_patient_id) return;
     let on = true;
-    fetch(`/api/clinical-record?patientId=${p.clinic_patient_id}&appointmentId=${appt.id}`)
+    // Trang 0 = lượt đang mở (nạp theo appointmentId, đồng thời dựng `pages`).
+    // Trang >0 = lượt cũ (nạp theo visitId đã biết trong `pages`).
+    const isCurrent = pageIdx === 0;
+    const pastVisitId = isCurrent ? null : (pagesRef.current[pageIdx]?.visitId ?? null);
+    const qs = isCurrent
+      ? `patientId=${p.clinic_patient_id}&appointmentId=${appt.id}`
+      : `patientId=${p.clinic_patient_id}&visitId=${pastVisitId}`;
+    fetch(`/api/clinical-record?${qs}`)
       .then((r) => r.json())
       .then((d: Data) => {
         if (!on) return;
@@ -293,11 +327,24 @@ export default function ClinicalRecordForm({
             caution: p.caution ?? "",
           })),
         );
+        // Dựng danh sách lượt khám 1 lần: [lượt này] + lịch sử (mới → cũ).
+        if (isCurrent && pagesRef.current.length === 0) {
+          const built: PageRef[] = [
+            { visitId: d.visit?.visit_id ?? null, date: apptSlotStart, service: apptServiceName },
+            ...(d.history ?? []).map((h) => ({
+              visitId: h.visit_id,
+              date: h.created_at,
+              service: h.service,
+            })),
+          ];
+          pagesRef.current = built;
+          setPages(built);
+        }
       })
       .catch(() => on && setData(null))
       .finally(() => on && setLoading(false));
     return () => { on = false; };
-  }, [p?.clinic_patient_id, appt.id]);
+  }, [p?.clinic_patient_id, appt.id, pageIdx, apptSlotStart, apptServiceName]);
 
   // Tải danh mục thuốc + CLS cho picker (dùng chung mọi loại form khám).
   useEffect(() => {
@@ -385,6 +432,7 @@ export default function ClinicalRecordForm({
 
   async function save() {
     if (readOnly) return; // Lễ tân chỉ-đọc: chặn ghi ngay tầng UI (server cũng chặn).
+    if (viewingPast) return; // Đang xem lượt khám cũ qua pager: tuyệt đối không ghi.
     if (vitalsOnly) return saveVitals();
     // Chưa tải xong / tải LỖI (data=null) → KHÔNG lưu: form còn rỗng sẽ ghi đè
     // xoá đơn thuốc + tiền sử + chẩn đoán cũ của lượt khám (backend thay toàn bộ).
@@ -517,8 +565,9 @@ export default function ClinicalRecordForm({
   const preg = data?.pregnancy;
   const labs = data?.labs ?? [];
   // khoá khi: LỄ TÂN chỉ-đọc / hồ sơ đã chốt / đang lưu / (bác sĩ) BN chưa check-in
-  // / đang tải prefill (chưa tải xong mà sửa+lưu sẽ ghi đè rỗng — xem guard save()).
-  const ro = readOnly || locked || saving || arrivalPending || loading;
+  // / đang tải prefill (chưa tải xong mà sửa+lưu sẽ ghi đè rỗng — xem guard save())
+  // / đang XEM LƯỢT KHÁM CŨ qua pager (viewingPast — chỉ đọc, không ghi đè lượt cũ).
+  const ro = readOnly || locked || saving || arrivalPending || loading || viewingPast;
   const roRest = ro || vitalsOnly; // đón-khám (vitalsOnly): mọi mục khác chỉ xem
   // "YYYY-MM-DD" theo giờ máy người dùng — min cho ô Ngày tái khám (mục X).
   const todayYmd = new Date().toLocaleDateString("en-CA");
@@ -549,22 +598,55 @@ export default function ClinicalRecordForm({
         ))}
       </datalist>
       <div className="flex items-center justify-between border-b border-[#e4e4e7] px-4 py-3">
-        <div>
-          <h3 className="text-sm font-bold uppercase text-[#171717]">
-            Phiếu khám bệnh
+        <div className="min-w-0">
+          <h3 className="flex flex-wrap items-center gap-x-2 gap-y-1 text-sm font-bold uppercase text-[#171717]">
+            <span>Phiếu khám bệnh</span>
             {vitalsOnly && (
-              <span className="ml-2 rounded bg-[#fef9c3] px-1.5 py-0.5 text-[10px] font-medium normal-case text-[#a16207]">
+              <span className="rounded bg-[#fef9c3] px-1.5 py-0.5 text-[10px] font-medium normal-case text-[#a16207]">
                 Chỉ ghi Sinh hiệu
+              </span>
+            )}
+            {/* Pager lượt khám (◀ ▶): trang 1 = lượt mới nhất; ▶ lùi về lượt cũ
+                hơn, ◀ tiến tới lượt mới hơn. Chỉ hiện khi BN có ≥2 lượt. */}
+            {enableVisitPager && pages.length > 1 && (
+              <span className="inline-flex items-center gap-0.5 rounded-full border border-[#f3cfe0] bg-white px-0.5 py-0.5 normal-case">
+                <button
+                  type="button"
+                  onClick={() => goPage(Math.max(0, pageIdx - 1))}
+                  disabled={pageIdx === 0}
+                  aria-label="Lượt khám mới hơn"
+                  className="rounded-full p-0.5 text-[#9d2463] hover:bg-[#fdf2f8] disabled:opacity-30"
+                >
+                  <ChevronLeft size={15} />
+                </button>
+                <span className="px-1 text-[11px] font-medium text-[#9d2463]">
+                  trang {pageIdx + 1}/{pages.length}
+                </span>
+                <button
+                  type="button"
+                  onClick={() => goPage(Math.min(pages.length - 1, pageIdx + 1))}
+                  disabled={pageIdx >= pages.length - 1}
+                  aria-label="Lượt khám cũ hơn"
+                  className="rounded-full p-0.5 text-[#9d2463] hover:bg-[#fdf2f8] disabled:opacity-30"
+                >
+                  <ChevronRight size={15} />
+                </button>
+              </span>
+            )}
+            {viewingPast && (
+              <span className="rounded bg-[#fce7f3] px-1.5 py-0.5 text-[10px] font-medium normal-case text-[#9d2463]">
+                👁 Lượt khám cũ — chỉ xem
               </span>
             )}
           </h3>
           <p className="text-xs text-[#888888]">
             {p?.full_name} · {p?.patient_code}
-            {appt.service?.name ? ` · ${appt.service.name}` : ""} ·{" "}
-            {fmtDateTimeOrDate(appt.slot_start)}
+            {viewingPast
+              ? `${pages[pageIdx]?.service ? ` · ${pages[pageIdx]?.service}` : ""} · ${fmtDateTimeOrDate(pages[pageIdx]?.date ?? appt.slot_start)}`
+              : `${appt.service?.name ? ` · ${appt.service.name}` : ""} · ${fmtDateTimeOrDate(appt.slot_start)}`}
           </p>
         </div>
-        <button onClick={onClose} aria-label="Đóng" className="rounded-md p-1 text-[#71717a] hover:bg-[#f4f4f5]">
+        <button onClick={onClose} aria-label="Đóng" className="shrink-0 rounded-md p-1 text-[#71717a] hover:bg-[#f4f4f5]">
           <X size={18} />
         </button>
       </div>
@@ -634,7 +716,7 @@ export default function ClinicalRecordForm({
 
         {/* Số đo siêu âm thai — CHỈ Bác sĩ Siêu âm (showSono). Lưu riêng qua
             /api/ultrasound (ultrasound_record), KHÔNG dính nút Lưu hồ sơ chính. */}
-        {showSono && p?.clinic_patient_id && (
+        {showSono && !viewingPast && p?.clinic_patient_id && (
           <div className="border-t border-[#f4f4f5] pt-3">
             <SonoBiometry
               appointmentId={appt.id}
@@ -1042,8 +1124,8 @@ export default function ClinicalRecordForm({
           {readOnly ? "👁 Chỉ xem — không có quyền sửa." : (msg ?? "")}
         </span>
         <div className="flex gap-2">
-          {/* Lễ tân chỉ-đọc: ẨN nút Lưu hoàn toàn (không chỉ disable). */}
-          {!readOnly && (
+          {/* Lễ tân chỉ-đọc / đang xem lượt cũ: ẨN nút Lưu hoàn toàn (không chỉ disable). */}
+          {!readOnly && !viewingPast && (
             <button
               onClick={save}
               disabled={ro}
@@ -1056,6 +1138,16 @@ export default function ClinicalRecordForm({
                   : willComplete
                     ? "Lưu & Khám xong"
                     : "Lưu hồ sơ"}
+            </button>
+          )}
+          {/* CSKH / Lễ tân: Tái khám → trang đặt lịch của BN (hành chính giữ
+              nguyên + form đặt lịch bên dưới). Đặt cạnh "Đóng" theo yêu cầu. */}
+          {showRebook && p?.clinic_patient_id && (
+            <button
+              onClick={() => router.push(`/patients/${p.clinic_patient_id}`)}
+              className="inline-flex min-h-10 items-center gap-1 rounded-lg border border-[#f3cfe0] bg-white px-4 text-sm font-semibold text-[#9d2463] hover:bg-[#fdf2f8]"
+            >
+              <CalendarPlus size={15} /> Tái khám
             </button>
           )}
           <button onClick={onClose} className="min-h-10 rounded-lg border border-[#e4e4e7] bg-white px-4 text-sm text-[#52525b] hover:bg-[#f4f4f5]">

@@ -3,6 +3,14 @@
 
 ## [LOCAL — chưa push]
 
+### 2026-06-19 · T-DASH-TAIKHAM-PAGER-01 · Nút "Tái khám" (CSKH/Lễ tân) + pager ◀▶ lượt khám (Bác sĩ/TKYK) · commit `chưa commit`
+- **Phần 1 — Nút "Tái khám":** trong popup "Phiếu khám bệnh" ở *Danh sách bệnh nhân*, thêm nút **Tái khám** cạnh **Đóng** → `router.push('/patients/[id]')` (trang đã có sẵn: hành chính giữ nguyên + form đặt lịch bên dưới). Gate `showRebook` = CSKH || Lễ tân (server `patient-list/page.tsx`). Bác sĩ KHÔNG thấy (không thuộc canWriteIntake).
+- **Phần 2 — Pager lượt khám:** thêm `◀ trang i/n ▶` trên dòng tiêu đề "Phiếu khám bệnh". Trang 1 = lượt mới nhất; ▶ lùi về lượt cũ, ◀ tiến tới lượt mới. Lượt cũ **luôn khóa ghi** (`viewingPast` → `ro`, ẩn nút Lưu, ẩn form siêu âm, `save()` chặn sớm). Gate `enableVisitPager`: DoctorWorkBoard (bác sĩ/TKYK/lễ-tân-clone) bật cứng; patient-list bật cho bác sĩ. `pages` dựng 1 lần từ lượt-hiện-tại + lịch sử; component remount theo `key={appt.id}` nên tự reset.
+- **Phần 3 — "Bản nháp": BỎ** theo quyết định sếp (19/6). Upsert hiện tại vốn "giữ lần lưu cuối" → không cần đụng. KHÔNG migration, KHÔNG đụng luật bất biến FINALIZED/append-only.
+- **API:** GET `/api/clinical-record` thêm tham số `visitId` (chỉ đọc) cho pager nạp lượt cũ, scope thêm `clinic_patient_id` (không lộ lượt khám BN khác).
+- **VERIFY:** tsc + eslint (5 file) + `next build` sạch (0 lỗi). File: `clinical-record/route.ts`, `ClinicalRecordForm.tsx`, `DoctorWorkBoard.tsx`, `PatientListView.tsx`, `patient-list/page.tsx`.
+- **NỢ nhỏ:** khi xem lượt cũ qua pager, mục "Lịch sử khám trước" có thể liệt kê cả lượt đang xem (cosmetic, không ảnh hưởng ghi).
+
 ### 2026-06-18 · T-DASH-PROVINCE-DROPDOWN-FIX-01 · Fix dropdown Tỉnh rỗng (RLS thiếu policy) · commit `chưa commit`
 - **Vỡ ở tầng DB-quyền-đọc (RLS), KHÔNG phải API/form logic:** bảng `province`/`ward` có **RLS = bật nhưng KHÔNG có policy SELECT** (khác `service_type` có `*_select_authenticated`) → role `authenticated` của dashboard đọc về **0 dòng**. Data vẫn đủ (34 tỉnh / 3321 phường). **Chứng minh:** PostgREST anon key → `content-range */0` (0); service key → `0-0/34`.
 - **Sửa (chỉ tầng API/fetch, KHÔNG đụng DB/policy/migration theo boundary):** đọc province (`patients/new/page.tsx`) + ward (`api/wards/route.ts`) bằng **service-role client** (`getSupabaseService`, bypass RLS) thay vì `getSupabaseServer`. Data tham chiếu hành chính CÔNG KHAI, server-only → an toàn.

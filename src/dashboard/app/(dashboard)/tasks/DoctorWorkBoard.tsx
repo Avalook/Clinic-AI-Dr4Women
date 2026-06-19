@@ -326,6 +326,9 @@ export default function DoctorWorkBoard({
                 canEditAdmin={canEditAdmin}
                 showPreVisitBrief={showPreVisitBrief}
                 showSono={showSono}
+                /* Bác sĩ / TKYK (+ Lễ tân chỉ-đọc): pager ◀ ▶ xem lượt khám
+                   trước/sau của BN ngay trong phiếu (chỉ đọc). */
+                enableVisitPager
                 onClose={() => setOpenId(null)}
               />
             }
