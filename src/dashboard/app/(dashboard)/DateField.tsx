@@ -1,11 +1,13 @@
 "use client";
 
-// Ô NGÀY DUY NHẤT (gộp ngày/tháng/năm rời thành 1 control) — D19.
-//   • Hiển thị + nhập theo DD/MM/YYYY (không phụ thuộc locale trình duyệt).
-//   • Gõ số tự chèn "/"; rời ô tự đệm 0 (gõ "7" → "07").
-//   • Nút lịch mở bộ chọn ngày native (chọn nhanh bằng chuột).
-//   • value/onChange dùng ISO "yyyy-mm-dd" (ĐÚNG kiểu date đang lưu DB) — emit ""
-//     khi trống hoặc chưa hợp lệ (caller tự bắt "bắt buộc"/"tương lai").
+// Ô NGÀY DUY NHẤT (gộp ngày/tháng/năm thành 1 control) — D19.
+//   • Hiển thị + nhập DD/MM/YYYY (không phụ thuộc locale trình duyệt).
+//   • KẸP PHẠM VI NGAY KHI GÕ: ngày 1–31, tháng 1–12, năm [minYear..maxYear]
+//     (mặc định 1900..hiện tại+10; ô ngày sinh truyền max=hôm nay → 1900..nay).
+//     KHÔNG bao giờ để lọt ngày 33 / tháng 34 / năm 3245.
+//   • Gõ LIÊN TỤC: nhận diện ngày/tháng 1 chữ số để tự nhảy ô — gõ "7" rồi "8"
+//     → "07/08"; gõ "07082019" → "07/08/2019".
+//   • Nút lịch mở bộ chọn native; value/onChange dùng ISO "yyyy-mm-dd".
 
 import { useRef, useState } from "react";
 import { CalendarDays } from "lucide-react";
@@ -18,7 +20,8 @@ function isoToText(iso: string): string {
   return m ? `${m[3]}/${m[2]}/${m[1]}` : "";
 }
 
-/** d/m/y (chuỗi) → ISO; "" nếu thiếu phần hoặc KHÔNG phải ngày lịch hợp lệ. */
+/** d/m/y (chuỗi ĐÃ kẹp) → ISO; "" nếu thiếu phần hoặc KHÔNG phải ngày lịch hợp lệ
+ *  (vd 31/02). Kẹp phạm vi đã làm ở maskParts; đây là rào chốt cuối. */
 function partsToIso(d: string, mo: string, y: string): string {
   if (!d || !mo || y.length !== 4) return "";
   const dd = Number(d);
@@ -27,51 +30,25 @@ function partsToIso(d: string, mo: string, y: string): string {
   if (!Number.isInteger(dd) || !Number.isInteger(mm) || !Number.isInteger(yy))
     return "";
   if (mm < 1 || mm > 12) return "";
-  if (yy < 1900 || yy > 2200) return "";
   if (dd < 1 || dd > daysInMonth(mm, yy)) return "";
   return `${String(yy).padStart(4, "0")}-${String(mm).padStart(2, "0")}-${String(dd).padStart(2, "0")}`;
 }
 
-/** Tách chuỗi đang gõ thành ngày/tháng/năm. Tôn trọng "/" người dùng gõ; nếu
- *  chưa gõ "/" thì cắt theo vị trí 2/2/4 (cho dán liền "07082019"). */
-function splitText(s: string): { d: string; m: string; y: string; segs: number } {
-  const clean = (s ?? "").replace(/[^\d/]/g, "");
-  const parts = clean.split("/");
-  let d: string;
-  let m: string;
-  let y: string;
-  if (parts.length === 1) {
-    const digits = parts[0];
-    d = digits.slice(0, 2);
-    m = digits.slice(2, 4);
-    y = digits.slice(4, 8);
-  } else {
-    d = parts[0] ?? "";
-    m = parts[1] ?? "";
-    y = parts.length > 2 ? parts.slice(2).join("") : "";
-    // Tràn chữ số (gõ liền không kịp "/") → đẩy sang phần sau.
-    if (d.length > 2) {
-      m = d.slice(2) + m;
-      d = d.slice(0, 2);
-    }
-    if (m.length > 2) {
-      y = m.slice(2) + y;
-      m = m.slice(0, 2);
-    }
-    d = d.slice(0, 2);
-    m = m.slice(0, 2);
-    y = y.replace(/\D/g, "").slice(0, 4);
-  }
-  return { d, m, y, segs: parts.length };
+/** Kẹp chuỗi 2 chữ số vào [lo, hi] rồi pad 0. */
+function clamp2(s: string, lo: number, hi: number): string {
+  let n = Number(s);
+  if (n < lo) n = lo;
+  if (n > hi) n = hi;
+  return String(n).padStart(2, "0");
 }
 
-/** Dựng lại chuỗi hiển thị; chỉ chèn "/" khi phần sau có nội dung HOẶC người dùng
- *  đã gõ "/" (segs) — tránh kẹt khi xoá lùi. */
-function buildText(d: string, m: string, y: string, segs: number): string {
-  let text = d;
-  if (m !== "" || segs >= 2) text += "/" + m;
-  if (y !== "" || segs >= 3) text += "/" + y;
-  return text;
+/** Dựng chuỗi hiển thị; tự chèn "/" sau khi NGÀY (2 ký tự) / THÁNG (2 ký tự) chốt
+ *  → người dùng thấy ranh giới khi gõ liền. */
+function buildDisplay(d: string, m: string, y: string): string {
+  let t = d;
+  if (m !== "" || d.length === 2) t += "/" + m;
+  if (y !== "" || m.length === 2) t += "/" + y;
+  return t;
 }
 
 export default function DateField({
@@ -87,7 +64,7 @@ export default function DateField({
   value: string;
   /** Nhận ISO "yyyy-mm-dd" (đã hợp lệ) hoặc "". */
   onChange: (iso: string) => void;
-  /** ISO chặn dưới/trên cho bộ chọn lịch native. */
+  /** ISO chặn dưới/trên cho bộ chọn lịch native + kẹp NĂM khi gõ tay. */
   min?: string;
   max?: string;
   className?: string;
@@ -97,19 +74,106 @@ export default function DateField({
   const [text, setText] = useState(() => isoToText(value));
   const nativeRef = useRef<HTMLInputElement>(null);
 
+  // Khoảng NĂM hợp lệ suy từ min/max (ô ngày sinh: max=hôm nay → tối đa = năm nay;
+  // không người sống nào sinh năm 3245). Mặc định 1900..(năm nay+10) cho ô ngày khám.
+  const curYear = new Date().getFullYear();
+  const maxYear = max && /^\d{4}/.test(max) ? Number(max.slice(0, 4)) : curYear + 10;
+  const minYear = min && /^\d{4}/.test(min) ? Number(min.slice(0, 4)) : 1900;
+
+  const clampYear = (y: string): string => {
+    if (y.length !== 4) return y; // chưa đủ 4 số → chưa kẹp (đang gõ)
+    let n = Number(y);
+    if (n < minYear) n = minYear;
+    if (n > maxYear) n = maxYear;
+    return String(n).padStart(4, "0");
+  };
+
+  // Gõ LIÊN TỤC (không "/"): máy trạng thái nhận diện ngày 1–31 / tháng 1–12, số
+  // đầu ≥4 (ngày) / ≥2 (tháng) = 1 chữ số → tự nhảy ô.
+  function maskContinuous(digits: string): { d: string; m: string; y: string } {
+    let i = 0;
+    let d = "";
+    let m = "";
+    let y = "";
+    if (i < digits.length) {
+      const a = digits[i];
+      if (a >= "4") {
+        d = "0" + a; // 4..9 không thể là chục của ngày ≤31 → ngày 1 chữ số
+        i += 1;
+      } else if (i + 1 < digits.length) {
+        const two = digits.slice(i, i + 2);
+        if (Number(two) >= 1 && Number(two) <= 31) {
+          d = two;
+          i += 2;
+        } else {
+          d = "0" + a; // 2 số >31 → ngày = 0a, số sau sang tháng
+          i += 1;
+        }
+      } else {
+        d = a; // mới 1 số → chờ
+        i += 1;
+      }
+    }
+    if (d.length === 2 && i < digits.length) {
+      const a = digits[i];
+      if (a >= "2") {
+        m = "0" + a; // 2..9 không thể là chục của tháng ≤12 → tháng 1 chữ số
+        i += 1;
+      } else if (i + 1 < digits.length) {
+        const two = digits.slice(i, i + 2);
+        if (Number(two) >= 1 && Number(two) <= 12) {
+          m = two;
+          i += 2;
+        } else {
+          m = "0" + a;
+          i += 1;
+        }
+      } else {
+        m = a;
+        i += 1;
+      }
+    }
+    if (m.length === 2 && i < digits.length) {
+      y = digits.slice(i, i + 4);
+    }
+    return { d, m, y };
+  }
+
+  // Người dùng tự gõ "/" → tôn trọng ranh giới, vẫn kẹp từng phần.
+  function maskSlashed(raw: string): { d: string; m: string; y: string } {
+    const parts = raw.split("/");
+    let d = (parts[0] ?? "").replace(/\D/g, "").slice(0, 2);
+    let m = (parts[1] ?? "").replace(/\D/g, "").slice(0, 2);
+    const y = parts.slice(2).join("").replace(/\D/g, "").slice(0, 4);
+    if (d.length === 2) d = clamp2(d, 1, 31);
+    if (m.length === 2) m = clamp2(m, 1, 12);
+    return { d, m, y };
+  }
+
+  function emit(d: string, m: string, y: string) {
+    const yc = clampYear(y);
+    setText(buildDisplay(d, m, yc));
+    onChange(partsToIso(d, m, yc));
+  }
+
   function onType(raw: string) {
-    const { d, m, y, segs } = splitText(raw);
-    setText(buildText(d, m, y, segs));
-    onChange(partsToIso(d, m, y));
+    const cleaned = (raw ?? "").replace(/[^\d/]/g, "");
+    const { d, m, y } = cleaned.includes("/")
+      ? maskSlashed(cleaned)
+      : maskContinuous(cleaned);
+    emit(d, m, y);
   }
 
   function onBlur() {
-    const { d, m, y } = splitText(text);
+    // Rời ô: pad ngày/tháng 1 chữ số ("7" → "07") + kẹp lại cho chắc.
+    const parts = text.split("/");
+    let d = (parts[0] ?? "").replace(/\D/g, "").slice(0, 2);
+    let m = (parts[1] ?? "").replace(/\D/g, "").slice(0, 2);
+    const y = parts.slice(2).join("").replace(/\D/g, "").slice(0, 4);
     if (!d && !m && !y) return;
-    const pd = d ? d.padStart(2, "0") : d;
-    const pm = m ? m.padStart(2, "0") : m;
-    setText(buildText(pd, pm, y, y ? 3 : pm ? 2 : 1));
-    onChange(partsToIso(pd, pm, y));
+    if (d) d = clamp2(d, 1, 31);
+    if (m) m = clamp2(m, 1, 12);
+    emit(d, m, y);
   }
 
   function openPicker() {

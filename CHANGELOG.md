@@ -3,6 +3,13 @@
 
 ## [LOCAL — chưa push]
 
+### 2026-06-19 · T-DASH-DATEFIELD-CLAMP-01 · Ô ngày KẸP phạm vi khi gõ (ngày 1–31, tháng 1–12, năm 1900–nay) · commit `chưa commit`
+- **Sửa lỗi:** `DateField` trước chỉ hiển thị thô số gõ vào (để lọt ngày 33 / tháng 34 / năm 3245), chỉ âm thầm reject lúc emit ISO → người dùng thấy ngày bậy. Senior-bug.
+- **Nay KẸP NGAY khi gõ:** ngày 1–31, tháng 1–12, năm [minYear..maxYear] (suy từ min/max: ô ngày sinh max=hôm nay → 1900..năm nay; ô ngày khám → 1900..nay+10). Năm 4 chữ số vượt khoảng → kẹp về biên (3245 → năm nay).
+- **Nhận diện gõ LIÊN TỤC:** số đầu ≥4 = ngày 1 chữ số, ≥2 = tháng 1 chữ số → tự nhảy ô. "782019"→07/08/2019; "07082019"→07/08/2019; "33342019" KHÔNG ra ngày 33 (kẹp 03/03 + năm kẹp).
+- **Ô "Chỉ biết năm"** (NewPatientForm): cũng kẹp tối đa 4 chữ số + > năm nay → năm nay (không nhập 3245).
+- **VERIFY:** tsc + eslint + `next build` sạch + test máy trạng thái mask (node).
+
 ### 2026-06-19 · T-DASH-INTAKE-WORDING-REQ-SEARCH-01 · Wording "Tạo bệnh nhân" + mục bắt buộc (*) + cảnh báo SĐT trùng (deploy) + tìm bỏ dấu · commit `chưa commit`
 - **Wording đồng bộ → "Tạo bệnh nhân":** bỏ "khách vãng lai" / "khách hàng mới" / "khách hàng" ở luồng tạo BN. Sửa `NewPatientForm` (tiêu đề, nút Tạo, cảnh báo trùng), `nav-items` (nhãn + bỏ override "Vãng lai" của ĐD), `patients/new/page`, `CustomersView`.
 - **Bắt buộc điền + dấu `*`:** thêm `*` cho Ngày sinh / SĐT chính / Giới tính (ngoài Họ tên + Cơ sở). Khoá nút Lưu tới khi đủ (`canSubmit`) + chặn trong `save()` với báo lỗi rõ.

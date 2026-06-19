@@ -435,12 +435,17 @@ export default function NewPatientForm({
             {dobYearOnly ? (
               <div>
                 <input
-                  type="number"
+                  type="text"
                   inputMode="numeric"
-                  min={1900}
-                  max={CUR_YEAR}
+                  maxLength={4}
                   value={birthYear}
-                  onChange={(e) => setBirthYear(e.target.value)}
+                  onChange={(e) => {
+                    // Năm sinh: tối đa 4 chữ số, KẸP > năm nay về năm nay (không
+                    // để nhập 3245). < 1900 vẫn báo lỗi inline bên dưới.
+                    let v = e.target.value.replace(/\D/g, "").slice(0, 4);
+                    if (v.length === 4 && Number(v) > CUR_YEAR) v = String(CUR_YEAR);
+                    setBirthYear(v);
+                  }}
                   className={INPUT + (birthYearErr ? " border-[#dc2626]" : "")}
                   placeholder="VD: 1990"
                 />
