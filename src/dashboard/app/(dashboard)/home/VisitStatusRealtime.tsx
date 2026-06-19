@@ -1,10 +1,11 @@
 "use client";
 
 // "Cập nhật liên tục" cho bảng "Trạng thái BN buổi khám hôm nay" (Lễ tân).
-// Subscribe mọi thay đổi trên bảng ``visit`` (OPEN → IN_PROGRESS → FINALIZED…) →
-// debounce → ``router.refresh()`` để server component nạp lại trạng thái mới +
-// PostgREST lo join patient/bác sĩ/dịch vụ. Pill nhỏ báo kênh đang sống.
-// Cùng khuôn với AppointmentsRealtime (không mirror row vào client state).
+// Subscribe thay đổi trên CẢ ``visit`` VÀ ``appointment`` → debounce →
+// ``router.refresh()`` để server component nạp lại + PostgREST lo join.
+// QUAN TRỌNG: mốc "Khám xong" đọc từ ``appointment.status = COMPLETED`` (bác sĩ
+// "Lưu & Khám xong" cập nhật bảng appointment, KHÔNG đụng visit) — nếu chỉ nghe
+// ``visit`` thì board không tự tích "Khám xong" tới khi tải lại tay. Pill báo kênh sống.
 
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
@@ -19,22 +20,26 @@ export default function VisitStatusRealtime() {
 
   useEffect(() => {
     const supabase = getSupabaseBrowser();
+    const bump = () => {
+      setEventCount((c) => c + 1);
+      if (refreshTimer.current) clearTimeout(refreshTimer.current);
+      refreshTimer.current = setTimeout(() => {
+        router.refresh();
+      }, REFRESH_DEBOUNCE_MS);
+    };
     const channel = supabase
       .channel("visit-status-changes")
-      .on(
-        "postgres_changes",
-        { event: "*", schema: "public", table: "visit" },
-        () => {
-          setEventCount((c) => c + 1);
-          if (refreshTimer.current) clearTimeout(refreshTimer.current);
-          refreshTimer.current = setTimeout(() => {
-            router.refresh();
-          }, REFRESH_DEBOUNCE_MS);
-        },
-      )
+      // visit: tạo lượt khám, đổi OPEN/IN_PROGRESS/FINALIZED.
+      .on("postgres_changes", { event: "*", schema: "public", table: "visit" }, bump)
+      // appointment: bác sĩ "Lưu & Khám xong" → status COMPLETED (nguồn mốc "Khám xong").
+      .on("postgres_changes", { event: "*", schema: "public", table: "appointment" }, bump)
       .subscribe();
+    // Lưới an toàn: nếu realtime của bảng nào CHƯA bật replication thì vẫn đồng bộ
+    // chậm nhất ~30s (re-fetch server component). Realtime lo cập nhật tức thời.
+    const poll = setInterval(() => router.refresh(), 30_000);
     return () => {
       if (refreshTimer.current) clearTimeout(refreshTimer.current);
+      clearInterval(poll);
       void supabase.removeChannel(channel);
     };
   }, [router]);

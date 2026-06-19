@@ -12,25 +12,30 @@ import { Check } from "lucide-react";
 const WAIT_GREEN_MAX = 10; // < 10p  → xanh
 const WAIT_YELLOW_MAX = 20; // 10–20p → vàng;  > 20p → đỏ
 
-// Thanh tiến trình kiểu Grab — 3 MỐC: Đang khám → Khám xong → Hoàn tất.
+// Thanh tiến trình kiểu Grab — 3 MỐC: Đang khám → Khám xong → Đã thanh toán.
 // "Đến mốc nào tích xanh mốc ấy" (reached) suy từ visit.status + appointment.status:
-//   • Đang khám  → visit IN_PROGRESS (BN đã vào khám).
-//   • Khám xong  → appointment COMPLETED (bác sĩ "Lưu & Khám xong"). LƯU Ý: dashboard
-//     KHÔNG tự set visit.FINALIZED, nên "khám xong" PHẢI đọc từ appointment, không
-//     phải visit — nếu không mốc này không bao giờ xanh.
-//   • Hoàn tất   → visit FINALIZED/AMENDED (hồ sơ chốt pháp lý — gate chốt riêng,
-//     hiện chưa nối nút chốt trên dashboard nên thường còn ở bước "đang tới").
+//   • Đang khám      → visit IN_PROGRESS (BN đã vào khám).
+//   • Khám xong      → appointment COMPLETED (bác sĩ "Lưu & Khám xong"). LƯU Ý:
+//     dashboard KHÔNG tự set visit.FINALIZED, nên "khám xong" PHẢI đọc từ
+//     appointment, không phải visit — nếu không mốc này không bao giờ xanh.
+//   • Đã thanh toán  → CHƯA có bảng billing → KHÔNG có nguồn để tự tích. Khi BN
+//     khám xong, mốc này hiện "đang tới" (hồng pulse) chờ thu ngân; tự xanh khi
+//     nối luồng thanh toán (thêm bảng payment) sau.
 const MILESTONES: { key: string; label: string }[] = [
   { key: "dang_kham", label: "Đang khám" },
   { key: "kham_xong", label: "Khám xong" },
-  { key: "hoan_tat", label: "Hoàn tất" },
+  { key: "thanh_toan", label: "Đã thanh toán" },
 ];
 
-// Số mốc đã đạt (tích xanh). OPEN=0 (chờ khám), IN_PROGRESS=1, appt COMPLETED=2,
-// visit FINALIZED/AMENDED=3 (hồ sơ chốt). Lấy mốc CAO NHẤT đạt được.
+// Số mốc đã đạt (tích xanh). OPEN=0 (chờ khám), IN_PROGRESS=1, khám xong=2.
+// Tối đa 2: mốc "Đã thanh toán" chưa có nguồn dữ liệu nên không tự đạt.
 export function reachedCount(visitStatus: string, apptStatus: string | null): number {
-  if (visitStatus === "FINALIZED" || visitStatus === "AMENDED") return 3;
-  if (apptStatus === "COMPLETED") return 2;
+  if (
+    apptStatus === "COMPLETED" ||
+    visitStatus === "FINALIZED" ||
+    visitStatus === "AMENDED"
+  )
+    return 2; // khám xong
   if (visitStatus === "IN_PROGRESS") return 1;
   return 0; // OPEN — mới check-in, đang chờ khám
 }

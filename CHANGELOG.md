@@ -3,6 +3,12 @@
 
 ## [LOCAL — chưa push]
 
+### 2026-06-19 · T-DASH-VISIT-PROGRESS-GRAB-03 · Mốc 3 "Hoàn tất"→"Đã thanh toán" + FIX realtime nghe thiếu bảng appointment · commit `chưa commit`
+- **Đổi mốc 3 "Hoàn tất" → "Đã thanh toán"** (yêu cầu sếp). `reachedCount` cap ở 2 (Đang khám=IN_PROGRESS · Khám xong=appt COMPLETED) — mốc "Đã thanh toán" chưa có bảng billing nên không tự tích, hiện "đang tới" (hồng pulse) chờ thu ngân.
+- **FIX "đồng bộ chậm" (bác sĩ khám xong mà Lễ tân chưa tích "Khám xong"):** `VisitStatusRealtime` trước CHỈ nghe bảng `visit`. Nhưng "Khám xong" = `appointment.status=COMPLETED` (bác sĩ "Lưu & Khám xong" cập nhật bảng **appointment**, KHÔNG đụng visit) → realtime không fire → board không tự refresh. Nay subscribe **CẢ `visit` VÀ `appointment`**.
+- **Lưới an toàn:** thêm poll `router.refresh()` mỗi 30s — nếu bảng nào chưa bật realtime replication thì vẫn đồng bộ chậm nhất ~30s. Realtime lo cập nhật tức thời (debounce 1.5s).
+- **VERIFY:** tsc + eslint + `next build` sạch. File: `VisitProgress.tsx`, `VisitStatusRealtime.tsx`.
+
 ### 2026-06-19 · T-DASH-CASHIER-PAY-01 · Màn thu ngân "Công việc của tôi": BN đang khám + thu tiền dịch vụ/thuốc + QR demo · commit `chưa commit`
 - **Thay placeholder** `CashierWorkBoard` bằng màn THU TIỀN thật: bảng 2 cột — TRÁI ô gộp "Bệnh nhân" (tên + mã + SĐT); PHẢI khoản thu theo mode.
 - **ĐỒNG BỘ THẬT (cái đã có ở khâu khác):** Dịch vụ = dịch vụ khám (`appointment.service_type`) + CLS bác sĩ chỉ định (`lab_result` theo appointment) + dịch vụ ĐD làm (`service_log` hôm nay). Thuốc = đơn thuốc bác sĩ kê (`prescription` của lượt khám). Giá best-effort khớp tên với `service_price` (chỉ dòng có đơn giá) — chưa khớp/chưa nhập → để trống "—".
