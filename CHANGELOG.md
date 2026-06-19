@@ -3,6 +3,14 @@
 
 ## [LOCAL — chưa push]
 
+### 2026-06-19 · T-DASH-CASHIER-PAY-01 · Màn thu ngân "Công việc của tôi": BN đang khám + thu tiền dịch vụ/thuốc + QR demo · commit `chưa commit`
+- **Thay placeholder** `CashierWorkBoard` bằng màn THU TIỀN thật: bảng 2 cột — TRÁI ô gộp "Bệnh nhân" (tên + mã + SĐT); PHẢI khoản thu theo mode.
+- **ĐỒNG BỘ THẬT (cái đã có ở khâu khác):** Dịch vụ = dịch vụ khám (`appointment.service_type`) + CLS bác sĩ chỉ định (`lab_result` theo appointment) + dịch vụ ĐD làm (`service_log` hôm nay). Thuốc = đơn thuốc bác sĩ kê (`prescription` của lượt khám). Giá best-effort khớp tên với `service_price` (chỉ dòng có đơn giá) — chưa khớp/chưa nhập → để trống "—".
+- **Mode theo vai:** CASHIER_THUOC=[thuoc], CASHIER_DV=[dich_vu], CASHIER=cả hai (toggle). List = BN có `visit` tạo hôm nay (đang/đã khám).
+- **Khâu CHƯA CÓ → để trống (demo, không bịa):** nút "Thanh toán" → hiện ô **mã QR placeholder** (chưa nối cổng) → "Đã thanh toán". Trạng thái đã-thu **CHỈ ở client, KHÔNG lưu** (chưa có bảng billing) — ghi rõ ở header + có "Hoàn tác". Khi nối cổng/billing sau sẽ thay QR thật + lưu DB.
+- **VERIFY:** tsc + eslint + `next build` sạch. File: `CashierWorkBoard.tsx` (viết lại), `tasks/page.tsx` (thêm `CashierTasks` server-fetch + gate mode theo vai).
+- **NỢ:** (a) bảng billing/phiếu thu để LƯU "đã thanh toán" (hiện ephemeral); (b) cổng QR thật; (c) giá thuốc trong `drug_catalog` phần lớn NULL → cột giá thuốc thường trống; (d) khớp giá theo tên là best-effort (chưa map service_type_id → service_price).
+
 ### 2026-06-19 · T-DASH-VISIT-PROGRESS-GRAB-02 · Mốc cuối "Thanh toán"→"Hoàn tất" + FIX "Khám xong" đọc đúng nguồn · commit `chưa commit`
 - **Đổi mốc 3 "Thanh toán" → "Hoàn tất"** (yêu cầu sếp). Lý do bỏ "Thanh toán": thu ngân hiện CHỈ là **bảng giá + placeholder**, CHƯA có luồng billing — `CashierWorkBoard` tự ghi "chưa có dữ liệu phiếu thu"; grep toàn migration **0 cột** paid/payment/invoice. Không có dữ liệu để tự tích → không đặt mốc "Thanh toán".
 - **FIX QUAN TRỌNG — "Khám xong" phải đọc `appointment.status=COMPLETED`, KHÔNG phải `visit.FINALIZED`:** dashboard KHÔNG bao giờ tự set `visit.FINALIZED` (mọi route ghi rõ "KHÔNG đụng visit.status/FINALIZED"); "khám xong" = bác sĩ "Lưu & Khám xong" → `appointment.COMPLETED`. Map cũ (Khám xong=FINALIZED) sẽ **không bao giờ xanh** → thanh kẹt ở "Đang khám". Nay join `appointment.status` vào query (home + truong-ca).

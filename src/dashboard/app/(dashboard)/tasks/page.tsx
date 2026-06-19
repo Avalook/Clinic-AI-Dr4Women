@@ -26,11 +26,204 @@ import {
 import ConfirmBoard, { type ApptRow, type Opt } from "./ConfirmBoard";
 import CskhActionBoard, { type CskhActionRow } from "./CskhActionBoard";
 import DoctorWorkBoard, { type DoctorApptRow } from "./DoctorWorkBoard";
-import CashierWorkBoard from "./CashierWorkBoard";
+import CashierWorkBoard, {
+  type CashierMode,
+  type CashierRow,
+  type CashierServiceItem,
+  type CashierDrugItem,
+} from "./CashierWorkBoard";
+import type { ClinicRole } from "../../../lib/roles";
 
 export const dynamic = "force-dynamic";
 
 const DAY_MS = 24 * 60 * 60 * 1000;
+
+// Chuẩn hoá tên để khớp bảng giá (service_price): bỏ URL trong ngoặc, gộp khoảng trắng.
+const normName = (s: string): string =>
+  (s ?? "")
+    .toLowerCase()
+    .replace(/\(https?:\/\/[^)]*\)?/g, "")
+    .replace(/[()]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+// Bỏ link Notion "(https://…)" khỏi tên dịch vụ/xét nghiệm cho gọn.
+const cleanName = (s: string | null): string =>
+  (s ?? "").replace(/\s*\(https?:\/\/[^)]*\)?/gi, "").trim();
+
+const oneOf = <T,>(x: T | T[] | null): T | null =>
+  !x ? null : Array.isArray(x) ? (x[0] ?? null) : x;
+
+// Mode thu ngân theo vai: CASHIER_THUOC=[thuoc], CASHIER_DV=[dich_vu], CASHIER=cả hai.
+function cashierModes(role: ClinicRole | null): CashierMode[] {
+  if (role === "CASHIER_THUOC") return ["thuoc"];
+  if (role === "CASHIER_DV") return ["dich_vu"];
+  return ["thuoc", "dich_vu"];
+}
+
+// Màn THU TIỀN của thu ngân: BN đang khám hôm nay + khoản thu lấy THẬT từ hồ sơ.
+//   Dịch vụ = dịch vụ khám (appointment.service_type) + CLS bác sĩ chỉ định
+//   (lab_result) + dịch vụ điều dưỡng làm (service_log hôm nay).
+//   Thuốc   = đơn thuốc bác sĩ kê (prescription của lượt khám).
+// Giá best-effort khớp tên với service_price; chưa có → để trống. Khu QR + xác
+// nhận thanh toán là khung demo (chưa có bảng billing — KHÔNG bịa trạng thái đã thu).
+async function CashierTasks(modes: CashierMode[]) {
+  const supabase = await getSupabaseServer();
+  const { startUtc, endUtc } = vnTodayRangeUtc();
+
+  interface VisitRaw {
+    visit_id: string;
+    clinic_patient_id: string;
+    appointment_id: string | null;
+    patient:
+      | { full_name: string | null; patient_code: string | null; phone_primary: string | null }
+      | { full_name: string | null; patient_code: string | null; phone_primary: string | null }[]
+      | null;
+    appointment:
+      | { status: string | null; service: { name: string | null } | { name: string | null }[] | null }
+      | { status: string | null; service: { name: string | null } | { name: string | null }[] | null }[]
+      | null;
+  }
+
+  const { data: visitsRaw, error } = await supabase
+    .from("visit")
+    .select(
+      `visit_id, clinic_patient_id, appointment_id,
+       patient:patient!clinic_patient_id ( full_name, patient_code, phone_primary ),
+       appointment:appointment!appointment_id ( status, service:service_type!service_type_id ( name ) )`,
+    )
+    .gte("created_at", startUtc)
+    .lt("created_at", endUtc)
+    .order("created_at", { ascending: false })
+    .limit(300);
+
+  const visits = (visitsRaw as VisitRaw[] | null) ?? [];
+  const patientIds = [
+    ...new Set(visits.map((v) => v.clinic_patient_id).filter((x): x is string => !!x)),
+  ];
+  const apptIds = [
+    ...new Set(visits.map((v) => v.appointment_id).filter((x): x is string => !!x)),
+  ];
+  const visitIds = visits.map((v) => v.visit_id);
+  const wantSvc = modes.includes("dich_vu");
+  const wantRx = modes.includes("thuoc");
+
+  const [labRes, svcRes, rxRes, priceRes] = await Promise.all([
+    wantSvc && apptIds.length
+      ? supabase
+          .from("lab_result")
+          .select("id, appointment_id, test_name")
+          .in("appointment_id", apptIds)
+          .limit(2000)
+      : Promise.resolve({ data: [] }),
+    wantSvc && patientIds.length
+      ? supabase
+          .from("service_log")
+          .select("id, clinic_patient_id, service_name_raw, service:service_type!service_type_id ( name )")
+          .in("clinic_patient_id", patientIds)
+          .gte("ordered_at", startUtc)
+          .lt("ordered_at", endUtc)
+          .limit(1000)
+      : Promise.resolve({ data: [] }),
+    wantRx && visitIds.length
+      ? supabase
+          .from("prescription")
+          .select("id, visit_id, drug_name_raw, quantity, dosage_instructions")
+          .in("visit_id", visitIds)
+          .limit(2000)
+      : Promise.resolve({ data: [] }),
+    supabase.from("service_price").select("name, group, unit_price").eq("active", true),
+  ]);
+
+  // Bảng giá theo tên đã chuẩn hoá (chỉ dòng có đơn giá).
+  const priceThuoc = new Map<string, number>();
+  const priceDV = new Map<string, number>();
+  for (const p of (priceRes.data as { name: string; group: string; unit_price: number | null }[] | null) ?? []) {
+    if (p.unit_price == null) continue;
+    (p.group === "thuoc" ? priceThuoc : priceDV).set(normName(p.name), p.unit_price);
+  }
+  const dvPrice = (name: string): number | null => priceDV.get(normName(name)) ?? null;
+
+  // CLS theo appointment.
+  const labByAppt = new Map<string, { id: string; test_name: string }[]>();
+  for (const l of (labRes.data as { id: string; appointment_id: string | null; test_name: string }[] | null) ?? []) {
+    if (!l.appointment_id) continue;
+    const arr = labByAppt.get(l.appointment_id) ?? [];
+    arr.push({ id: l.id, test_name: l.test_name });
+    labByAppt.set(l.appointment_id, arr);
+  }
+  // service_log theo BN.
+  interface SvcRaw {
+    id: string;
+    clinic_patient_id: string;
+    service_name_raw: string | null;
+    service: { name: string | null } | { name: string | null }[] | null;
+  }
+  const svcByPatient = new Map<string, CashierServiceItem[]>();
+  for (const s of (svcRes.data as SvcRaw[] | null) ?? []) {
+    const name = oneOf(s.service)?.name ?? cleanName(s.service_name_raw);
+    if (!name) continue;
+    const arr = svcByPatient.get(s.clinic_patient_id) ?? [];
+    arr.push({ id: s.id, name, price: dvPrice(name) });
+    svcByPatient.set(s.clinic_patient_id, arr);
+  }
+  // Đơn thuốc theo lượt khám.
+  interface RxRaw {
+    id: string;
+    visit_id: string;
+    drug_name_raw: string | null;
+    quantity: string | null;
+    dosage_instructions: string | null;
+  }
+  const rxByVisit = new Map<string, CashierDrugItem[]>();
+  for (const d of (rxRes.data as RxRaw[] | null) ?? []) {
+    const name = (d.drug_name_raw ?? "").trim();
+    if (!name) continue;
+    const arr = rxByVisit.get(d.visit_id) ?? [];
+    arr.push({
+      id: d.id,
+      name,
+      quantity: d.quantity,
+      dosage: d.dosage_instructions,
+      price: priceThuoc.get(normName(name)) ?? null,
+    });
+    rxByVisit.set(d.visit_id, arr);
+  }
+
+  const rows: CashierRow[] = visits.map((v) => {
+    const p = oneOf(v.patient);
+    const appt = oneOf(v.appointment);
+    const services: CashierServiceItem[] = [];
+    if (wantSvc) {
+      const examName = oneOf(appt?.service ?? null)?.name ?? null;
+      if (examName)
+        services.push({ id: `exam-${v.visit_id}`, name: examName, price: dvPrice(examName) });
+      for (const l of v.appointment_id ? (labByAppt.get(v.appointment_id) ?? []) : []) {
+        const nm = cleanName(l.test_name);
+        if (nm) services.push({ id: l.id, name: nm, price: dvPrice(nm) });
+      }
+      services.push(...(svcByPatient.get(v.clinic_patient_id) ?? []));
+    }
+    return {
+      visit_id: v.visit_id,
+      clinic_patient_id: v.clinic_patient_id,
+      full_name: p?.full_name ?? null,
+      patient_code: p?.patient_code ?? null,
+      phone: p?.phone_primary ?? null,
+      appt_status: appt?.status ?? null,
+      services,
+      drugs: wantRx ? (rxByVisit.get(v.visit_id) ?? []) : [],
+    };
+  });
+
+  if (error) {
+    return (
+      <div className="rounded-md bg-[#fee2e2] px-3 py-2 text-sm text-[#dc2626]">
+        {error.message}
+      </div>
+    );
+  }
+  return <CashierWorkBoard rows={rows} modes={modes} />;
+}
 
 // Bác sĩ: lịch của MÌNH (đủ trường hành chính để dựng hồ sơ lâm sàng).
 const DOCTOR_SELECT = `
@@ -188,7 +381,7 @@ export default async function TasksPage() {
   // Thu ngân (CASHIER + 2 vai tách CASHIER_THUOC/CASHIER_DV): màn LÀM VIỆC thu ngân
   // riêng (2 mode thuốc/dịch vụ) — KHÔNG dùng board bác sĩ. Đặt TRƯỚC isTasksReadOnly
   // để mọi vai thu ngân không rơi vào nhánh read-only board (tránh lộ lịch/BN của BS).
-  if (isCashierRole(role)) return <CashierWorkBoard />;
+  if (isCashierRole(role)) return CashierTasks(cashierModes(role));
   // Bác sĩ: board lâm sàng. Bác sĩ Siêu âm thêm form số đo siêu âm thai (showSono).
   if (isDoctorRole(role))
     return DoctorTasks(false, true, false, isUltrasoundDoctorRole(role));
