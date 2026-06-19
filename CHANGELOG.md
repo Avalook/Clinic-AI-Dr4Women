@@ -3,6 +3,11 @@
 
 ## [LOCAL — chưa push]
 
+### 2026-06-19 · T-DASH-DATEFIELD-CLAMP-02 · FIX bug gõ liền "782019"→07/12/019 + không xóa được dấu "/" · commit `chưa commit`
+- **Bug (CLAMP-01):** input controlled tự chèn "/" rồi đọc lại → nhánh maskSlashed thấy tháng "82" kẹp về "12" (ra 07/12/019). Backspace lại bị buildDisplay tự thêm "/" cuối → kẹt không xóa được qua dấu gạch.
+- **Fix:** BỎ nhánh maskSlashed — LUÔN re-mask từ chuỗi SỐ thuần (bỏ "/"), nên gõ liền "782019" → đúng 07/08/2019. Thêm cờ `deleting` (chuỗi mới ngắn hơn): khi backspace KHÔNG tự thêm "/" cuối → xóa mượt qua cả dấu gạch tới rỗng.
+- **VERIFY:** mô phỏng gõ từng phím + backspace (node) khớp; tsc + eslint + `next build` sạch.
+
 ### 2026-06-19 · T-DASH-DATEFIELD-CLAMP-01 · Ô ngày KẸP phạm vi khi gõ (ngày 1–31, tháng 1–12, năm 1900–nay) · commit `chưa commit`
 - **Sửa lỗi:** `DateField` trước chỉ hiển thị thô số gõ vào (để lọt ngày 33 / tháng 34 / năm 3245), chỉ âm thầm reject lúc emit ISO → người dùng thấy ngày bậy. Senior-bug.
 - **Nay KẸP NGAY khi gõ:** ngày 1–31, tháng 1–12, năm [minYear..maxYear] (suy từ min/max: ô ngày sinh max=hôm nay → 1900..năm nay; ô ngày khám → 1900..nay+10). Năm 4 chữ số vượt khoảng → kẹp về biên (3245 → năm nay).
