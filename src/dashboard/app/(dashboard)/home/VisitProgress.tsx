@@ -18,24 +18,28 @@ const WAIT_YELLOW_MAX = 20; // 10–20p → vàng;  > 20p → đỏ
 //   • Khám xong      → appointment COMPLETED (bác sĩ "Lưu & Khám xong"). LƯU Ý:
 //     dashboard KHÔNG tự set visit.FINALIZED, nên "khám xong" PHẢI đọc từ
 //     appointment, không phải visit — nếu không mốc này không bao giờ xanh.
-//   • Đã thanh toán  → CHƯA có bảng billing → KHÔNG có nguồn để tự tích. Khi BN
-//     khám xong, mốc này hiện "đang tới" (hồng pulse) chờ thu ngân; tự xanh khi
-//     nối luồng thanh toán (thêm bảng payment) sau.
+//   • Đã thanh toán  → bảng payment: khi mọi khâu PHẢI thu (dịch vụ + thuốc nếu có
+//     đơn) đã có dòng PAID → `paid=true` → tích xanh. Chưa thu xong thì hiện "đang
+//     tới" (hồng pulse) chờ thu ngân.
 const MILESTONES: { key: string; label: string }[] = [
   { key: "dang_kham", label: "Đang khám" },
   { key: "kham_xong", label: "Khám xong" },
   { key: "thanh_toan", label: "Đã thanh toán" },
 ];
 
-// Số mốc đã đạt (tích xanh). OPEN=0 (chờ khám), IN_PROGRESS=1, khám xong=2.
-// Tối đa 2: mốc "Đã thanh toán" chưa có nguồn dữ liệu nên không tự đạt.
-export function reachedCount(visitStatus: string, apptStatus: string | null): number {
-  if (
+// Số mốc đã đạt (tích xanh). OPEN=0 (chờ khám), IN_PROGRESS=1, khám xong=2,
+// đã thanh toán=3 (paid từ bảng payment — thu ngân chốt đủ khâu).
+export function reachedCount(
+  visitStatus: string,
+  apptStatus: string | null,
+  paid: boolean,
+): number {
+  const done =
     apptStatus === "COMPLETED" ||
     visitStatus === "FINALIZED" ||
-    visitStatus === "AMENDED"
-  )
-    return 2; // khám xong
+    visitStatus === "AMENDED";
+  if (paid && done) return 3; // chỉ tích thanh toán khi đã khám xong
+  if (done) return 2; // khám xong
   if (visitStatus === "IN_PROGRESS") return 1;
   return 0; // OPEN — mới check-in, đang chờ khám
 }
@@ -43,11 +47,13 @@ export function reachedCount(visitStatus: string, apptStatus: string | null): nu
 export function ProgressStepper({
   visitStatus,
   apptStatus,
+  paid = false,
 }: {
   visitStatus: string;
   apptStatus: string | null;
+  paid?: boolean;
 }) {
-  const reached = reachedCount(visitStatus, apptStatus);
+  const reached = reachedCount(visitStatus, apptStatus, paid);
 
   return (
     <div className="flex items-start">

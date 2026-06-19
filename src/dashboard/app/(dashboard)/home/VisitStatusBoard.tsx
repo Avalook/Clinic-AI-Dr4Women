@@ -14,13 +14,16 @@ import { ProgressStepper, WaitClock } from "./VisitProgress";
 function displayStatus(
   visitStatus: string,
   apptStatus: string | null,
+  paid: boolean,
 ): { label: string; style: string } {
+  if (paid)
+    return { label: "Đã thanh toán", style: "bg-[#dcfce7] text-[#15803d]" };
   if (visitStatus === "AMENDED")
     return { label: "Đã bổ sung", style: "bg-[#f3e8ff] text-[#7e22ce]" };
   if (visitStatus === "FINALIZED")
     return { label: "Đã chốt hồ sơ", style: "bg-[#dcfce7] text-[#15803d]" };
   if (apptStatus === "COMPLETED")
-    return { label: "Đã khám xong", style: "bg-[#dcfce7] text-[#15803d]" };
+    return { label: "Đã khám xong — chờ thu", style: "bg-[#fef9c3] text-[#a16207]" };
   if (visitStatus === "IN_PROGRESS")
     return { label: "Đang khám", style: "bg-[#fef9c3] text-[#a16207]" };
   return { label: "Chờ khám", style: "bg-[#dbeafe] text-[#1d4ed8]" };
@@ -53,6 +56,8 @@ export interface VisitStatusRow {
   service: { name: string | null } | null;
   /** appointment.status (join) — nguồn THẬT cho mốc "Khám xong" (COMPLETED). */
   appointment: { status: string | null } | null;
+  /** Đã thu đủ mọi khâu (bảng payment) → mốc "Đã thanh toán" xanh. Server tính. */
+  paid?: boolean;
 }
 
 const TH =
@@ -80,7 +85,8 @@ export default function VisitStatusBoard({ rows }: { rows: VisitStatusRow[] }) {
           ) : (
             rows.map((r) => {
               const apptStatus = r.appointment?.status ?? null;
-              const disp = displayStatus(r.status, apptStatus);
+              const paid = r.paid ?? false;
+              const disp = displayStatus(r.status, apptStatus, paid);
               return (
                 <tr key={r.visit_id} className="hover:bg-[#fafafa]">
                   {/* Ô 1 — thông tin gộp: tên BN + mã · bác sĩ · dịch vụ · trạng thái
@@ -115,9 +121,13 @@ export default function VisitStatusBoard({ rows }: { rows: VisitStatusRow[] }) {
                       </div>
                     </div>
                   </td>
-                  {/* Ô 2 — thanh tiến trình kiểu Grab (Đang khám → Khám xong → Hoàn tất). */}
+                  {/* Ô 2 — thanh tiến trình kiểu Grab (Đang khám → Khám xong → Đã thanh toán). */}
                   <td className={TD}>
-                    <ProgressStepper visitStatus={r.status} apptStatus={apptStatus} />
+                    <ProgressStepper
+                      visitStatus={r.status}
+                      apptStatus={apptStatus}
+                      paid={paid}
+                    />
                   </td>
                 </tr>
               );

@@ -107,7 +107,7 @@ async function CashierTasks(modes: CashierMode[]) {
   const wantSvc = modes.includes("dich_vu");
   const wantRx = modes.includes("thuoc");
 
-  const [labRes, svcRes, rxRes, priceRes] = await Promise.all([
+  const [labRes, svcRes, rxRes, priceRes, payRes] = await Promise.all([
     wantSvc && apptIds.length
       ? supabase
           .from("lab_result")
@@ -132,7 +132,16 @@ async function CashierTasks(modes: CashierMode[]) {
           .limit(2000)
       : Promise.resolve({ data: [] }),
     supabase.from("service_price").select("name, group, unit_price").eq("active", true),
+    // Khâu ĐÃ THU (bảng payment) — seed trạng thái "Đã thanh toán". Bảng có thể
+    // chưa tồn tại (migration 056 chưa apply) → error → coi như rỗng (graceful).
+    visitIds.length
+      ? supabase.from("payment").select("visit_id, kind").in("visit_id", visitIds)
+      : Promise.resolve({ data: [] }),
   ]);
+
+  const paidInit = ((payRes.data as { visit_id: string; kind: string }[] | null) ?? [])
+    .filter((p) => p.kind === "thuoc" || p.kind === "dich_vu")
+    .map((p) => ({ visit_id: p.visit_id, kind: p.kind as CashierMode }));
 
   // Bảng giá theo tên đã chuẩn hoá (chỉ dòng có đơn giá).
   const priceThuoc = new Map<string, number>();
@@ -222,7 +231,7 @@ async function CashierTasks(modes: CashierMode[]) {
       </div>
     );
   }
-  return <CashierWorkBoard rows={rows} modes={modes} />;
+  return <CashierWorkBoard rows={rows} modes={modes} paidInit={paidInit} />;
 }
 
 // Bác sĩ: lịch của MÌNH (đủ trường hành chính để dựng hồ sơ lâm sàng).

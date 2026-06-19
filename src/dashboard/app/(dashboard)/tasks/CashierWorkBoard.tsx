@@ -9,6 +9,7 @@
 // Giá lấy best-effort từ service_price (khớp tên); chưa có → để trống.
 
 import { useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
 import { QrCode, Check, CheckCircle2, RotateCcw, Pill, Tag } from "lucide-react";
 
 export type CashierMode = "thuoc" | "dich_vu";
@@ -56,31 +57,65 @@ const TD = "border-b border-[#f3f3f3] px-4 py-3 align-top text-[#171717]";
 export default function CashierWorkBoard({
   rows,
   modes,
+  paidInit = [],
 }: {
   rows: CashierRow[];
   /** Vai quyết định mode được thấy: CASHIER_THUOC=[thuoc], CASHIER_DV=[dich_vu],
    *  CASHIER=[thuoc,dich_vu] (toggle). */
   modes: CashierMode[];
+  /** Dòng payment ĐÃ THU (từ bảng payment) — seed trạng thái để giữ qua tải lại. */
+  paidInit?: { visit_id: string; kind: CashierMode }[];
 }) {
+  const router = useRouter();
   const [mode, setMode] = useState<CashierMode>(modes[0] ?? "dich_vu");
   // BN đang mở khu QR (key = `${mode}:${visit_id}`). 1 khu mở 1 lúc.
   const [payOpen, setPayOpen] = useState<string | null>(null);
-  // "Đã thanh toán" — CHỈ client (chưa có bảng billing để lưu). Reset khi tải lại.
-  const [paid, setPaid] = useState<Set<string>>(new Set());
+  // "Đã thanh toán" — seed từ bảng payment, giữ qua tải lại + đồng bộ 2 màn / Lễ tân.
+  const [paid, setPaid] = useState<Set<string>>(
+    () => new Set(paidInit.map((p) => `${p.kind}:${p.visit_id}`)),
+  );
+  const [busy, setBusy] = useState<string | null>(null); // key đang gọi API
+  const [err, setErr] = useState<string | null>(null);
 
   const meta = MODE_META[mode];
   const key = (visitId: string) => `${mode}:${visitId}`;
 
-  const togglePaid = (visitId: string) => {
-    const k = key(visitId);
+  // Lưu THẬT vào bảng payment (service-role) rồi cập nhật state + refresh để màn
+  // Lễ tân (thanh tiến trình) đồng bộ qua realtime.
+  async function togglePaid(r: CashierRow) {
+    const k = key(r.visit_id);
+    const isPaid = paid.has(k);
+    setBusy(k);
+    setErr(null);
+    const { sum } = rowTotal(r);
+    const res = await fetch("/api/payment", {
+      method: isPaid ? "DELETE" : "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(
+        isPaid
+          ? { visitId: r.visit_id, kind: mode }
+          : {
+              visitId: r.visit_id,
+              clinicPatientId: r.clinic_patient_id,
+              kind: mode,
+              amount: sum,
+            },
+      ),
+    });
+    setBusy(null);
+    if (!res.ok) {
+      setErr((await res.json().catch(() => ({})))?.error ?? "Lỗi thanh toán.");
+      return;
+    }
     setPaid((s) => {
       const next = new Set(s);
-      if (next.has(k)) next.delete(k);
+      if (isPaid) next.delete(k);
       else next.add(k);
       return next;
     });
     setPayOpen(null);
-  };
+    router.refresh();
+  }
 
   // Tổng tạm tính (chỉ cộng khoản CÓ giá; còn lại để trống → không bịa tổng).
   const rowTotal = (r: CashierRow): { sum: number; missing: boolean } => {
@@ -107,11 +142,15 @@ export default function CashierWorkBoard({
       <header>
         <h1 className="text-xl font-semibold text-[#171717]">Công việc của tôi</h1>
         <p className="text-sm text-[#888888]">
-          Thu tiền theo buổi khám hôm nay. Dịch vụ &amp; thuốc lấy thật từ hồ sơ khám;
-          khu mã QR + xác nhận thanh toán là khung demo (chưa nối cổng — trạng thái
-          chưa lưu vào hệ thống).
+          Thu tiền theo buổi khám hôm nay. Dịch vụ &amp; thuốc lấy thật từ hồ sơ khám.
+          Trạng thái “Đã thanh toán” được LƯU &amp; đồng bộ với thanh tiến trình bên
+          Lễ tân. Mã QR là placeholder (chưa nối cổng thanh toán thật).
         </p>
       </header>
+
+      {err && (
+        <p className="rounded bg-[#fee2e2] px-3 py-2 text-sm text-[#dc2626]">{err}</p>
+      )}
 
       {/* Toggle 2 mode — chỉ khi vai thấy cả hai (CASHIER superset). */}
       {modes.length > 1 && (
@@ -238,8 +277,9 @@ export default function CashierWorkBoard({
                                 <CheckCircle2 size={14} /> Đã thanh toán
                               </span>
                               <button
-                                onClick={() => togglePaid(r.visit_id)}
-                                className="inline-flex items-center gap-1 text-xs text-[#71717a] hover:text-[#dc2626]"
+                                onClick={() => togglePaid(r)}
+                                disabled={busy === k}
+                                className="inline-flex items-center gap-1 text-xs text-[#71717a] hover:text-[#dc2626] disabled:opacity-50"
                               >
                                 <RotateCcw size={13} /> Hoàn tác
                               </button>
@@ -275,10 +315,11 @@ export default function CashierWorkBoard({
                                     </div>
                                   </div>
                                   <button
-                                    onClick={() => togglePaid(r.visit_id)}
-                                    className="mt-3 inline-flex items-center gap-1.5 rounded-lg border border-[#bbf7d0] bg-white px-3 py-1.5 text-sm font-semibold text-[#15803d] hover:bg-[#f0fdf4]"
+                                    onClick={() => togglePaid(r)}
+                                    disabled={busy === k}
+                                    className="mt-3 inline-flex items-center gap-1.5 rounded-lg border border-[#bbf7d0] bg-white px-3 py-1.5 text-sm font-semibold text-[#15803d] hover:bg-[#f0fdf4] disabled:opacity-50"
                                   >
-                                    <Check size={15} /> Đã thanh toán
+                                    <Check size={15} /> {busy === k ? "Đang lưu…" : "Đã thanh toán"}
                                   </button>
                                 </div>
                               )}

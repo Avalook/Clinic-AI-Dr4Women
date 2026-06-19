@@ -33,6 +33,8 @@ export default function VisitStatusRealtime() {
       .on("postgres_changes", { event: "*", schema: "public", table: "visit" }, bump)
       // appointment: bác sĩ "Lưu & Khám xong" → status COMPLETED (nguồn mốc "Khám xong").
       .on("postgres_changes", { event: "*", schema: "public", table: "appointment" }, bump)
+      // payment: thu ngân chốt thu → nguồn mốc "Đã thanh toán".
+      .on("postgres_changes", { event: "*", schema: "public", table: "payment" }, bump)
       .subscribe();
     // Lưới an toàn: nếu realtime của bảng nào CHƯA bật replication thì vẫn đồng bộ
     // chậm nhất ~30s (re-fetch server component). Realtime lo cập nhật tức thời.

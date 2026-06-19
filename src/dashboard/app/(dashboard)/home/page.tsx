@@ -181,6 +181,32 @@ export default async function HomePage({
   const visitStatusRows =
     (visitStatusRes.data as VisitStatusRow[] | null) ?? [];
 
+  // Mốc "Đã thanh toán" của thanh tiến trình: đã thu ĐỦ mọi khâu PHẢI thu của lượt
+  // khám = DỊCH VỤ (luôn có, vì có dịch vụ khám) + THUỐC nếu lượt có đơn thuốc.
+  // Đọc bảng payment (đã thu) + prescription (có đơn?) cho các lượt hôm nay.
+  // Bảng payment có thể chưa tồn tại (migration 056 chưa apply) → error → bỏ qua.
+  if (isReception && visitStatusRows.length) {
+    const vids = visitStatusRows.map((v) => v.visit_id);
+    const [payRes, rxRes] = await Promise.all([
+      supabase.from("payment").select("visit_id, kind").in("visit_id", vids),
+      supabase.from("prescription").select("visit_id").in("visit_id", vids),
+    ]);
+    const paidKinds = new Map<string, Set<string>>();
+    for (const p of (payRes.data as { visit_id: string; kind: string }[] | null) ?? []) {
+      const s = paidKinds.get(p.visit_id) ?? new Set<string>();
+      s.add(p.kind);
+      paidKinds.set(p.visit_id, s);
+    }
+    const hasRx = new Set(
+      ((rxRes.data as { visit_id: string }[] | null) ?? []).map((r) => r.visit_id),
+    );
+    for (const v of visitStatusRows) {
+      const kinds = paidKinds.get(v.visit_id) ?? new Set<string>();
+      const needsThuoc = hasRx.has(v.visit_id);
+      v.paid = kinds.has("dich_vu") && (!needsThuoc || kinds.has("thuoc"));
+    }
+  }
+
   const cards = [
     { label: "Việc đang chờ làm", value: taskRes.count ?? 0 },
     { label: "BN mới đăng ký hôm nay", value: newPatientRes.count ?? 0 },

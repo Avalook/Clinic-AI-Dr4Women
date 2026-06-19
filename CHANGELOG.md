@@ -3,6 +3,15 @@
 
 ## [LOCAL — chưa push]
 
+### 2026-06-19 · T-DASH-PAYMENT-01 · Bảng payment: 2 màn thu ngân + thanh tiến trình Lễ tân ĐỒNG BỘ thật · commit `chưa commit`
+- **Migration 056 `create_payment`** (forward+down): bảng `payment(visit_id, kind∈{thuoc,dich_vu}, status PAID, amount, paid_by_staff_id, paid_at)`, UNIQUE(visit_id,kind), RLS SELECT authenticated (ghi service-role). **CHƯA APPLY DB** — classifier chặn DDL lên prod; cần Quang chạy (lệnh ở báo cáo). Code degrade graceful nếu bảng chưa có (query lỗi → coi như rỗng, không crash).
+- **API `/api/payment`** (POST upsert PAID / DELETE hoàn tác): gate vai thu ngân + kind thuộc quyền vai (CASHIER_THUOC→thuoc, CASHIER_DV→dich_vu, CASHIER→cả hai). 42P01 (bảng chưa có) → 503 báo rõ.
+- **Thu ngân (`CashierWorkBoard`)**: nút "Đã thanh toán" giờ LƯU THẬT (POST) + "Hoàn tác" (DELETE); seed `paidInit` từ bảng payment để giữ qua tải lại; `router.refresh()` sau khi lưu để đồng bộ.
+- **Lễ tân + Trưởng ca (`VisitStatusBoard`)**: mốc "Đã thanh toán" tích xanh khi **đã thu ĐỦ** = dịch vụ (luôn có dịch vụ khám) + thuốc (nếu lượt có đơn). Tính server: đọc `payment` + `prescription`. `reachedCount` thêm tham số `paid` → reached 3.
+- **Realtime**: `VisitStatusRealtime` subscribe thêm bảng `payment` → thu ngân chốt thu là thanh tiến trình Lễ tân tự tích xanh (không cần tải lại).
+- **VERIFY:** tsc + eslint + `next build` sạch. File: migration 056 (+down), `api/payment/route.ts` (mới), `CashierWorkBoard.tsx`, `tasks/page.tsx`, `VisitProgress.tsx`, `VisitStatusBoard.tsx`, `VisitStatusRealtime.tsx`, `home/page.tsx`, `truong-ca/page.tsx`.
+- **NỢ:** (a) APPLY migration 056 lên Supabase (lệnh ở báo cáo) rồi `--mark-applied`; (b) cổng QR thật; (c) số tiền `amount` lưu tạm tính (giá phần lớn NULL).
+
 ### 2026-06-19 · T-DASH-VISIT-PROGRESS-GRAB-03 · Mốc 3 "Hoàn tất"→"Đã thanh toán" + FIX realtime nghe thiếu bảng appointment · commit `chưa commit`
 - **Đổi mốc 3 "Hoàn tất" → "Đã thanh toán"** (yêu cầu sếp). `reachedCount` cap ở 2 (Đang khám=IN_PROGRESS · Khám xong=appt COMPLETED) — mốc "Đã thanh toán" chưa có bảng billing nên không tự tích, hiện "đang tới" (hồng pulse) chờ thu ngân.
 - **FIX "đồng bộ chậm" (bác sĩ khám xong mà Lễ tân chưa tích "Khám xong"):** `VisitStatusRealtime` trước CHỈ nghe bảng `visit`. Nhưng "Khám xong" = `appointment.status=COMPLETED` (bác sĩ "Lưu & Khám xong" cập nhật bảng **appointment**, KHÔNG đụng visit) → realtime không fire → board không tự refresh. Nay subscribe **CẢ `visit` VÀ `appointment`**.
