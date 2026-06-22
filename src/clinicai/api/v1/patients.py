@@ -4,6 +4,8 @@ from uuid import UUID
 
 import asyncpg
 from fastapi import APIRouter, Depends, status
+from fastapi.encoders import jsonable_encoder
+from fastapi.responses import JSONResponse
 
 from clinicai.core.database import get_db_pool
 from clinicai.core.exceptions import ResourceNotFoundError, ValidationError
@@ -21,16 +23,30 @@ router = APIRouter()
 
 @router.post(
     "/patients",
-    response_model=PatientDTO,
+    response_model=None,
     status_code=status.HTTP_201_CREATED,
 )
 async def create_patient(
     data: PatientCreateDTO,
     pool: asyncpg.Pool = Depends(get_db_pool),
-) -> PatientDTO:
-    """Register a new patient and run Master Patient Index (MPI) deduplication."""
+) -> PatientDTO | JSONResponse:
+    """Register a patient with MPI dedup. Three outcomes:
+
+    * created      → 201, the PatientDTO.
+    * phone dup    → 200 ``{"duplicate": true, "matches": [...]}`` (no insert).
+    * CCCD conflict → 409 (raised as ConflictError by the service).
+    """
     service = PatientService(pool)
-    return await service.create_patient(data)
+    result = await service.create_patient(data)
+    if result.patient is None:
+        return JSONResponse(
+            status_code=status.HTTP_200_OK,
+            content={
+                "duplicate": True,
+                "matches": jsonable_encoder(result.matches),
+            },
+        )
+    return result.patient
 
 
 # NOTE: must be declared BEFORE "/patients/{id}" — otherwise the literal path

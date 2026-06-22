@@ -52,15 +52,10 @@ function nn(v: string | undefined): string | null {
   return t || null;
 }
 
-// Mã BN tạm: BN-<năm>-<6 số>. Thêm thành phần ngẫu nhiên + lệch theo lần thử để
-// giảm đụng UNIQUE khi nhiều người tạo cùng lúc (loop retry ở dưới).
-function patientCode(attempt: number): string {
-  const year = new Date().getFullYear();
-  const n =
-    (Date.now() + attempt * 7919 + Math.floor(Math.random() * 100_000)) %
-    1_000_000;
-  return `BN-${year}-${String(n).padStart(6, "0")}`;
-}
+// FastAPI base URL. Server-only (lời gọi đi TỪ server, không phải trình duyệt) →
+// không CORS, giữ BACKEND_API_KEY ở server. Mặc định localhost:8000 cho dev.
+// Khớp cách /api/brief gọi backend.
+const API_BASE = process.env.CLINIC_API_URL ?? "http://localhost:8000";
 
 export async function POST(request: Request) {
   // Must hold the shared session AND an intake role.
@@ -75,14 +70,6 @@ export async function POST(request: Request) {
   }
   const staffId = await getClinicStaffId();
 
-  const db = getSupabaseService();
-  if (!db) {
-    return NextResponse.json(
-      { error: "SUPABASE_SERVICE_ROLE_KEY chưa cấu hình trên server." },
-      { status: 503 },
-    );
-  }
-
   let body: Body;
   try {
     body = (await request.json()) as Body;
@@ -90,18 +77,20 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
   }
 
+  // Validate-FORMAT thân thiện Ở ĐÂY (fail nhanh, tiếng Việt) TRƯỚC khi proxy.
+  // LUẬT NGHIỆP VỤ (chống trùng SĐT/CCCD, sinh mã BN, MPI, ghi DB) do FastAPI lo
+  // — nguồn-sự-thật duy nhất cho việc tạo BN, app khác (mobile…) dùng chung.
   const full_name = (body.full_name ?? "").trim();
   const location_id = (body.location_id ?? "").trim();
   const phone_primary = (body.phone_primary ?? "").trim() || null;
+  const phone_secondary = (body.phone_secondary ?? "").trim() || null;
+  const national = (body.national_id_number ?? "").trim() || null;
   if (!full_name) {
     return NextResponse.json({ error: "Phải nhập họ tên." }, { status: 400 });
   }
   if (!location_id) {
     return NextResponse.json({ error: "Phải chọn cơ sở." }, { status: 400 });
   }
-
-  // Quy tắc nhập liệu CỨNG (server-side, không tin client): SĐT 10 số / CCCD 12 số.
-  const phone_secondary = (body.phone_secondary ?? "").trim() || null;
   if (phone_primary && !PHONE_RE.test(phone_primary)) {
     return NextResponse.json(
       { error: "SĐT chính phải gồm đúng 10 chữ số liền." },
@@ -114,142 +103,110 @@ export async function POST(request: Request) {
       { status: 400 },
     );
   }
-
-  // CCCD là UNIQUE cứng (không bỏ qua được kể cả force) → kiểm TRƯỚC để báo lỗi
-  // rõ ràng thay vì rơi vào "không tạo được mã BN".
-  const national = (body.national_id_number ?? "").trim() || null;
   if (national && !CCCD_RE.test(national)) {
     return NextResponse.json(
       { error: "CCCD phải gồm đúng 12 chữ số liền." },
       { status: 400 },
     );
   }
-  if (national) {
-    const { data: cccdDup } = await db
-      .from("patient")
-      .select("patient_code, full_name")
-      .eq("national_id_number", national)
-      .limit(1);
-    if (cccdDup && cccdDup.length > 0) {
-      return NextResponse.json(
-        {
-          error: `CCCD này đã có hồ sơ (${cccdDup[0].patient_code} · ${cccdDup[0].full_name}).`,
-        },
-        { status: 409 },
-      );
-    }
-  }
 
-  // Lightweight duplicate guard (not full MPI): same phone already on file.
-  if (phone_primary && !body.force) {
-    const { data: dupes } = await db
-      .from("patient")
-      .select("clinic_patient_id, patient_code, full_name, date_of_birth")
-      .eq("phone_primary", phone_primary)
-      .limit(5);
-    if (dupes && dupes.length > 0) {
-      return NextResponse.json({ duplicate: true, matches: dupes });
-    }
-  }
-
-  // Năm sinh-only (feedback B5#4): nếu chỉ có năm → lưu birth_year + đặt
-  // date_of_birth = YYYY-01-01 để tuổi + mọi chỗ hiển thị NGÀY vẫn chạy.
-  const byNum = Number(body.birth_year);
-  const byValid =
-    body.birth_year != null &&
-    String(body.birth_year).trim() !== "" &&
-    Number.isFinite(byNum) &&
-    byNum >= 1900 &&
-    byNum <= 2100;
-  const birthYear = byValid ? Math.trunc(byNum) : null;
-  let dob = (body.date_of_birth ?? "").trim() || null;
-  if (!dob && birthYear) dob = `${birthYear}-01-01`;
-
-  const row: Record<string, unknown> = {
-    full_name,
-    date_of_birth: dob,
-    phone_primary,
-    phone_secondary,
-    national_id_number: national,
-    location_id,
-    gender: nn(body.gender),
-    ethnicity: nn(body.ethnicity),
-    nationality: nn(body.nationality),
-    occupation: nn(body.occupation),
-    patient_objection: nn(body.patient_objection),
-    address: nn(body.address),
-    // Địa chỉ có cấu trúc (sau sáp nhập: tỉnh → phường, bỏ huyện). Chỉ điền khi
-    // nhập qua dropdown; BN cũ vẫn dùng address free-text ở trên (cột này NULL).
-    province_code: nn(body.province_code),
-    province_name: nn(body.province_name),
-    ward_code: nn(body.ward_code),
-    ward_name: nn(body.ward_name),
-    address_detail: nn(body.address_detail),
-    // CSKH (đặt lịch): vấn đề đi khám + lĩnh vực. linh_vuc whitelist 5 mã (khớp
-    // CHECK DB); giá trị lạ → null (KHÔNG để 400 chặn tạo BN vì 1 field phụ).
-    van_de_di_kham: nn(body.van_de_di_kham),
-    linh_vuc: ["PK", "SK", "NT", "HMVS", "NK"].includes(body.linh_vuc ?? "")
-      ? body.linh_vuc
-      : null,
-    guardian_name: nn(body.guardian_name),
-    is_active: true,
+  // Proxy sang FastAPI (server→server: không CORS, giữ key ở server). Forward
+  // toàn bộ body — DTO backend tự chuẩn hoá (birth_year→dob, whitelist…).
+  const headers: Record<string, string> = {
+    "Content-Type": "application/json",
   };
-  if (birthYear) row.birth_year = birthYear;
+  const apiKey = process.env.BACKEND_API_KEY;
+  if (apiKey) headers["X-API-Key"] = apiKey;
 
-  // Insert with a generated patient_code; retry on the (rare) unique clash.
-  for (let attempt = 0; attempt < 5; attempt++) {
-    const { data, error } = await db
-      .from("patient")
-      .insert({ ...row, patient_code: patientCode(attempt) })
-      .select("clinic_patient_id, full_name, patient_code")
-      .single();
-    if (!error) {
-      // Append-only audit trail for this intake (best-effort, see event-log.ts).
-      await logEvent(db, {
-        event_type: "patient.created",
-        aggregate_type: "patient",
-        aggregate_id: data.clinic_patient_id,
-        payload: {
-          clinic_patient_id: data.clinic_patient_id,
-          patient_code: data.patient_code,
-          full_name: row.full_name,
-          date_of_birth: row.date_of_birth,
-          phone_primary: row.phone_primary,
-          phone_secondary: row.phone_secondary,
-          national_id_number: row.national_id_number,
-          location_id: row.location_id,
-        },
-        metadata: {
-          clinic_role: role,
-          clinic_staff_id: staffId,
-          actor_auth_user_id: user.id,
-          origin: "dashboard:patient-intake",
-        },
-      });
-      return NextResponse.json({ ok: true, patient: data });
-    }
-    // 42703 = undefined_column: birth_year chưa tồn tại (migration 040 chưa
-    // apply) → bỏ birth_year (date_of_birth = YYYY-01-01 vẫn lưu), thử lại.
-    if (error.code === "42703" && "birth_year" in row) {
-      delete row.birth_year;
-      continue;
-    }
-    if (error.code !== "23505") {
-      return NextResponse.json({ error: error.message }, { status: 500 });
-    }
-    // 23505 = unique_violation. Nếu là CCCD (race hiếm sau pre-check) → báo rõ,
-    // KHÔNG retry (mã BN đổi cũng vô ích). Còn lại = clash patient_code → loop.
-    if (/national_id|cccd/i.test(`${error.message} ${error.details ?? ""}`)) {
-      return NextResponse.json(
-        { error: "CCCD này vừa được tạo cho hồ sơ khác." },
-        { status: 409 },
-      );
-    }
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 15_000);
+  let res: Response;
+  try {
+    res = await fetch(`${API_BASE}/api/v1/patients`, {
+      method: "POST",
+      headers,
+      body: JSON.stringify(body),
+      signal: controller.signal,
+      cache: "no-store",
+    });
+  } catch {
+    return NextResponse.json(
+      {
+        error:
+          "Không kết nối được máy chủ. Kiểm tra dịch vụ FastAPI đã bật chưa.",
+      },
+      { status: 502 },
+    );
+  } finally {
+    clearTimeout(timeout);
   }
-  return NextResponse.json(
-    { error: "Không tạo được mã BN, thử lại." },
-    { status: 500 },
-  );
+
+  let json: {
+    duplicate?: boolean;
+    matches?: unknown;
+    clinic_patient_id?: string;
+    patient_code?: string;
+    full_name?: string;
+    error?: string;
+    message?: string;
+  };
+  try {
+    json = await res.json();
+  } catch {
+    return NextResponse.json(
+      { error: "Máy chủ trả dữ liệu không đọc được." },
+      { status: 502 },
+    );
+  }
+
+  // Trùng SĐT (chưa force): FastAPI trả 200 {duplicate, matches} — KHÔNG tạo.
+  if (res.status === 200 && json.duplicate) {
+    return NextResponse.json({ duplicate: true, matches: json.matches ?? [] });
+  }
+
+  // Lỗi (409 CCCD trùng, 422 validate backend, 5xx…): chuyển message tiếng Việt
+  // của backend cho người dùng (frontend đọc json.error).
+  if (!res.ok) {
+    const msg = json.message || json.error || "Không tạo được bệnh nhân.";
+    return NextResponse.json({ error: msg }, { status: res.status });
+  }
+
+  // Tạo thành công (201). Ghi AUDIT Ở NEXT vì chỉ Next có actor-context
+  // (clinic_role + staff_id + auth_user_id). Best-effort — không có service key
+  // thì bỏ qua, KHÔNG chặn việc tạo (đã thành công ở backend).
+  const db = getSupabaseService();
+  if (db && json.clinic_patient_id) {
+    await logEvent(db, {
+      event_type: "patient.created",
+      aggregate_type: "patient",
+      aggregate_id: json.clinic_patient_id,
+      payload: {
+        clinic_patient_id: json.clinic_patient_id,
+        patient_code: json.patient_code,
+        full_name,
+        date_of_birth: (body.date_of_birth ?? "").trim() || null,
+        phone_primary,
+        phone_secondary,
+        national_id_number: national,
+        location_id,
+      },
+      metadata: {
+        clinic_role: role,
+        clinic_staff_id: staffId,
+        actor_auth_user_id: user.id,
+        origin: "dashboard:patient-intake",
+      },
+    });
+  }
+
+  return NextResponse.json({
+    ok: true,
+    patient: {
+      clinic_patient_id: json.clinic_patient_id,
+      patient_code: json.patient_code,
+      full_name: json.full_name,
+    },
+  });
 }
 
 // PATCH { clinic_patient_id, full_name?, date_of_birth?, phone_primary?,

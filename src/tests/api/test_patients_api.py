@@ -5,10 +5,11 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 from fastapi.testclient import TestClient
 
+from clinicai.api.exceptions import ConflictError
 from clinicai.core.database import get_db_pool
 from clinicai.core.exceptions import ResourceNotFoundError
 from clinicai.main import app
-from clinicai.schemas.patient import PatientDTO
+from clinicai.schemas.patient import DuplicateMatch, PatientCreateResult, PatientDTO
 
 
 @pytest.fixture(autouse=True)
@@ -44,12 +45,14 @@ def test_create_patient_returns_201(mock_service_class, client) -> None:
         created_at=datetime.datetime.now(datetime.timezone.utc),
         updated_at=datetime.datetime.now(datetime.timezone.utc),
     )
-    mock_service.create_patient = AsyncMock(return_value=mock_dto)
+    mock_service.create_patient = AsyncMock(
+        return_value=PatientCreateResult(patient=mock_dto)
+    )
 
     payload = {
         "full_name": "Nguyen Van A",
         "date_of_birth": "1990-01-01",
-        "phone_primary": "+84901234567",
+        "phone_primary": "0901234567",
         "national_id_number": "012345678901",
         "location_id": str(loc_id),
         "is_active": True,
@@ -66,7 +69,62 @@ def test_create_patient_returns_201(mock_service_class, client) -> None:
     mock_service.create_patient.assert_called_once()
     args, _ = mock_service.create_patient.call_args
     assert args[0].full_name == "Nguyen Van A"
-    assert args[0].phone_primary == "+84901234567"
+    assert args[0].phone_primary == "0901234567"
+
+
+@patch("clinicai.api.v1.patients.PatientService")
+def test_create_patient_phone_duplicate_returns_200(mock_service_class, client) -> None:
+    """Phone already on file (no force) → 200 {duplicate, matches}, no insert."""
+    mock_service = mock_service_class.return_value
+    existing_id = uuid.uuid4()
+    mock_service.create_patient = AsyncMock(
+        return_value=PatientCreateResult(
+            duplicate=True,
+            matches=[
+                DuplicateMatch(
+                    clinic_patient_id=existing_id,
+                    patient_code="BN-2026-000001",
+                    full_name="Nguyen Thi Lan",
+                    date_of_birth=datetime.date(1990, 3, 15),
+                )
+            ],
+        )
+    )
+
+    payload = {
+        "full_name": "Nguyen Thi Lan",
+        "phone_primary": "0901234567",
+        "location_id": str(uuid.uuid4()),
+    }
+    response = client.post("/api/v1/patients", json=payload)
+    assert response.status_code == 200
+
+    data = response.json()
+    assert data["duplicate"] is True
+    assert len(data["matches"]) == 1
+    assert data["matches"][0]["clinic_patient_id"] == str(existing_id)
+    assert data["matches"][0]["patient_code"] == "BN-2026-000001"
+
+
+@patch("clinicai.api.v1.patients.PatientService")
+def test_create_patient_cccd_conflict_returns_409(mock_service_class, client) -> None:
+    """Duplicate CCCD raises ConflictError → 409 with friendly message."""
+    mock_service = mock_service_class.return_value
+    mock_service.create_patient = AsyncMock(
+        side_effect=ConflictError("CCCD này đã có hồ sơ (BN-2026-000001 · Lan).")
+    )
+
+    payload = {
+        "full_name": "Nguyen Thi Lan",
+        "national_id_number": "012345678901",
+        "location_id": str(uuid.uuid4()),
+    }
+    response = client.post("/api/v1/patients", json=payload)
+    assert response.status_code == 409
+
+    data = response.json()
+    assert data["error"] == "CONFLICT_ERROR"
+    assert "CCCD" in data["message"]
 
 
 @patch("clinicai.api.v1.patients.PatientService")

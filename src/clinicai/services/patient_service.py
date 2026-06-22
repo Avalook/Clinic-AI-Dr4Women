@@ -4,26 +4,61 @@ from __future__ import annotations
 
 import datetime
 import re
+from typing import Any
 from uuid import UUID
 
 import asyncpg
 import structlog
 
+from clinicai.api.exceptions import ConflictError
 from clinicai.core.exceptions import ResourceNotFoundError, ValidationError
-from clinicai.schemas.patient import PatientCreateDTO, PatientDTO, PatientUpdateDTO
+from clinicai.schemas.patient import (
+    DuplicateMatch,
+    PatientCreateDTO,
+    PatientCreateResult,
+    PatientDTO,
+    PatientUpdateDTO,
+)
 
 logger = structlog.get_logger()
 
+# Columns written on INSERT, in order (patient_code prepended at call site).
+_INSERT_COLUMNS = (
+    "full_name",
+    "date_of_birth",
+    "phone_primary",
+    "phone_secondary",
+    "national_id_number",
+    "location_id",
+    "is_active",
+    "gender",
+    "ethnicity",
+    "nationality",
+    "occupation",
+    "patient_objection",
+    "address",
+    "guardian_name",
+    "birth_year",
+    "province_code",
+    "province_name",
+    "ward_code",
+    "ward_name",
+    "address_detail",
+    "van_de_di_kham",
+    "linh_vuc",
+)
 
-def _generate_patient_code() -> str:
+
+def _generate_patient_code(attempt: int = 0) -> str:
     """Generate a human-readable patient code: BN-YYYY-XXXXXX.
 
-    Uses current year + microsecond-resolution timestamp suffix for
-    uniqueness. The DB column has a UNIQUE constraint as a safety net.
+    Year + microsecond-resolution suffix; ``attempt`` adds jitter so a retry
+    after a (rare) UNIQUE clash lands on a different code. The DB column has a
+    UNIQUE constraint as the final safety net.
     """
     now = datetime.datetime.now(tz=datetime.timezone.utc)
-    seq = now.strftime("%f")  # microseconds → 6 digits
-    return f"BN-{now.year}-{seq}"
+    seq = (int(now.strftime("%f")) + attempt * 7919) % 1_000_000
+    return f"BN-{now.year}-{seq:06d}"
 
 
 def _record_to_dto(record: asyncpg.Record) -> PatientDTO:
@@ -60,48 +95,86 @@ class PatientService:
     def __init__(self, pool: asyncpg.Pool) -> None:
         self._pool = pool
 
-    async def create_patient(self, data: PatientCreateDTO) -> PatientDTO:
-        """Insert a new patient row, run MPI dedup, and return the record."""
-        patient_code = _generate_patient_code()
+    async def create_patient(self, data: PatientCreateDTO) -> PatientCreateResult:
+        """Register a patient: CCCD/phone guards → insert → non-blocking MPI.
 
-        query = """
-            INSERT INTO patient (
-                patient_code, full_name, date_of_birth,
-                phone_primary, phone_secondary,
-                national_id_number, location_id, is_active
-            )
-            VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
-            RETURNING *;
+        Order (mirrors the dashboard intake guard it replaces):
+          1. CCCD hard pre-check — UNIQUE, ``force`` does NOT override → 409.
+          2. Phone soft block — same phone_primary already on file and not
+             ``force`` → return ``duplicate`` WITHOUT inserting (operator decides).
+          3. Insert all demographic fields with a generated patient_code.
+          4. Run MPI dedup-queue in the background (never blocks the create).
         """
-        try:
-            async with self._pool.acquire() as conn:
-                row = await conn.fetchrow(
-                    query,
-                    patient_code,
-                    data.full_name,
-                    data.date_of_birth,
-                    data.phone_primary,
-                    data.phone_secondary,
+        async with self._pool.acquire() as conn:
+            # 1) CCCD hard conflict (cannot be forced — column is UNIQUE).
+            if data.national_id_number:
+                existing = await conn.fetchrow(
+                    "SELECT patient_code, full_name FROM patient "
+                    "WHERE national_id_number = $1 LIMIT 1;",
                     data.national_id_number,
-                    data.location_id,
-                    data.is_active,
                 )
-        except asyncpg.UniqueViolationError as exc:
-            logger.warning(
-                "patient_create_duplicate",
-                patient_code=patient_code,
-                error=str(exc),
-            )
-            raise ValidationError("Duplicate patient record") from exc
+                if existing:
+                    raise ConflictError(
+                        f"CCCD này đã có hồ sơ "
+                        f"({existing['patient_code']} · {existing['full_name']})."
+                    )
 
-        logger.info(
-            "patient_created",
-            clinic_patient_id=str(row["clinic_patient_id"]),
-            patient_code=patient_code,
+            # 2) Phone soft block — warn, let the operator force (feedback #9).
+            if data.phone_primary and not data.force:
+                dupes = await conn.fetch(
+                    "SELECT clinic_patient_id, patient_code, full_name, "
+                    "date_of_birth FROM patient WHERE phone_primary = $1 LIMIT 5;",
+                    data.phone_primary,
+                )
+                if dupes:
+                    return PatientCreateResult(
+                        duplicate=True,
+                        matches=[DuplicateMatch(**dict(r)) for r in dupes],
+                    )
+
+            # 3) Insert (retry on the rare patient_code UNIQUE clash).
+            dto = await self._insert_patient(conn, data)
+
+        # 4) MPI deduplication (non-blocking — must never fail the create).
+        await self._mpi_autoqueue(dto, data)
+        return PatientCreateResult(patient=dto)
+
+    async def _insert_patient(
+        self, conn: asyncpg.Connection, data: PatientCreateDTO
+    ) -> PatientDTO:
+        """INSERT one patient row, generating patient_code with clash retry."""
+        placeholders = ", ".join(f"${i}" for i in range(1, len(_INSERT_COLUMNS) + 2))
+        query = (
+            f"INSERT INTO patient (patient_code, {', '.join(_INSERT_COLUMNS)}) "
+            f"VALUES ({placeholders}) RETURNING *;"
         )
-        dto = _record_to_dto(row)
+        values = [getattr(data, col) for col in _INSERT_COLUMNS]
 
-        # --- MPI deduplication (non-blocking) ---
+        for attempt in range(5):
+            patient_code = _generate_patient_code(attempt)
+            try:
+                row = await conn.fetchrow(query, patient_code, *values)
+            except asyncpg.UniqueViolationError as exc:
+                constraint = (exc.constraint_name or "") + " " + str(exc)
+                if "national_id" in constraint.lower():
+                    # Race after the pre-check — report clearly, don't retry.
+                    raise ConflictError(
+                        "CCCD này vừa được tạo cho hồ sơ khác."
+                    ) from exc
+                # patient_code clash → regenerate and retry.
+                logger.warning("patient_code_clash", patient_code=patient_code)
+                continue
+            logger.info(
+                "patient_created",
+                clinic_patient_id=str(row["clinic_patient_id"]),
+                patient_code=patient_code,
+            )
+            return _record_to_dto(row)
+
+        raise ValidationError("Không tạo được mã BN, thử lại.")
+
+    async def _mpi_autoqueue(self, dto: PatientDTO, data: PatientCreateDTO) -> None:
+        """Queue a merge-review if MPI finds likely-same patients. Best-effort."""
         try:
             from clinicai.services.mpi_service import MPIService
 
@@ -124,8 +197,6 @@ class PatientService:
                 exc_info=True,
             )
 
-        return dto
-
     async def get_by_id(self, clinic_patient_id: UUID) -> PatientDTO | None:
         """Fetch a single patient by primary key. Returns None if absent."""
         query = "SELECT * FROM patient WHERE clinic_patient_id = $1;"
@@ -135,7 +206,7 @@ class PatientService:
             return None
         return _record_to_dto(row)
 
-    async def get_summary_data(self, clinic_patient_id: UUID) -> dict | None:
+    async def get_summary_data(self, clinic_patient_id: UUID) -> dict[str, Any] | None:
         """Return raw summary fields for the tools layer.
 
         Joins patient + EXISTS pregnancy(ONGOING) + MAX appointment(COMPLETED).
@@ -180,7 +251,7 @@ class PatientService:
             rows = await conn.fetch(query, phone)
         return [_record_to_dto(r) for r in rows]
 
-    async def find_phone_duplicates(self, phone: str) -> list[dict]:
+    async def find_phone_duplicates(self, phone: str) -> list[dict[str, Any]]:
         """Read-only: patients already on file with this phone (any spelling).
 
         Returns MINIMAL fields (full_name, patient_code, birth_year) for a soft

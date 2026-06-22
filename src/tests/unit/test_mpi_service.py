@@ -200,7 +200,7 @@ async def test_find_candidates_returns_list() -> None:
 
     data = PatientCreateDTO(
         full_name="Nguyễn Thị Lan",
-        phone_primary="+84901234567",
+        phone_primary="0901234567",
         location_id=FAKE_LOCATION,
     )
     results = await MPIService.find_candidates(pool, data)
@@ -219,7 +219,7 @@ async def test_find_candidates_with_national_id() -> None:
 
     data = PatientCreateDTO(
         full_name="Trần Văn A",
-        phone_primary="+84901234567",
+        phone_primary="0901234567",
         national_id_number="012345678901",
         location_id=FAKE_LOCATION,
     )
@@ -392,6 +392,7 @@ async def test_mpi_failure_does_not_block_create() -> None:
 
     patient_record = _make_record({"clinic_patient_id": uuid4()})
     conn.fetchrow.return_value = patient_record
+    conn.fetch.return_value = []  # no phone duplicates → proceed to insert
 
     svc = PatientService(pool)
 
@@ -400,14 +401,14 @@ async def test_mpi_failure_does_not_block_create() -> None:
         "clinicai.services.mpi_service.MPIService.find_candidates",
         side_effect=RuntimeError("DB connection lost"),
     ):
-        dto = await svc.create_patient(
+        result = await svc.create_patient(
             PatientCreateDTO(
                 full_name="Nguyễn Thị Lan",
-                phone_primary="+84901234567",
+                phone_primary="0901234567",
                 location_id=FAKE_LOCATION,
             )
         )
 
-    # Patient was still created successfully
-    assert dto is not None
-    assert dto.full_name == "Nguyễn Thị Lan"
+    # Patient was still created successfully despite the MPI failure.
+    assert result.patient is not None
+    assert result.patient.full_name == "Nguyễn Thị Lan"

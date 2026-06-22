@@ -60,30 +60,112 @@ def _mock_pool_and_conn() -> tuple[MagicMock, AsyncMock]:
 
 @pytest.mark.asyncio
 async def test_create_patient_success() -> None:
-    """create_patient should INSERT and return a PatientDTO."""
+    """create_patient should INSERT and return the new patient in the result."""
     pool, conn = _mock_pool_and_conn()
     record = _make_record()
     conn.fetchrow.return_value = record
+    conn.fetch.return_value = []  # no phone duplicates → proceed to insert
 
     svc = PatientService(pool)
-    dto = await svc.create_patient(
+    result = await svc.create_patient(
         PatientCreateDTO(
             full_name="Nguyễn Thị Lan",
             date_of_birth=datetime.date(1990, 3, 15),
-            phone_primary="+84901234567",
+            phone_primary="0901234567",
             location_id=FAKE_LOCATION,
         )
     )
 
-    assert dto.clinic_patient_id == FAKE_UUID
-    assert dto.full_name == "Nguyễn Thị Lan"
-    assert dto.location_id == FAKE_LOCATION
-    assert dto.is_active is True
+    assert result.duplicate is False
+    assert result.patient is not None
+    assert result.patient.clinic_patient_id == FAKE_UUID
+    assert result.patient.full_name == "Nguyễn Thị Lan"
+    assert result.patient.location_id == FAKE_LOCATION
+    assert result.patient.is_active is True
     # national_id_number was None → stays None after masking
-    assert dto.national_id_number is None
+    assert result.patient.national_id_number is None
 
-    # Verify INSERT was called once
+    # Verify INSERT was called once (no CCCD pre-check: national_id was None)
     conn.fetchrow.assert_awaited_once()
+    sql_arg = conn.fetchrow.call_args[0][0]
+    assert "INSERT INTO patient" in sql_arg
+
+
+@pytest.mark.asyncio
+async def test_create_patient_cccd_conflict_raises() -> None:
+    """An existing CCCD → ConflictError, BEFORE any insert (force can't override)."""
+    from clinicai.api.exceptions import ConflictError
+
+    pool, conn = _mock_pool_and_conn()
+    # CCCD pre-check fetchrow returns an existing row → conflict.
+    conn.fetchrow.return_value = {
+        "patient_code": "BN-2026-000001",
+        "full_name": "Người Khác",
+    }
+
+    svc = PatientService(pool)
+    with pytest.raises(ConflictError, match="CCCD"):
+        await svc.create_patient(
+            PatientCreateDTO(
+                full_name="Nguyễn Thị Lan",
+                national_id_number="012345678901",
+                location_id=FAKE_LOCATION,
+                force=True,  # force does NOT bypass a CCCD conflict
+            )
+        )
+
+
+@pytest.mark.asyncio
+async def test_create_patient_phone_duplicate_blocks() -> None:
+    """Phone on file (no force) → duplicate result, no insert."""
+    pool, conn = _mock_pool_and_conn()
+    conn.fetch.return_value = [
+        {
+            "clinic_patient_id": FAKE_UUID,
+            "patient_code": "BN-2026-000001",
+            "full_name": "Nguyễn Thị Lan",
+            "date_of_birth": datetime.date(1990, 3, 15),
+        }
+    ]
+
+    svc = PatientService(pool)
+    result = await svc.create_patient(
+        PatientCreateDTO(
+            full_name="Nguyễn Thị Lan",
+            phone_primary="0901234567",
+            location_id=FAKE_LOCATION,
+        )
+    )
+
+    assert result.duplicate is True
+    assert result.patient is None
+    assert len(result.matches) == 1
+    assert result.matches[0].patient_code == "BN-2026-000001"
+    # No INSERT happened — fetchrow (the insert) was never awaited.
+    conn.fetchrow.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_create_patient_force_bypasses_phone_duplicate() -> None:
+    """force=True skips the phone soft-block and inserts anyway."""
+    pool, conn = _mock_pool_and_conn()
+    record = _make_record()
+    conn.fetchrow.return_value = record
+    # Even if a phone duplicate exists, force must not consult it.
+    conn.fetch.return_value = [{"patient_code": "BN-OLD"}]
+
+    svc = PatientService(pool)
+    result = await svc.create_patient(
+        PatientCreateDTO(
+            full_name="Nguyễn Thị Lan",
+            phone_primary="0901234567",
+            location_id=FAKE_LOCATION,
+            force=True,
+        )
+    )
+
+    assert result.duplicate is False
+    assert result.patient is not None
     sql_arg = conn.fetchrow.call_args[0][0]
     assert "INSERT INTO patient" in sql_arg
 

@@ -6,19 +6,83 @@ import re
 from datetime import date, datetime
 from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict, field_validator
+from pydantic import BaseModel, ConfigDict, field_validator, model_validator
+
+_PHONE_RE = re.compile(r"^\d{10}$")
+_CCCD_RE = re.compile(r"^\d{12}$")
+_LINH_VUC = {"PK", "SK", "NT", "HMVS", "NK"}
+_GENDER = {"Nam", "Nữ", "Khác"}
+
+
+def _blank_to_none(v: object) -> object:
+    """Empty/whitespace string → None (frontend sends "" for unset fields)."""
+    if isinstance(v, str) and not v.strip():
+        return None
+    return v
 
 
 class PatientCreateDTO(BaseModel):
-    """Input schema for creating a new patient."""
+    """Input schema for creating a new patient.
+
+    Mirrors the dashboard intake form: core identity + admin (mục I) + structured
+    address + CSKH fields. Lenient on secondary fields (bad gender/linh_vuc/
+    birth_year → coerced to None, NEVER blocks creation); strict on identity
+    (phone 10 digits, CCCD 12 digits → reject).
+    """
 
     full_name: str
     date_of_birth: date | None = None
+    birth_year: int | None = None
     phone_primary: str | None = None
     phone_secondary: str | None = None
     national_id_number: str | None = None
     location_id: UUID
+    # Hành chính (mục I form khám)
+    gender: str | None = None
+    ethnicity: str | None = None
+    nationality: str | None = None
+    occupation: str | None = None
+    patient_objection: str | None = None
+    address: str | None = None
+    guardian_name: str | None = None
+    # Địa chỉ có cấu trúc (sau sáp nhập: tỉnh → phường, bỏ huyện)
+    province_code: str | None = None
+    province_name: str | None = None
+    ward_code: str | None = None
+    ward_name: str | None = None
+    address_detail: str | None = None
+    # CSKH (đặt lịch)
+    van_de_di_kham: str | None = None
+    linh_vuc: str | None = None
     is_active: bool = True
+    # Cho phép tạo dù trùng SĐT (nhân viên đã xác nhận). KHÔNG nới CCCD.
+    force: bool = False
+
+    @field_validator(
+        "date_of_birth",
+        "birth_year",
+        "phone_primary",
+        "phone_secondary",
+        "national_id_number",
+        "gender",
+        "ethnicity",
+        "nationality",
+        "occupation",
+        "patient_objection",
+        "address",
+        "guardian_name",
+        "province_code",
+        "province_name",
+        "ward_code",
+        "ward_name",
+        "address_detail",
+        "van_de_di_kham",
+        "linh_vuc",
+        mode="before",
+    )
+    @classmethod
+    def _empty_to_none(cls, v: object) -> object:
+        return _blank_to_none(v)
 
     @field_validator("full_name")
     @classmethod
@@ -27,6 +91,46 @@ class PatientCreateDTO(BaseModel):
             msg = "full_name must not be blank"
             raise ValueError(msg)
         return v.strip()
+
+    @field_validator("phone_primary", "phone_secondary")
+    @classmethod
+    def _phone_10_digits(cls, v: str | None) -> str | None:
+        if v is not None and not _PHONE_RE.match(v):
+            msg = "phone must be exactly 10 digits"
+            raise ValueError(msg)
+        return v
+
+    @field_validator("national_id_number")
+    @classmethod
+    def _cccd_12_digits(cls, v: str | None) -> str | None:
+        if v is not None and not _CCCD_RE.match(v):
+            msg = "national_id_number must be exactly 12 digits"
+            raise ValueError(msg)
+        return v
+
+    @field_validator("birth_year")
+    @classmethod
+    def _birth_year_range(cls, v: int | None) -> int | None:
+        # Ngoài 1900–2100 → bỏ (field phụ, không chặn tạo BN).
+        return v if v is not None and 1900 <= v <= 2100 else None
+
+    @field_validator("gender")
+    @classmethod
+    def _gender_whitelist(cls, v: str | None) -> str | None:
+        return v if v in _GENDER else None
+
+    @field_validator("linh_vuc")
+    @classmethod
+    def _linh_vuc_whitelist(cls, v: str | None) -> str | None:
+        return v if v in _LINH_VUC else None
+
+    @model_validator(mode="after")
+    def _dob_from_birth_year(self) -> PatientCreateDTO:
+        # Chỉ nhớ năm sinh → đặt date_of_birth = YYYY-01-01 để tuổi + chỗ hiển
+        # thị NGÀY vẫn chạy (mirror dashboard feedback B5#4).
+        if self.date_of_birth is None and self.birth_year is not None:
+            self.date_of_birth = date(self.birth_year, 1, 1)
+        return self
 
 
 class PatientUpdateDTO(BaseModel):
@@ -99,3 +203,29 @@ class PatientDTO(BaseModel):
     @classmethod
     def mask_national_id(cls, v: str | None) -> str | None:
         return _mask_national_id(v)
+
+
+class DuplicateMatch(BaseModel):
+    """One existing patient sharing the incoming phone_primary.
+
+    Surfaced to reception in the block-before-insert guard so they can recognise
+    the person and decide whether to proceed (force). MINIMAL fields only.
+    """
+
+    clinic_patient_id: UUID
+    patient_code: str
+    full_name: str
+    date_of_birth: date | None = None
+
+
+class PatientCreateResult(BaseModel):
+    """Outcome of create_patient: either a soft duplicate-block, or the new row.
+
+    ``patient is None and duplicate is True`` → phone already on file (no insert
+    happened; caller may retry with force). Otherwise ``patient`` holds the row.
+    A hard CCCD conflict does NOT return here — it raises ConflictError (409).
+    """
+
+    duplicate: bool = False
+    matches: list[DuplicateMatch] = []
+    patient: PatientDTO | None = None

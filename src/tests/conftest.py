@@ -37,6 +37,13 @@ else:
     # DB fixtures skip cleanly. NEVER fall back to the prod DATABASE_URL.
     os.environ["DATABASE_URL"] = ""
 
+# Same isolation for the API-key gate: if `.env` carries a real BACKEND_API_KEY,
+# the api_key_middleware would 401 every endpoint unit test (they send no
+# X-API-Key). Blank-but-PRESENT → middleware uses its dev fallback (allow), and
+# load_dotenv(override=False) can't restore the prod key. Auth-specific tests
+# still set their own key via monkeypatch.
+os.environ["BACKEND_API_KEY"] = ""
+
 # Fixtures that imply a live Postgres connection. Any test requesting one of
 # these (or living under integration/) is tagged `db` for `-m "not db"`.
 _DB_FIXTURES = {
