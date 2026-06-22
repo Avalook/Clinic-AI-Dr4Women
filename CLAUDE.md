@@ -21,6 +21,7 @@
 - KHÔNG skip test
 - KHÔNG tự quyết safety gate (GROUP_C lab, FINALIZED visit)
 - KHÔNG deploy production tự động
+- **NHÁNH: code trên `chinh` TRƯỚC.** `feat/t-transform-01` = nhánh PRODUCTION nối Vercel (phòng khám ĐANG nhìn thấy; autoDeploy mỗi lần push). KHÔNG code/commit trực tiếp lên `feat/t-transform-01`. Chỉ merge `chinh` → `feat/t-transform-01` KHI code đã CHỐT **và** có lệnh rõ. Đầu mỗi phiên: kiểm tra đang ở `chinh`; nếu đang ở `feat/t-transform-01` thì DỪNG, báo, chuyển về `chinh`.
 - KHÔNG push khi chưa được lệnh; commit local theo Task Packet
 - **KHÔNG tạo file trùng tên ở thư mục khác.** Worklog DUY NHẤT = `context/CURRENT_PROGRESS.md`. Số liệu thật DUY NHẤT = `context/SYSTEM_STATE_ACTUAL.md`. Thấy bản trùng tên ở chỗ khác → báo để xóa.
 - **Doc canon (final_canon/, file 00-11) là THAM CHIẾU, KHÔNG phải sự thật.** Đã lệch nhiều lần (Gemini→Anthropic, 16→14 file, Voice-to-EMR khoe nhầm). Khi nghi ngờ số liệu/trạng thái → khảo sát code thật, không tin doc, không đoán.
