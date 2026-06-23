@@ -6,10 +6,11 @@
 // owns the success UI and decides what happens after a booking via onBooked.
 // Write path = POST /api/appointments (service-role + intake-role guard).
 
-import { useState, type ReactNode } from "react";
+import { useState, useMemo, type ReactNode } from "react";
 import { vnLocalToUtcISO, nowMs } from "../../../lib/datetime";
 import { todayVn, clinicHoursForDate, clinicHoursError } from "../../../lib/roster";
 import { INPUT, LABEL, BTN, DURATIONS, CHANNELS } from "../form-ui";
+import { unaccentVi } from "../../../lib/validation";
 import Time24Input from "../Time24Input";
 import DateField from "../DateField";
 
@@ -39,7 +40,15 @@ export default function AppointmentBooking({
   secondary?: ReactNode;
 }) {
   const [serviceId, setServiceId] = useState("");
+  // Bác sĩ: combobox tìm kiếm bỏ dấu thay native <select>
   const [doctorId, setDoctorId] = useState("");
+  const [doctorQ, setDoctorQ] = useState(""); // text hiện trong ô
+  const [doctorOpen, setDoctorOpen] = useState(false);
+  const filteredDoctors = useMemo(() => {
+    const t = unaccentVi(doctorQ.trim());
+    if (!t) return doctors;
+    return doctors.filter((d) => unaccentVi(d.label).includes(t));
+  }, [doctorQ, doctors]);
   const [locationId, setLocationId] = useState(
     defaultLocationId ?? locations[0]?.id ?? "",
   );
@@ -118,18 +127,60 @@ export default function AppointmentBooking({
         </div>
         <div className="space-y-1">
           <label className={LABEL}>Bác sĩ</label>
-          <select
-            value={doctorId}
-            onChange={(e) => setDoctorId(e.target.value)}
-            className={INPUT}
-          >
-            <option value="">— Chưa phân bác sĩ —</option>
-            {doctors.map((d) => (
-              <option key={d.id} value={d.id}>
-                {d.label}
-              </option>
-            ))}
-          </select>
+          {/* Combobox: gõ tìm — không phân biệt dấu / hoa-thường */}
+          <div className="relative">
+            <input
+              value={doctorQ}
+              onChange={(e) => {
+                setDoctorQ(e.target.value);
+                setDoctorId(""); // xóa chọn cũ khi gõ đè
+                setDoctorOpen(true);
+              }}
+              onFocus={() => setDoctorOpen(true)}
+              onBlur={() => setTimeout(() => setDoctorOpen(false), 150)}
+              placeholder="Tìm bác sĩ… (bỏ trống nếu chưa phân)"
+              className={INPUT}
+              autoComplete="off"
+            />
+            {doctorOpen && (
+              <ul className="absolute z-30 mt-1 max-h-52 w-full overflow-auto rounded-lg border border-[#e4e4e7] bg-white shadow-lg">
+                <li
+                  onMouseDown={() => {
+                    setDoctorId("");
+                    setDoctorQ("");
+                    setDoctorOpen(false);
+                  }}
+                  className="cursor-pointer px-3 py-2 text-sm text-[#71717a] hover:bg-[#fdf2f8]"
+                >
+                  — Chưa phân bác sĩ —
+                </li>
+                {filteredDoctors.length === 0 ? (
+                  <li className="px-3 py-2 text-sm text-[#a1a1aa]">
+                    Không tìm thấy bác sĩ
+                  </li>
+                ) : (
+                  filteredDoctors.map((d) => (
+                    <li
+                      key={d.id}
+                      onMouseDown={() => {
+                        setDoctorId(d.id);
+                        setDoctorQ(d.label);
+                        setDoctorOpen(false);
+                      }}
+                      className={
+                        "cursor-pointer px-3 py-2 text-sm hover:bg-[#fdf2f8] " +
+                        (d.id === doctorId
+                          ? "bg-[#fce7f3] font-medium text-[#9d2463]"
+                          : "text-[#171717]")
+                      }
+                    >
+                      {d.label}
+                    </li>
+                  ))
+                )}
+              </ul>
+            )}
+          </div>
         </div>
         <div className="space-y-1">
           <label className={LABEL}>Ngày *</label>

@@ -22,6 +22,7 @@ import {
   isCashierRole,
   isThuKyRole,
   isUltrasoundDoctorRole,
+  isNurseRole,
 } from "../../../lib/roles";
 import ConfirmBoard, { type ApptRow, type Opt } from "./ConfirmBoard";
 import CskhActionBoard, { type CskhActionRow } from "./CskhActionBoard";
@@ -326,14 +327,8 @@ async function DoctorTasks(
       <header>
         <h1 className="text-xl font-semibold text-[#171717]">Công việc của tôi</h1>
         {readOnly && (
-          <p className="mt-0.5 inline-flex items-center gap-1.5 text-sm text-[#9d2463]">
-            <span className="rounded bg-[#fce7f3] px-1.5 py-0.5 text-[11px] font-medium">
-              👁 Chỉ xem phần lâm sàng
-            </span>
-            <span className="text-[#888888]">
-              Xem lịch & hồ sơ của tất cả bác sĩ. KHÔNG sửa phần lâm sàng, nhưng
-              ĐƯỢC sửa thông tin hành chính (mục I) — bấm tên bệnh nhân để sửa.
-            </span>
+          <p className="mt-0.5 text-sm text-[#888888]">
+            Xem lịch khám của tất cả bác sĩ — bấm tên bệnh nhân để sửa thông tin hành chính.
           </p>
         )}
         {allDoctors && !readOnly && (
@@ -401,7 +396,11 @@ export default async function TasksPage() {
   }
   if (isDoctorRole(role))
     return DoctorTasks(false, true, false, isUltrasoundDoctorRole(role));
-  // Lễ tân: CLONE Y HỆT board bác sĩ nhưng ĐƯỢC ĐIỀN sinh hiệu (vitalsOnly).
+  // Điều dưỡng (NURSE_ULTRASOUND): hỗ trợ BS nhập bệnh án (sinh hiệu + lý do khám)
+  // → cùng board bác sĩ, GHI được (readOnly=false), thấy MỌI bác sĩ (allDoctors),
+  // không siêu âm, không xem tóm tắt trước khám.
+  if (isNurseRole(role)) return DoctorTasks(false, false, true, false);
+  // Lễ tân: xem board bác sĩ, ĐƯỢC điền sinh hiệu (vitalsOnly), ĐƯỢC sửa hành chính.
   // Thu ngân: chỉ xem (readOnly).
   if (isTasksReadOnly(role)) {
     const isReception = role === "RECEPTION";

@@ -200,7 +200,7 @@ const NAV_ROLES: Record<string, "all" | ClinicRole[]> = {
   // (clone giao diện board bác sĩ, khóa mọi nút sửa — xem isTasksReadOnly).
   // TKYK (Thư ký Y khoa): vào hàng đợi khám của MỌI bác sĩ để NHẬP HỘ bệnh án
   // (canWriteClinical đã =true). Routing → DoctorWorkBoard (xem tasks/page.tsx).
-  "/tasks": ["CSKH", "MANAGEMENT", "RECEPTION", "CASHIER", "CASHIER_THUOC", "CASHIER_DV", "TKYK", ...DOCTOR_ROLES_LIST],
+  "/tasks": ["CSKH", "MANAGEMENT", "RECEPTION", "CASHIER", "CASHIER_THUOC", "CASHIER_DV", "TKYK", "NURSE_ULTRASOUND", ...DOCTOR_ROLES_LIST],
   // Hàng đợi XN + Dịch vụ: điều dưỡng/KTV thực hiện (+ Quản lý xem).
   "/lab-queue": ["NURSE_ULTRASOUND", "MANAGEMENT"],
   "/service-queue": ["NURSE_ULTRASOUND", "MANAGEMENT"],
