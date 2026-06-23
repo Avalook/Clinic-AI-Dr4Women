@@ -924,7 +924,9 @@ export default function ClinicalRecordForm({
             </div>
           </div>
         </Section>
+        )}
 
+        {tab === 1 && (
         <Section no="V" title="Bệnh sử & khám thai">
           <textarea className={INPUT} rows={2} value={f.benh_su} disabled={roRest} onChange={(e) => set("benh_su", e.target.value)} placeholder="Quá trình bệnh lý…" />
           {!loading && preg && (
