@@ -77,14 +77,15 @@ export function canWriteClinical(role: ClinicRole | null): boolean {
   return isDoctorRole(role) || isNurseRole(role) || isThuKyRole(role);
 }
 
-/** Roles allowed to create patients / appointments (data entry).
- *  Điều dưỡng (NURSE) thêm vào để nhập "khách vãng lai" + check-in. */
+/** Roles allowed to create patients / appointments (data entry) + check-in.
+ *  ĐIỀU DƯỠNG ĐÃ BỎ (feedback PM 23/6: ĐD không tạo BN, không check-in — đó là việc
+ *  Lễ tân; ĐD lo lâm sàng + 3 hàng đợi. Ghi lâm sàng của ĐD vẫn qua canWriteClinical,
+ *  KHÔNG phụ thuộc hàm này). */
 export function canWriteIntake(role: ClinicRole | null): boolean {
   return (
     role === "CSKH" ||
     role === "RECEPTION" ||
     role === "MANAGEMENT" ||
-    role === "NURSE_ULTRASOUND" ||
     role === "TRUONG_CA"
   );
 }
@@ -104,14 +105,10 @@ export function isOpsAdmin(role: ClinicRole | null): boolean {
   return isAdminRole(role) || isTruongCaRole(role);
 }
 
-/** Roles lo check-in (đón khách đã đến). Khu check-in giờ nằm ở TRANG CHỦ
- *  (không còn ở sidebar) cho Điều dưỡng + Lễ tân + Quản lý. */
+/** Roles lo check-in (đón khách đã đến) = FRONT DESK: Lễ tân + Quản lý.
+ *  ĐIỀU DƯỠNG ĐÃ BỎ (feedback PM 23/6: check-in là việc Lễ tân). */
 export function canCheckin(role: ClinicRole | null): boolean {
-  return (
-    role === "NURSE_ULTRASOUND" ||
-    role === "RECEPTION" ||
-    role === "MANAGEMENT"
-  );
+  return role === "RECEPTION" || role === "MANAGEMENT";
 }
 
 /** Roles quản trị vòng đời lịch hẹn: HỦY lịch + PHÂN LẠI bác sĩ (CSKH + Quản lý
@@ -193,11 +190,13 @@ const NAV_ROLES: Record<string, "all" | ClinicRole[]> = {
   // Danh sách bệnh nhân ĐÃ KHÁM (lần đầu / tái khám) — CSKH/Lễ tân/QL + BÁC SĨ.
   // Bác sĩ thấy TOÀN BỘ BN đã khám (như front desk); mở hồ sơ vẫn bị guard
   // patients/[id] (chỉ mở được BN của mình) — đúng mô hình quyền hiện tại.
-  "/patient-list": ["CSKH", "RECEPTION", "MANAGEMENT", "CASHIER", "CASHIER_THUOC", "CASHIER_DV", "TRUONG_CA", "TKYK", ...DOCTOR_ROLES_LIST],
+  // + ĐIỀU DƯỠNG (feedback PM 23/6): nav "Thông tin bệnh nhân" để tra cứu BN +
+  // xem lịch sử khám (giống bác sĩ). Sửa lâm sàng/sinh hiệu vẫn theo buổi khám.
+  "/patient-list": ["CSKH", "RECEPTION", "MANAGEMENT", "CASHIER", "CASHIER_THUOC", "CASHIER_DV", "TRUONG_CA", "TKYK", "NURSE_ULTRASOUND", ...DOCTOR_ROLES_LIST],
   // Tra cứu BN đầy đủ (phân trang) — Quản lý + Trưởng ca. CSKH/Lễ tân dùng /customers.
   "/patients": ["MANAGEMENT", "TRUONG_CA"],
-  // Điều dưỡng cũng nhập được (khách vãng lai).
-  "/patients/new": ["CSKH", "RECEPTION", "MANAGEMENT", "NURSE_ULTRASOUND", "TRUONG_CA"],
+  // ĐIỀU DƯỠNG ĐÃ BỎ (feedback PM 23/6: ĐD không tạo BN).
+  "/patients/new": ["CSKH", "RECEPTION", "MANAGEMENT", "TRUONG_CA"],
   // /checkin đã chuyển hẳn lên Trang chủ (HomeCheckin) — route cũ đã xóa.
   // Lễ tân được THÊM vào: thấy "Công việc của tôi" nhưng ở chế độ CHỈ XEM
   // (clone giao diện board bác sĩ, khóa mọi nút sửa — xem isTasksReadOnly).
