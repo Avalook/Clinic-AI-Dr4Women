@@ -462,6 +462,15 @@ export default function ClinicalRecordForm({
       setMsg("Chờ lễ tân xác nhận bệnh nhân đã đến (check-in) trước khi khám.");
       return;
     }
+    // C — Sinh hiệu BẮT BUỘC (D26) cũng áp cho luồng bác sĩ: thiếu → nhảy tab
+    // "Khám" + bật viền đỏ (REQUIRED_VITALS ở tab khác nên không thì sẽ "im lặng").
+    const missingReq = [...REQUIRED_VITALS].filter((k) => f[k].trim() === "");
+    if (missingReq.length) {
+      setVitalsTried(true);
+      setTab(1);
+      setMsg("Bắt buộc nhập Huyết áp, Cân nặng, Chiều cao.");
+      return;
+    }
     setSaving(true);
     setMsg(null);
     // Mục X: chỉ ghi khóa tai_kham khi có ngày HOẶC ≥1 nhóm XN (hợp đồng với màn
@@ -971,7 +980,20 @@ export default function ClinicalRecordForm({
             })}
           </div>
         </Section>
+        )}
 
+        {/* Số đo siêu âm thai — CHỈ Bác sĩ Siêu âm (showSono). Lưu riêng qua
+            /api/ultrasound (ultrasound_record), KHÔNG dính nút Lưu hồ sơ chính. */}
+        {tab === 1 && showSono && !viewingPast && p?.clinic_patient_id && (
+          <div className="border-t border-[#f4f4f5] pt-3">
+            <SonoBiometry
+              appointmentId={appt.id}
+              clinicPatientId={p.clinic_patient_id}
+            />
+          </div>
+        )}
+
+        {tab === 2 && (
         <Section no="VI" title="Kết quả cận lâm sàng" synced>
           {loading ? (
             <Loading />
@@ -1031,16 +1053,21 @@ export default function ClinicalRecordForm({
             </div>
           )}
         </Section>
+        )}
 
+        {tab === 3 && (
         <Section no="VII" title="Chuẩn đoán">
           <textarea className={INPUT} rows={2} value={f.chan_doan} disabled={roRest} onChange={(e) => set("chan_doan", e.target.value)} placeholder="VD: Z34 - Theo dõi thai…" />
         </Section>
+        )}
 
+        {tab === 3 && (
         <Section no="VIII" title="Hướng xử lý & lời dặn">
           <textarea className={INPUT} rows={3} value={f.loi_dan} disabled={roRest} onChange={(e) => set("loi_dan", e.target.value)} />
         </Section>
+        )}
 
-        {!vitalsOnly && (
+        {tab === 3 && !vitalsOnly && (
           <Section no="IX" title="Đơn thuốc">
             <div className="space-y-2">
               {rx.length === 0 && (
@@ -1106,6 +1133,7 @@ export default function ClinicalRecordForm({
 
         {/* X — Theo dõi & Tái khám: nguồn dữ liệu cho CSKH nhắc tái khám
             (soap_plan.tai_kham). KHÔNG bắt buộc — không ảnh hưởng "Khám xong". */}
+        {tab === 3 && (
         <Section no="X" title="Theo dõi & Tái khám">
           <div className="space-y-2">
             <div>
@@ -1151,11 +1179,12 @@ export default function ClinicalRecordForm({
             </div>
           </div>
         </Section>
+        )}
 
         {/* Phiếu khám CHUYÊN KHOA (engine config-driven) — pilot Phụ khoa. Chỉ hiện
             cho bác sĩ (KHÔNG ở luồng đón-khám vitalsOnly) khi dịch vụ có config +
             đã có visit. FINALIZED / lễ tân chỉ-đọc → read-only (route cũng chặn ghi). */}
-        {!vitalsOnly && serviceCode && data?.visit?.visit_id && (
+        {tab === 2 && !vitalsOnly && serviceCode && data?.visit?.visit_id && (
           <div className="border-t border-[#f4f4f5] pt-3">
             <ServiceFormEngine
               visitId={data.visit.visit_id}
