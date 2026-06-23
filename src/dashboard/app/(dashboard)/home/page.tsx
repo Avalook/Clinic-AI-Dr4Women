@@ -85,8 +85,12 @@ export default async function HomePage({
     new Date(apptStartUtc).getTime() + 7 * DAY_MS,
   ).toISOString();
   const WEEK_APPT_SELECT = `
-    id, slot_start, queue_number,
-    patient:patient!clinic_patient_id ( clinic_patient_id, full_name, patient_code, phone_primary ),
+    id, slot_start, status, queue_number,
+    patient:patient!clinic_patient_id (
+      clinic_patient_id, patient_code, full_name, date_of_birth,
+      phone_primary, phone_secondary, gender, ethnicity, nationality, occupation,
+      patient_objection, address, guardian_name
+    ),
     doctor:staff!doctor_id ( full_name ),
     service:service_type!service_type_id ( name )
   `;
@@ -106,7 +110,7 @@ export default async function HomePage({
   // join patient/bác sĩ/dịch vụ. 3 staff-FK trên visit → phải chỉ rõ
   // attending_doctor_id để PostgREST không nhập nhằng. RLS SELECT cho phép.
   const VISIT_STATUS_SELECT = `
-    visit_id, status, checked_in_at, created_at,
+    visit_id, status, checked_in_at, created_at, exam_completed_at,
     patient:patient!clinic_patient_id ( full_name, patient_code ),
     doctor:staff!attending_doctor_id ( full_name ),
     service:service_type!service_type_id ( name ),
@@ -317,7 +321,12 @@ export default async function HomePage({
             others={{ weekRoster }}
           />
         </div>
-        <WeeklyAppointmentsTable days={apptDays} />
+        <WeeklyAppointmentsTable
+          days={apptDays}
+          role={role}
+          staffId={staffId}
+          canWriteClinical={writeClinical}
+        />
       </section>
 
       {/* Lịch làm việc — nút tuần RIÊNG (weekRoster), KHÔNG đụng Lịch hẹn khám. */}

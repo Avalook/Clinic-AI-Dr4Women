@@ -144,8 +144,37 @@ export async function POST(request: Request) {
   }
 
   const doctor_id = (body.doctor_id ?? "").trim() || null;
-  const booking_channel = (body.booking_channel ?? "").trim() || "WALK_IN";
-  const queue_number = (body.queue_number ?? "").trim() || null;
+  const rawChannel = (body.booking_channel ?? "").trim();
+  const booking_channel = rawChannel || "WALK_IN";
+  let queue_number = (body.queue_number ?? "").trim() || null;
+
+  // KHÁCH TỚI TRỰC TIẾP cho HÔM NAY → tạo lịch là ĐÃ CHECK-IN luôn (PK chốt: walk-in
+  // auto check-in — khách đã có mặt ở quầy, không phải chờ "Gọi xác nhận"), tự cấp
+  // số thứ tự nếu chưa nhập. CHỈ áp khi kênh = WALK_IN ĐƯỢC CHỌN RÕ (rawChannel, không
+  // phải mặc định rỗng) + slot TRONG NGÀY HÔM NAY — để KHÔNG vô tình check-in lịch
+  // tương lai hay lịch đặt qua điện thoại quên chọn kênh.
+  const { startUtc: todayStart, endUtc: todayEnd } = vnTodayRangeUtc();
+  const slotMs = new Date(slot_start).getTime();
+  const slotIsToday =
+    slotMs >= Date.parse(todayStart) && slotMs < Date.parse(todayEnd);
+  const autoCheckin = rawChannel === "WALK_IN" && slotIsToday;
+  const initialStatus = autoCheckin ? "CHECKED_IN" : "SCHEDULED";
+  if (autoCheckin && !queue_number) {
+    // Số = max(số đã cấp hôm nay) + 1, đếm theo TOÀN phòng khám trong ngày VN
+    // (cùng quy tắc với lúc Lễ tân check-in ở PATCH). Best-effort: lỗi đếm KHÔNG chặn.
+    const { data: todays } = await db
+      .from("appointment")
+      .select("queue_number")
+      .gte("slot_start", todayStart)
+      .lt("slot_start", todayEnd)
+      .not("queue_number", "is", null);
+    let max = 0;
+    for (const r of (todays as { queue_number: string | null }[] | null) ?? []) {
+      const n = parseInt((r.queue_number ?? "").trim(), 10);
+      if (Number.isFinite(n) && n > max) max = n;
+    }
+    queue_number = String(max + 1);
+  }
 
   // Chặn TRÙNG GIỜ bác sĩ NGAY (báo rõ khung giờ bận) — không để khách đặt được
   // rồi mới văng lỗi. Ràng buộc DB (appointment_no_doctor_overlap) vẫn là chốt cuối.
@@ -165,7 +194,7 @@ export async function POST(request: Request) {
       slot_end,
       booking_channel,
       queue_number,
-      status: "SCHEDULED",
+      status: initialStatus,
     })
     .select("id")
     .single();
@@ -198,7 +227,7 @@ export async function POST(request: Request) {
       slot_start,
       slot_end,
       booking_channel,
-      status: "SCHEDULED",
+      status: initialStatus,
     },
     metadata: {
       clinic_role: role,
@@ -207,6 +236,30 @@ export async function POST(request: Request) {
       origin: "dashboard:appointment-booking",
     },
   });
+
+  // Walk-in hôm nay đã tạo thẳng CHECKED_IN → ghi thêm 1 vết check-in (giữ audit
+  // trail đồng nhất với luồng Lễ tân bấm "Check-in" ở PATCH). Best-effort.
+  if (autoCheckin) {
+    await logEvent(db, {
+      event_type: "appointment.checked_in",
+      aggregate_type: "appointment",
+      aggregate_id: data.id,
+      payload: {
+        appointment_id: data.id,
+        clinic_patient_id,
+        slot_start,
+        queue_number,
+        status: "CHECKED_IN",
+        auto_walk_in: true,
+      },
+      metadata: {
+        clinic_role: role,
+        clinic_staff_id: staffId,
+        actor_auth_user_id: user.id,
+        origin: "dashboard:appointment-walkin-autocheckin",
+      },
+    });
+  }
 
   return NextResponse.json({ ok: true, appointment_id: data.id });
 }
@@ -336,7 +389,7 @@ export async function PATCH(request: Request) {
   let newStatus: string;
   let fromStatuses: string[];
   if (action === "confirm" || action === "decline" || action === "complete") {
-    if (appt.doctor_id !== staffId) {
+    if (appt.doctor_id !== staffId && role !== "TKYK") {
       return NextResponse.json(
         { error: "Lịch hẹn này không thuộc bác sĩ." },
         { status: 403 },
@@ -604,6 +657,23 @@ export async function PATCH(request: Request) {
       { onConflict: "source_ref" },
     );
     if (caErr) console.error("cskh_action upsert (complete) lỗi:", caErr.message);
+
+    // MỐC "Khám xong" → lưu THỜI ĐIỂM vào visit.exam_completed_at (mig 058) phục vụ
+    // phân tích thời gian khám (= exam_completed_at − checked_in_at). Tìm visit theo
+    // appointment_id, chỉ set khi CHƯA có (giữ mốc lần khám-xong đầu tiên). Best-effort:
+    // cột chưa migrate (42703) / chưa có visit → bỏ qua, KHÔNG làm hỏng việc khám-xong.
+    try {
+      const { error: exErr } = await db
+        .from("visit")
+        .update({ exam_completed_at: new Date().toISOString() })
+        .eq("appointment_id", id)
+        .is("exam_completed_at", null);
+      if (exErr && exErr.code !== "42703") {
+        console.error("visit.exam_completed_at stamp lỗi:", exErr.message);
+      }
+    } catch (e) {
+      console.error("visit.exam_completed_at stamp lỗi:", e);
+    }
   }
 
   // Bác sĩ NHẬN CA (confirm) → TỰ THÊM lịch bác sĩ vào "Lịch làm việc" (work_roster)

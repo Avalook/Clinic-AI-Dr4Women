@@ -42,7 +42,7 @@ export function isClinicRole(v: string | undefined | null): v is ClinicRole {
   return !!v && (ALL_ROLES as string[]).includes(v);
 }
 
-const DOCTOR_ROLES = new Set<ClinicRole>(["DOCTOR", "ULTRASOUND_DOCTOR"]);
+const DOCTOR_ROLES = new Set<ClinicRole>(["DOCTOR", "ULTRASOUND_DOCTOR", "TKYK"]);
 
 /** Doctor / ultrasound doctor — can scope appointments to themselves. */
 export function isDoctorRole(role: ClinicRole | null): boolean {
@@ -175,7 +175,7 @@ export const ROLE_LABEL: Record<ClinicRole, string> = {
 // C4). /appointments + /patients/new vẫn KHÔNG cho bác sĩ (chỉ Quản lý / front
 // desk). /patients: nav chỉ Quản lý; bác sĩ vào được qua URL (scope BN của
 // mình, gate trong page) — CSKH/Lễ tân tra cứu bằng /customers.
-const DOCTOR_ROLES_LIST: ClinicRole[] = ["DOCTOR", "ULTRASOUND_DOCTOR"];
+const DOCTOR_ROLES_LIST: ClinicRole[] = ["DOCTOR", "ULTRASOUND_DOCTOR", "TKYK"];
 
 const NAV_ROLES: Record<string, "all" | ClinicRole[]> = {
   "/home": "all",
@@ -198,7 +198,6 @@ const NAV_ROLES: Record<string, "all" | ClinicRole[]> = {
   "/patients": ["MANAGEMENT", "TRUONG_CA"],
   // Điều dưỡng cũng nhập được (khách vãng lai).
   "/patients/new": ["CSKH", "RECEPTION", "MANAGEMENT", "NURSE_ULTRASOUND", "TRUONG_CA"],
-  "/reception-checkin": ["RECEPTION", "MANAGEMENT", "TRUONG_CA", "NURSE_ULTRASOUND"],
   // /checkin đã chuyển hẳn lên Trang chủ (HomeCheckin) — route cũ đã xóa.
   // Lễ tân được THÊM vào: thấy "Công việc của tôi" nhưng ở chế độ CHỈ XEM
   // (clone giao diện board bác sĩ, khóa mọi nút sửa — xem isTasksReadOnly).

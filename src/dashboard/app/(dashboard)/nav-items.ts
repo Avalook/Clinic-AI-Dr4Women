@@ -66,12 +66,6 @@ export const NAV: NavItem[] = [
     shortLabel: "Tạo BN",
     icon: UserPlus,
   },
-  {
-    href: "/reception-checkin",
-    label: "Lịch hẹn khám",
-    shortLabel: "Lịch hẹn",
-    icon: ClipboardList,
-  },
   // Check-in ĐÃ chuyển lên TRANG CHỦ (HomeCheckin) — không còn ở sidebar.
   {
     href: "/tasks",

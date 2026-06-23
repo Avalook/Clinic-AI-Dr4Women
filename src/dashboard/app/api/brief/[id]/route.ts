@@ -55,13 +55,17 @@ export async function POST(
   // 3) Bác sĩ chỉ tóm tắt BN CỦA MÌNH (mirror guard ở patients/[id]) — không nới
   // quyền: phải có ít nhất 1 lịch hẹn giữa bác sĩ này và bệnh nhân.
   const staffId = await getClinicStaffId();
-  const { data: own } = await supabase
-    .from("appointment")
-    .select("id")
-    .eq("doctor_id", staffId)
-    .eq("clinic_patient_id", id)
-    .limit(1)
-    .maybeSingle();
+  let own = true;
+  if (role !== "TKYK") {
+    const { data: ownAppt } = await supabase
+      .from("appointment")
+      .select("id")
+      .eq("doctor_id", staffId)
+      .eq("clinic_patient_id", id)
+      .limit(1)
+      .maybeSingle();
+    own = !!ownAppt;
+  }
   if (!own) {
     return NextResponse.json(
       { error: "Bệnh nhân này không thuộc lịch khám của bạn." },

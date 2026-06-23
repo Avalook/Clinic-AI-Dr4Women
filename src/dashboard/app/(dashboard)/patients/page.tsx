@@ -23,7 +23,7 @@ export default async function PatientsPage({
   // từ patients/[id]). CSKH/Lễ tân/ĐD gõ thẳng URL → đẩy về Trang chủ — họ
   // tra cứu qua /customers, không được xem TOÀN BỘ danh sách BN ở đây.
   if (!isOpsAdmin(role) && !isDoctorRole(role)) redirect("/home");
-  const isDoctor = isDoctorRole(role);
+  const isDoctor = isDoctorRole(role) && role !== "TKYK";
   const doctorId = isDoctor ? await getClinicStaffId() : null;
 
   return (

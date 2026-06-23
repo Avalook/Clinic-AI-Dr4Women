@@ -1,0 +1,5 @@
+BEGIN;
+
+ALTER TABLE visit DROP COLUMN IF EXISTS exam_completed_at;
+
+COMMIT;

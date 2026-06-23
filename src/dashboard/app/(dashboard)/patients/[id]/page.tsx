@@ -29,7 +29,7 @@ export default async function PatientDetailPage({
 
   // Bác sĩ chỉ được mở hồ sơ BN CỦA MÌNH (có lịch hẹn với bác sĩ này). Chặn cả
   // truy cập trực tiếp bằng URL, không chỉ ẩn ở danh sách.
-  if (isDoctorRole(role)) {
+  if (isDoctorRole(role) && role !== "TKYK") {
     const staffId = await getClinicStaffId();
     const supabase = await getSupabaseServer();
     const { data: own } = await supabase

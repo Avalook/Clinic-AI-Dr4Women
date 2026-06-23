@@ -394,12 +394,13 @@ export default async function TasksPage() {
   // để mọi vai thu ngân không rơi vào nhánh read-only board (tránh lộ lịch/BN của BS).
   if (isCashierRole(role)) return CashierTasks(cashierModes(role));
   // Bác sĩ: board lâm sàng. Bác sĩ Siêu âm thêm form số đo siêu âm thai (showSono).
+  if (role === "TKYK") {
+    // TKYK: nhập HỘ bệnh án cho BS → cùng board bác sĩ, GHI được, thấy MỌI bác sĩ
+    // (allDoctors), complete được lịch trực tiếp, hiển thị cả siêu âm.
+    return DoctorTasks(false, true, true, true);
+  }
   if (isDoctorRole(role))
     return DoctorTasks(false, true, false, isUltrasoundDoctorRole(role));
-  // TKYK: nhập HỘ bệnh án cho BS → cùng board bác sĩ, GHI được, thấy MỌI bác sĩ
-  // (allDoctors). KHÔNG complete được lịch (gate isDoctorRole ở /api/appointments)
-  // → "TKYK nhập, BS chốt".
-  if (isThuKyRole(role)) return DoctorTasks(false, true, true);
   // Lễ tân: CLONE Y HỆT board bác sĩ nhưng ĐƯỢC ĐIỀN sinh hiệu (vitalsOnly).
   // Thu ngân: chỉ xem (readOnly).
   if (isTasksReadOnly(role)) {

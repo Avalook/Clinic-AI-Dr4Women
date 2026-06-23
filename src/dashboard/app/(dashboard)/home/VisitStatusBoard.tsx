@@ -58,6 +58,19 @@ export interface VisitStatusRow {
   appointment: { status: string | null } | null;
   /** Đã thu đủ mọi khâu (bảng payment) → mốc "Đã thanh toán" xanh. Server tính. */
   paid?: boolean;
+  /** Mốc khám xong (mig 058) — dùng tính & hiện "khám N phút" cho board Lễ tân. */
+  exam_completed_at?: string | null;
+}
+
+/** Thời lượng khám (phút) = khám xong − bắt đầu khám. null nếu thiếu mốc. */
+function examMinutes(
+  checkedInAt: string | null,
+  examCompletedAt: string | null | undefined,
+): number | null {
+  if (!checkedInAt || !examCompletedAt) return null;
+  const ms = Date.parse(examCompletedAt) - Date.parse(checkedInAt);
+  if (!Number.isFinite(ms) || ms < 0) return null;
+  return Math.round(ms / 60000);
 }
 
 const TH =
@@ -87,6 +100,7 @@ export default function VisitStatusBoard({ rows }: { rows: VisitStatusRow[] }) {
               const apptStatus = r.appointment?.status ?? null;
               const paid = r.paid ?? false;
               const disp = displayStatus(r.status, apptStatus, paid);
+              const examMin = examMinutes(r.checked_in_at, r.exam_completed_at);
               return (
                 <tr key={r.visit_id} className="hover:bg-[#fafafa]">
                   {/* Ô 1 — thông tin gộp: tên BN + mã · bác sĩ · dịch vụ · trạng thái
@@ -118,6 +132,14 @@ export default function VisitStatusBoard({ rows }: { rows: VisitStatusRow[] }) {
                         <span className="text-[10px] text-[#bcbcbc] tabular-nums">
                           vào {fmtTime(r.checked_in_at ?? r.created_at)}
                         </span>
+                        {examMin !== null && (
+                          <span
+                            className="rounded-full bg-[#eef2ff] px-2 py-0.5 text-[10px] font-medium text-[#4338ca] tabular-nums"
+                            title="Thời gian khám (khám xong − bắt đầu khám)"
+                          >
+                            khám {examMin} phút
+                          </span>
+                        )}
                       </div>
                     </div>
                   </td>
