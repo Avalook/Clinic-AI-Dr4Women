@@ -1,3 +1,39 @@
+## ▶ Phiên 2026-06-23 — Quy ước nhánh + đọc lại dashboard
+
+**QUY ƯỚC NHÁNH (Quang chốt 23/6 — nguồn chân lý đầy đủ ở `CLAUDE.md §3`):**
+- Mọi thay đổi code/commit DIỄN RA TRÊN `chinh`. KHÔNG bao giờ code/commit thẳng lên `feat/t-transform-01`.
+- **Cổng 1** — push `chinh`: chỉ khi Quang nói **"OK"**.
+- **Cổng 2** — merge `chinh` → `feat/t-transform-01` (= PRODUCTION nối Vercel, autoDeploy, phòng khám đang xem): chỉ khi Quang nói **"CHỐT"** + có lệnh rõ.
+
+**Việc phiên này:** (1) Ghi rule nhánh 2 cổng vào `CLAUDE.md §3` + worklog này. (2) Đọc lại toàn bộ dashboard `src/dashboard` (Next.js **16.2.6** — có breaking changes, đọc `node_modules/next/dist/docs/` trước khi viết code; xem `src/dashboard/AGENTS.md`): **11 role**, ~24 trang `(dashboard)`, ~22 API route; data-path = tạo BN qua **FastAPI MPI** (`/api/patients` → `CLINIC_API_URL`), đọc/ghi khác qua **Supabase** (browser=anon, server=anon+cookie, service=service-role bypass RLS). Gate an toàn: FINALIZED visit (clinical-record/clinical-form 409), GROUP_C lab "chờ BS duyệt", append-only `event_log`.
+**Đã sửa (feedback PM, mục "Chung / Giao diện") — chưa commit:**
+1. **Trùng chữ "BS"** (`BS. TS.BS. Phan Chí Thành`): gốc = code prepend `BS.`/`BS ` trong khi `staff.full_name` đã có học hàm (seed `053_doctor_full_names.sql`: TS.BS./Ths.BS./BSNT./BSCKI./Ths./BS.). Tạo helper `lib/doctor-name.ts` → `doctorName()` chỉ thêm `BS.` khi tên CHƯA có học hàm, đã có thì giữ nguyên. Áp 5 chỗ: `home/WeeklyAppointmentsTable.tsx` (chỗ trong ảnh, bỏ luôn `cleanDoctor` cũ), `appointments/AppointmentsKanban.tsx`, `patients/[id]/PatientDetail.tsx`, `cskh-today/page.tsx`. (Các chỗ render tên trần không prefix — giữ nguyên, vốn đã hiển thị đủ học hàm.)
+2. **`/customers` tìm kiếm phải bấm "Tìm" → bất tiện**: `CustomersView.tsx` đổi sang GÕ-TỚI-ĐÂU-LỌC-TỚI-ĐÓ = lọc CLIENT tức thì (`useMemo`+`unaccentVi`, giống `/patient-list` mà PM OK) + tự gọi server debounce 350ms bọc `useTransition` (phủ toàn DB cho BN ngoài 300 dòng đã nạp, KHÔNG nháy skeleton, KHÔNG mất focus). BỎ nút "Tìm"; Enter vẫn tìm ngay; "Xoá" hiện theo `term`. (`/patient-list` không đụng — PM bảo OK.)
+- Verify: `tsc --noEmit` ✓ · `npm run lint` ✓ · `next build` ✓ (exit 0).
+- Đang ở `chinh`. **Chờ Quang xem trên web; OK thì push (CỔNG 1).**
+
+### Lịch làm việc TRỐNG → đã chuẩn bị import (CHỜ ÁP SQL trong VSCode)
+**Nguyên nhân:** `/schedule` ([schedule/page.tsx](src/dashboard/app/(dashboard)/schedule/page.tsx)) query `work_roster WHERE week_start = <thứ 2 của tuần>`. Tuần 15-21/06 (`week_start = 2026-06-15`) chỉ có 1 ô cũ (BS Thành 18/06) → lưới trống. Cần nạp dữ liệu thật từ Excel.
+
+**Đã làm (auto, KHÔNG ghi DB):**
+- Viết parser [scripts/data_import/import_roster_llv_062026.py](scripts/data_import/import_roster_llv_062026.py) đọc sheet **LLV 06-2026** của `~/Downloads/BẢNG LÀM VIỆC 06.2026 (1).xlsx`.
+- Sinh seed idempotent [src/migrations/seed/056_roster_llv_062026.sql](src/migrations/seed/056_roster_llv_062026.sql): **305 dòng, 3 tuần** (`2026-06-01`, `2026-06-08`, `2026-06-15`). Đã spot-check: 15/06 LICH_KHAM=BS HÙNG, 18/06=BS THÀNH+BS QUYẾT (khớp Excel).
+- SQL: `BEGIN; DELETE work_roster WHERE week_start IN (3 tuần); INSERT 305 dòng; COMMIT;` (chạy lại an toàn).
+
+**VIỆC CÒN LẠI cho Quang (VSCode) — chỉ 1 bước ÁP SQL:**
+1. Review file `src/migrations/seed/056_roster_llv_062026.sql`.
+2. Áp: Supabase SQL editor (paste nội dung) **hoặc** `psql "<DATABASE_URL>" -f src/migrations/seed/056_roster_llv_062026.sql`.
+3. Mở `/schedule?week=2026-06-15` → lưới đầy. (Tôi CHƯA ghi DB — chờ lệnh; có thể nhờ tôi áp nếu muốn.)
+
+**Map cột Excel → station key (lib/roster.ts), tái dùng cho tháng sau:**
+`C=LICH_KHAM · D=SB_CHIEU · E=HSS_THU_THUAT · F=LE_TAN · G=LAY_MAU · H=PHU_BS_KHAM · I=TLYK · K=PHU_BS_SA · L=PHONG_NGOAI_MOR · M=MAY_TRONG · N=MAY_NGOAI`. Mỗi ngày = 2 hàng tên; T7/CN tách Sáng/Chiều (shift SANG/CHIEU), T2–T6 = FULL.
+
+**Caveat:** (a) `staff_id = NULL`, `staff_name` = nguyên văn tên tắt (có ô 2 người như "Hằng Trang Lê") → bảng hiển thị đủ, nhưng form "Đăng ký ca của tôi" lọc theo staff_id sẽ không nhận; backfill staff_id sau nếu cần. (b) Cột J "THU NGÂN THUỐC" (chỉ tuần 15-21) chưa có STATION trong dashboard → ĐÃ BỎ QUA; muốn hiện phải thêm 1 key vào `STATIONS` (lib/roster.ts) + cột bảng. (c) Sheet LLV 06-2026 chỉ có 3 tuần (01–21); tuần 22–30/06 chưa có trong file.
+
+> ⚠️ Lưu ý: `CLAUDE.md §2 PHASE` còn ghi "LOAD chưa chạy / 17 bảng" — LỆCH với `SYSTEM_STATE_ACTUAL.md` (03/06: đã LOAD, 27 bảng). Chưa sửa §2 vì ngoài scope; chờ lệnh.
+
+---
+
 # HANDOFF WORKLOG — Dashboard Ver2 (phiên 19/6, đóng)
 
 ## TRẠNG THÁI
