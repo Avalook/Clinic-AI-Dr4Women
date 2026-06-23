@@ -66,18 +66,12 @@ export const NAV: NavItem[] = [
     shortLabel: "Việc",
     icon: CheckSquare,
   },
-  // Trưởng ca (hành chính): theo dõi buổi (read-only) + Công việc của tôi (placeholder).
+  // Trưởng ca (hành chính): theo dõi buổi (read-only).
   {
     href: "/truong-ca",
     label: "Theo dõi buổi",
     shortLabel: "Theo dõi",
     icon: ClipboardCheck,
-  },
-  {
-    href: "/truong-ca/cong-viec",
-    label: "Công việc của tôi",
-    shortLabel: "Việc",
-    icon: CheckSquare,
   },
   // Bảng giá tách 2 trang, đặt NGAY DƯỚI "Công việc của tôi" (sidebar Thu ngân).
   { href: "/cashier/thuoc", label: "Bảng giá thuốc", shortLabel: "Giá thuốc", icon: Pill },
