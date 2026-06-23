@@ -12,6 +12,18 @@
 - Verify: `tsc --noEmit` ✓ · `npm run lint` ✓ · `next build` ✓ (exit 0).
 - **3 commit local trên `chinh`** (CHƯA push): `b7e8264` fix dashboard · `8ec8f00` feat roster seed · `091e778` docs. Chờ Quang duyệt → ra lệnh push (CỔNG 1).
 
+### T-FORM-COMPACT-02 — TAB hoá PHIẾU KHÁM BỆNH `ClinicalRecordForm.tsx` (giảm cuộn) — ĐÃ VÀO `chinh`
+**Sửa scope của -01:** lần trước nhắm `ServiceFormEngine.tsx` (chỉ là 1 card nhỏ ở đáy). Phiếu DÀI mà BS/TKYK thật sự cuộn là **`ClinicalRecordForm.tsx`** (~1158 dòng, render dọc liên tục I→X + Sinh hiệu + Phiếu chuyên khoa). Lần này nhắm đúng nó. Chỉ đổi CÁCH HIỂN THỊ, GIỮ NGUYÊN mọi field/logic/chế độ.
+**File sửa DUY NHẤT:** `src/dashboard/app/(dashboard)/tasks/ClinicalRecordForm.tsx`. KHÔNG đụng ServiceFormEngine/SonoBiometry/PreVisitBrief/API/schema/lib.
+**Đã làm (BỌC JSX, không viết lại logic):**
+- **(A) Gom 4 TAB** theo luồng khám + state `const [tab,setTab]=useState(vitalsOnly?1:0)`: **Tab 0 Hành chính & Tiền sử** (I + PreVisitBrief + Lịch sử khám trước + III + IV) · **Tab 1 Khám** (Sinh hiệu + II Lý do + V Bệnh sử/khám thai + SonoBiometry — Sono dời xuống cuối tab) · **Tab 2 Cận lâm sàng & Chuyên khoa** (VI + ServiceFormEngine card tab riêng, nested OK) · **Tab 3 Chẩn đoán & Xử trí** (VII + VIII + IX Đơn thuốc + X Tái khám). Cách bọc: mỗi khối giữ NGUYÊN nội dung + điều kiện (`showSono`/`showPreVisitBrief`/`viewingPast`/`!vitalsOnly`), chỉ thêm `{tab===N && (...)}`; chỉ render tab đang chọn (state global useState → không mất gì, field điều kiện chéo tab vẫn đúng).
+- **(B) Khung cố định, chỉ ruột cuộn:** Header+Pager (cố định) → Banner cảnh báo dời lên vùng cố định → thanh TAB cố định (cuộn ngang, có ✓ khi tab đã điền) → GIỮA cuộn (`overflow-y-auto` chỉ ở lớp nội dung tab) → Footer Lưu/Tái khám/Đóng cố định (vốn đã là sibling cố định — nay nút Lưu LUÔN thấy, khỏi cuộn đáy). `msg` cạnh footer như cũ.
+- **(C) Validation auto-nhảy tab:** cả `saveVitals()` (ĐD) lẫn `save()` (BS) khi thiếu REQUIRED_VITALS (huyet_ap/can_nang/chieu_cao) → `setVitalsTried(true)` + `setTab(1)` (tab Khám) + msg → thấy ô đỏ dù đang ở tab khác. (Trước đó `save()` BS KHÔNG validate vitals → đã thêm guard, đúng D26 + đúng kịch bản test packet "BS thiếu sinh hiệu → nhảy tab Khám".)
+- **(D) ✓ tiến độ trên tab** (helper `tabFilled` đọc thuần state) — optional, đã làm.
+**Chế độ (review logic, giữ nguyên hành vi):** readOnly/Lễ tân (đổi tab xem, ẩn Lưu) · locked/FINALIZED (mọi field disabled, banner 🔒) · vitalsOnly/ĐD (mặc định tab Khám, chỉ Sinh hiệu sửa, IX+Phiếu chuyên khoa ẩn) · viewingPast/pager (◀▶ chạy, ẩn Lưu). ServiceFormEngine vẫn `readOnly={readOnly||locked}`.
+**Verify (từ `src/dashboard`):** `tsc --noEmit` ✓ · `eslint` file mình ✓ No issues · `npm run build` ✓ exit 0.
+**⚠️ Git — entangled với Quang:** trong lúc làm, **Quang code SONG SONG cùng file trên VSCode và đã COMMIT working-tree của mình**. Toàn bộ thay đổi -02 của Claude đã nằm trong commit `136fb7f` (style/whitespace) + `ac93005` (close tab 3 JSX + scope ServiceFormEngine vào tab 2) trên `chinh`; tree giờ CLEAN. → KHÔNG tạo commit trùng. Code -02 verified pass trên HEAD hiện tại. CHƯA push (chờ Quang — Cổng 1).
+
 ### T-FORM-COMPACT-01 — Form khám "ÍT CUỘN" (ĐÃ COMMIT `29aab14`, CHƯA push)
 **Vấn đề PM:** phiếu khám chuyên khoa quá dài → BS/TKYK phải cuộn nhiều khi vội. Yêu cầu: GIỮ ĐỦ trường, gần như hết cuộn. Chỉ đổi CÁCH HIỂN THỊ, không đổi dữ liệu.
 **File sửa DUY NHẤT:** `src/dashboard/app/(dashboard)/tasks/ServiceFormEngine.tsx` (engine config-driven → 1 lần sửa, cả 5 form PK/SK/NT/HMVS/NK hưởng). KHÔNG đụng schema/field/API/`form_data`.
