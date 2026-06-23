@@ -12,6 +12,18 @@
 - Verify: `tsc --noEmit` ✓ · `npm run lint` ✓ · `next build` ✓ (exit 0).
 - **3 commit local trên `chinh`** (CHƯA push): `b7e8264` fix dashboard · `8ec8f00` feat roster seed · `091e778` docs. Chờ Quang duyệt → ra lệnh push (CỔNG 1).
 
+### T-FORM-COMPACT-01 — Form khám "ÍT CUỘN" (ĐÃ COMMIT `29aab14`, CHƯA push)
+**Vấn đề PM:** phiếu khám chuyên khoa quá dài → BS/TKYK phải cuộn nhiều khi vội. Yêu cầu: GIỮ ĐỦ trường, gần như hết cuộn. Chỉ đổi CÁCH HIỂN THỊ, không đổi dữ liệu.
+**File sửa DUY NHẤT:** `src/dashboard/app/(dashboard)/tasks/ServiceFormEngine.tsx` (engine config-driven → 1 lần sửa, cả 5 form PK/SK/NT/HMVS/NK hưởng). KHÔNG đụng schema/field/API/`form_data`.
+**Đã làm:**
+- **(A) Chia TAB theo section** — thêm state `activeIdx`; thanh tab ngang sticky (cuộn ngang được), chỉ render section đang active (DOM gọn, `values` vẫn giữ toàn bộ → không mất dữ liệu/field điều kiện chéo section). Tab có dấu ✓ khi section đã điền ≥1 field. Thanh nav dưới LUÔN hiện: `← Mục trước · Mục i/N · title · Mục sau →` + **nút "Lưu phiếu" đưa vào thanh này** (khỏi cuộn xuống đáy). readOnly vẫn chuyển tab xem, ẩn nút Lưu.
+- **(B) radio + checkbox_group → CHIP** (pill bấm) thay list dọc → cắt chiều cao 2–3 lần. radio = chọn 1, group = toggle nhiều (vẫn dùng `onToggleGroup`, value giữ string / string[]). Chip active nền hồng nhạt + chữ `#9d2463`; disabled khi readOnly.
+- **(C) Field ngắn nhiều cột** — grid section lên `sm:grid-cols-2 lg:grid-cols-3`; textarea/conditional/fullWidth chiếm trọn hàng (`sm:col-span-2 lg:col-span-3`).
+- **(D, stretch) "Tất cả bình thường"** — làm GENERIC (không hard-code schema): nút đầu section, dò option có label/value ∈ {"bình thường","bt","không","ko"} cho field radio/checkbox_group rồi set; chỉ hiện khi section có ≥1 field khớp. Không đụng field khác.
+**Verify (từ `src/dashboard`):** `npx tsc --noEmit` ✓ No errors · `eslint` file mình ✓ No issues (2 lỗi lint còn lại nằm ở file Quang đang code: `WeeklyAppointmentsTable.tsx`, `tasks/page.tsx` — KHÔNG đụng) · `npm run build` ✓ Compiled successfully (exit 0).
+**Lưu ý git:** lúc stage, `Nav.tsx`+`Shell.tsx` (file Quang đang sửa) đang nằm sẵn trong index → đã `git restore --staged` để commit CHỈ chứa `ServiceFormEngine.tsx`. Working tree còn `Nav.tsx`, `Shell.tsx`, `docs/VAN_HANH.md` nguyên vẹn của Quang.
+**TODO/ngoài scope (giữ nguyên):** prefill tiền sử, auto-BMI/EFW — task khác. CHƯA push (chờ Quang nói "OK" — Cổng 1).
+
 ### Lịch làm việc TRỐNG → ĐÃ IMPORT + áp DB ✓
 **Nguyên nhân:** `/schedule` ([schedule/page.tsx](src/dashboard/app/(dashboard)/schedule/page.tsx)) query `work_roster WHERE week_start = <thứ 2 của tuần>`. Tuần 15-21/06 (`week_start = 2026-06-15`) chỉ có 1 ô cũ (BS Thành 18/06) → lưới trống. Cần nạp dữ liệu thật từ Excel.
 
