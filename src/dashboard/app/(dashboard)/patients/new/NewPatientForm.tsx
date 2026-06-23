@@ -19,12 +19,15 @@ import {
 } from "../../../../lib/roster";
 import {
   digitsOnly,
+  normalizePhoneVi,
+  toTitleCaseVi,
   phoneError,
   cccdError,
   birthYearError,
   unaccentVi,
 } from "../../../../lib/validation";
 import DateField from "../../DateField";
+import SearchSelect from "../../SearchSelect";
 import { LINH_VUC_OPTIONS } from "../../../../lib/linh-vuc";
 import {
   INPUT,
@@ -191,6 +194,16 @@ export default function NewPatientForm({
       setWardsLoading(false);
     }
   }
+
+  // Options cho combobox gõ-để-tìm (memo hoá để SearchSelect không lọc lại thừa).
+  const provinceOpts = useMemo(
+    () => provinces.map((p) => ({ value: p.code, label: p.fullName })),
+    [provinces],
+  );
+  const wardOpts = useMemo(
+    () => wards.map((w) => ({ value: w.code, label: w.full_name })),
+    [wards],
+  );
 
   // Appointment (optional)
   const [serviceId, setServiceId] = useState("");
@@ -525,6 +538,7 @@ export default function NewPatientForm({
             <input
               value={fullName}
               onChange={(e) => setFullName(e.target.value)}
+              onBlur={() => setFullName((v) => toTitleCaseVi(v))}
               className={INPUT}
               placeholder="Nguyễn Thị A"
             />
@@ -586,9 +600,9 @@ export default function NewPatientForm({
             </label>
             <input
               value={phone}
-              onChange={(e) => setPhone(digitsOnly(e.target.value).slice(0, 10))}
+              onChange={(e) => setPhone(normalizePhoneVi(e.target.value))}
               className={INPUT + (phoneErr ? " border-[#dc2626]" : "")}
-              placeholder="10 chữ số, vd 0901234567"
+              placeholder="10 chữ số, bắt đầu bằng 0 — vd 0901234567"
               inputMode="numeric"
               maxLength={10}
             />
@@ -623,9 +637,9 @@ export default function NewPatientForm({
             <label className={LABEL}>SĐT người nhà (nếu có)</label>
             <input
               value={phone2}
-              onChange={(e) => setPhone2(digitsOnly(e.target.value).slice(0, 10))}
+              onChange={(e) => setPhone2(normalizePhoneVi(e.target.value))}
               className={INPUT + (phone2Err ? " border-[#dc2626]" : "")}
-              placeholder="10 chữ số"
+              placeholder="10 chữ số, bắt đầu bằng 0"
               inputMode="numeric"
               maxLength={10}
             />
@@ -672,7 +686,7 @@ export default function NewPatientForm({
               onChange={(e) => setGender(e.target.value)}
               className={INPUT}
             >
-              <option value="">— Chọn —</option>
+              <option value="" disabled hidden>— Chọn —</option>
               <option value="Nữ">Nữ</option>
               <option value="Nam">Nam</option>
               <option value="Khác">Khác</option>
@@ -713,40 +727,30 @@ export default function NewPatientForm({
           </div>
           <div>
             <label className={LABEL}>Tỉnh / Thành phố</label>
-            <select
+            <SearchSelect
+              options={provinceOpts}
               value={provinceCode}
-              onChange={(e) => onProvinceChange(e.target.value)}
-              className={INPUT}
-            >
-              <option value="">— Chọn tỉnh/thành —</option>
-              {provinces.map((p) => (
-                <option key={p.code} value={p.code}>
-                  {p.fullName}
-                </option>
-              ))}
-            </select>
+              onChange={onProvinceChange}
+              placeholder="Gõ để tìm tỉnh/thành…"
+              ariaLabel="Tỉnh / Thành phố"
+            />
           </div>
           <div>
             <label className={LABEL}>Phường / Xã</label>
-            <select
+            <SearchSelect
+              options={wardOpts}
               value={wardCode}
-              onChange={(e) => setWardCode(e.target.value)}
-              className={INPUT}
+              onChange={setWardCode}
               disabled={!provinceCode || wardsLoading}
-            >
-              <option value="">
-                {!provinceCode
+              placeholder={
+                !provinceCode
                   ? "— Chọn tỉnh trước —"
                   : wardsLoading
                     ? "Đang tải…"
-                    : "— Chọn phường/xã —"}
-              </option>
-              {wards.map((w) => (
-                <option key={w.code} value={w.code}>
-                  {w.full_name}
-                </option>
-              ))}
-            </select>
+                    : "Gõ để tìm phường/xã…"
+              }
+              ariaLabel="Phường / Xã"
+            />
           </div>
           <div className="sm:col-span-2">
             <label className={LABEL}>Địa chỉ chi tiết (số nhà, đường)</label>
@@ -783,7 +787,7 @@ export default function NewPatientForm({
                   }}
                   className={INPUT}
                 >
-                  <option value="">— Chọn dịch vụ —</option>
+                  <option value="" disabled hidden>— Chọn dịch vụ —</option>
                   {LINH_VUC_OPTIONS.map((o) => (
                     <option key={o.code} value={o.code}>
                       {o.label}
@@ -803,7 +807,7 @@ export default function NewPatientForm({
                     }}
                     onFocus={() => setDoctorOpen(true)}
                     onBlur={() => setTimeout(() => setDoctorOpen(false), 150)}
-                    placeholder="Tìm bác sĩ… (bỏ trống nếu chưa phân)"
+                    placeholder="Tìm bác sĩ…"
                     className={INPUT}
                     autoComplete="off"
                   />
@@ -881,7 +885,7 @@ export default function NewPatientForm({
               }}
               className={INPUT}
             >
-              <option value="">— Chọn dịch vụ —</option>
+              <option value="" disabled hidden>— Chọn dịch vụ —</option>
               {LINH_VUC_OPTIONS.map((o) => (
                 <option key={o.code} value={o.code}>
                   {o.label}
@@ -996,7 +1000,7 @@ export default function NewPatientForm({
               onChange={(e) => setChannel(e.target.value)}
               className={INPUT}
             >
-              <option value="">— Chọn kênh —</option>
+              <option value="" disabled hidden>— Chọn kênh —</option>
               {CHANNELS.filter((c) => c.id !== "WALK_IN").map((c) => (
                 <option key={c.id} value={c.id}>
                   {c.label}

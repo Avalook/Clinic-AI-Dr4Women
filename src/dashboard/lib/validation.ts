@@ -1,13 +1,40 @@
 // Quy tắc nhập liệu CỨNG dùng chung (client form + server API), 1 nguồn sự thật.
-//   - SĐT: đúng 10 chữ số viết liền (số VN).
-//   - CCCD: đúng 12 chữ số viết liền.
+//   - SĐT: số VN 10 chữ số, BẮT ĐẦU BẰNG 0, đầu số hợp lệ (cố định 02; di động
+//     03/05/07/08/09). Không có số mở đầu bằng 1/2/4/6 hay thiếu số 0.
+//   - CCCD: 12 chữ số; 3 số đầu là mã tỉnh (001–096).
 // Trường rỗng = hợp lệ (các trường này tuỳ chọn); chỉ chặn khi CÓ nhập mà sai.
 
-export const PHONE_RE = /^\d{10}$/;
+// 0 + (2 cố định | 3,5,7,8,9 di động) + 8 chữ số.
+export const PHONE_RE = /^0[235789]\d{8}$/;
 export const CCCD_RE = /^\d{12}$/;
 
 /** Bỏ mọi ký tự không phải chữ số (dùng cho onChange ép "số viết liền"). */
 export const digitsOnly = (s: string): string => (s ?? "").replace(/\D/g, "");
+
+/**
+ * Chuẩn hoá SĐT lúc gõ/dán (như form các trang lớn): bỏ ký tự lạ, đổi tiền tố
+ * quốc tế +84 / 0084 / 84 → 0, cắt còn tối đa 10 số. KHÔNG báo lỗi — chỉ nắn
+ * dữ liệu; tính hợp lệ để `phoneError` lo.
+ */
+export function normalizePhoneVi(raw: string): string {
+  let d = (raw ?? "").replace(/\D/g, "");
+  if (d.startsWith("0084")) d = "0" + d.slice(4);
+  else if (d.startsWith("84") && d.length >= 11) d = "0" + d.slice(2);
+  return d.slice(0, 10);
+}
+
+/**
+ * Viết hoa chữ đầu MỖI từ cho tên riêng VN: "nguyễn thị hoa" → "Nguyễn Thị Hoa".
+ * Gộp khoảng trắng thừa + cắt 2 đầu. Dùng \p{L} (cờ u) để bắt đúng chữ có dấu.
+ * Áp lúc rời ô (onBlur) — KHÔNG ép lúc đang gõ để không phá bộ gõ Telex/VNI.
+ */
+export function toTitleCaseVi(s: string): string {
+  return (s ?? "")
+    .toLowerCase()
+    .replace(/\s+/g, " ")
+    .trim()
+    .replace(/(^|\s)(\p{L})/gu, (_m, sep: string, ch: string) => sep + ch.toUpperCase());
+}
 
 /**
  * Bỏ dấu tiếng Việt + viết thường — tìm kiếm KHÔNG phân biệt dấu
@@ -26,13 +53,22 @@ export const unaccentVi = (s: string): string =>
 export function phoneError(v: string | null | undefined): string | null {
   const t = (v ?? "").trim();
   if (!t) return null;
-  return PHONE_RE.test(t) ? null : "Số điện thoại phải gồm đúng 10 chữ số liền.";
+  if (t.length !== 10) return "Số điện thoại phải gồm đúng 10 chữ số.";
+  if (t[0] !== "0") return "Số điện thoại Việt Nam phải bắt đầu bằng số 0.";
+  if (!PHONE_RE.test(t))
+    return "Đầu số không hợp lệ (di động 03/05/07/08/09, cố định 02).";
+  return null;
 }
 
 export function cccdError(v: string | null | undefined): string | null {
   const t = (v ?? "").trim();
   if (!t) return null;
-  return CCCD_RE.test(t) ? null : "CCCD phải gồm đúng 12 chữ số liền.";
+  if (!CCCD_RE.test(t)) return "CCCD phải gồm đúng 12 chữ số.";
+  // 3 số đầu = mã tỉnh khai sinh (001–096). Chặn rác kiểu 000.../111...
+  const provinceCode = Number(t.slice(0, 3));
+  if (provinceCode < 1 || provinceCode > 96)
+    return "CCCD không hợp lệ (3 số đầu là mã tỉnh, 001–096).";
+  return null;
 }
 
 // ===== Ngày sinh dd/mm/yyyy — có LOGIC LỊCH (không 30/2, 29/2 chỉ năm nhuận) =====

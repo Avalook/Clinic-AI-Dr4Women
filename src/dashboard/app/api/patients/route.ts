@@ -93,19 +93,19 @@ export async function POST(request: Request) {
   }
   if (phone_primary && !PHONE_RE.test(phone_primary)) {
     return NextResponse.json(
-      { error: "SĐT chính phải gồm đúng 10 chữ số liền." },
+      { error: "SĐT chính không hợp lệ (10 số, bắt đầu bằng 0; đầu số 02/03/05/07/08/09)." },
       { status: 400 },
     );
   }
   if (phone_secondary && !PHONE_RE.test(phone_secondary)) {
     return NextResponse.json(
-      { error: "SĐT người nhà phải gồm đúng 10 chữ số liền." },
+      { error: "SĐT người nhà không hợp lệ (10 số, bắt đầu bằng 0; đầu số 02/03/05/07/08/09)." },
       { status: 400 },
     );
   }
   if (national && !CCCD_RE.test(national)) {
     return NextResponse.json(
-      { error: "CCCD phải gồm đúng 12 chữ số liền." },
+      { error: "CCCD phải gồm đúng 12 chữ số (3 số đầu là mã tỉnh 001–096)." },
       { status: 400 },
     );
   }
@@ -259,13 +259,13 @@ export async function PATCH(request: Request) {
   const editPhone2 = (body.phone_secondary ?? "").trim();
   if (editPhone && !PHONE_RE.test(editPhone)) {
     return NextResponse.json(
-      { error: "SĐT chính phải gồm đúng 10 chữ số liền." },
+      { error: "SĐT chính không hợp lệ (10 số, bắt đầu bằng 0; đầu số 02/03/05/07/08/09)." },
       { status: 400 },
     );
   }
   if (editPhone2 && !PHONE_RE.test(editPhone2)) {
     return NextResponse.json(
-      { error: "SĐT người nhà phải gồm đúng 10 chữ số liền." },
+      { error: "SĐT người nhà không hợp lệ (10 số, bắt đầu bằng 0; đầu số 02/03/05/07/08/09)." },
       { status: 400 },
     );
   }

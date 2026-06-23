@@ -9,7 +9,7 @@
 import { useState, Fragment } from "react";
 import { useRouter } from "next/navigation";
 import { Printer, X } from "lucide-react";
-import { canCheckin, type ClinicRole } from "../../../lib/roles";
+import { canCheckin, isNurseRole, type ClinicRole } from "../../../lib/roles";
 import ClinicalRecordForm from "../tasks/ClinicalRecordForm";
 import { fmtTimeOrNone } from "../../../lib/datetime";
 import { dayLabel, fmtDayMonth } from "../../../lib/roster";
@@ -96,6 +96,9 @@ export default function WeeklyAppointmentsTable({
   const [selAppt, setSelAppt] = useState<WeekApptRow | null>(null);
 
   const showActions = canCheckin(role);
+  // Điều dưỡng: KHÔNG check-in (việc Lễ tân) mà điền SINH HIỆU ngay trên lịch hẹn.
+  const isNurse = isNurseRole(role);
+  const showActionCol = showActions || isNurse;
 
   async function act(
     id: string,
@@ -142,7 +145,11 @@ export default function WeeklyAppointmentsTable({
               <th className={`${TH} min-w-[120px]`}>Bác sĩ</th>
               <th className={`${TH} min-w-[200px]`}>Thông tin</th>
               <th className={`${TH} min-w-[110px]`}>Phân loại khám</th>
-              {showActions && <th className={`${TH} min-w-[150px]`}>Thao tác Check-in</th>}
+              {showActionCol && (
+                <th className={`${TH} min-w-[150px]`}>
+                  {isNurse ? "Sinh hiệu" : "Thao tác Check-in"}
+                </th>
+              )}
             </tr>
           </thead>
           <tbody>
@@ -154,7 +161,7 @@ export default function WeeklyAppointmentsTable({
                   {/* Dòng tiêu đề NGÀY (gộp cả 5 hoặc 6 cột). */}
                   <tr className="bg-[#fdf2f8]">
                     <td
-                      colSpan={showActions ? 6 : 5}
+                      colSpan={showActionCol ? 6 : 5}
                       className="border-b border-[#f3cfe0] border-l-[3px] border-l-[#f3a8cc] px-2 py-1.5 text-sm font-semibold text-[#9d2463]"
                     >
                       {dayLabel(day.date)} · {fmtDayMonth(day.date)}
@@ -166,7 +173,7 @@ export default function WeeklyAppointmentsTable({
                   {items.length === 0 ? (
                     <tr>
                       <td
-                        colSpan={showActions ? 6 : 5}
+                        colSpan={showActionCol ? 6 : 5}
                         className="border-b border-[#f3cfe0] px-3 py-2 text-center text-[11px] text-[#c9c9cf]"
                       >
                         — chưa có lịch —
@@ -187,11 +194,19 @@ export default function WeeklyAppointmentsTable({
                             : NO_DOCTOR}
                         </td>
                         <td className={`${CELL} text-[#171717]`}>
-                          {showActions ? (
+                          {showActionCol ? (
                             <button
                               onClick={() => setSelAppt(a)}
-                              className="block font-medium text-[#ec4899] hover:underline text-left"
+                              className="flex items-center gap-1.5 font-medium text-[#ec4899] hover:underline text-left"
                             >
+                              {isNurse && a.status === "CHECKED_IN" && (
+                                <span
+                                  title="Cần điền sinh hiệu"
+                                  className="inline-flex h-4 w-4 shrink-0 animate-pulse items-center justify-center rounded-full bg-[#dc2626] text-[10px] font-bold leading-none text-white"
+                                >
+                                  !
+                                </span>
+                              )}
                               {a.patient?.full_name ?? "—"}
                             </button>
                           ) : (
@@ -208,9 +223,36 @@ export default function WeeklyAppointmentsTable({
                         <td className={CELL}>
                           <PhanLoai value={a.phan_loai} />
                         </td>
-                        {showActions && (
+                        {showActionCol && (
                           <td className={CELL}>
-                            {a.status === "COMPLETED" ? (
+                            {isNurse ? (
+                              ["CANCELLED", "NO_SHOW", "DOCTOR_DECLINED"].includes(
+                                a.status,
+                              ) ? (
+                                <span className="rounded-full bg-[#f4f4f5] px-2 py-0.5 text-[10px] font-medium text-[#52525b]">
+                                  {STATUS_VN[a.status] ?? a.status}
+                                </span>
+                              ) : (
+                                <div className="flex items-center gap-1.5">
+                                  <button
+                                    onClick={() => setSelAppt(a)}
+                                    className="rounded bg-[#ec4899] px-2.5 py-1 text-[11px] font-semibold text-white hover:bg-[#db2777]"
+                                  >
+                                    Điền sinh hiệu
+                                  </button>
+                                  {a.status === "COMPLETED" && (
+                                    <a
+                                      href={`/print/${a.id}`}
+                                      target="_blank"
+                                      rel="noopener noreferrer"
+                                      className="inline-flex min-h-7 items-center gap-1 rounded border border-[#bbf7d0] bg-white px-2 text-[11px] font-semibold text-[#15803d] hover:bg-[#f0fdf4]"
+                                    >
+                                      <Printer size={11} /> In phiếu
+                                    </a>
+                                  )}
+                                </div>
+                              )
+                            ) : a.status === "COMPLETED" ? (
                               <div className="flex items-center gap-1.5">
                                 <span className="rounded-full bg-[#f4f4f5] px-2 py-0.5 text-[10px] font-medium text-[#52525b]">
                                   Đã khám xong
@@ -272,8 +314,8 @@ export default function WeeklyAppointmentsTable({
       </div>
 
       {selAppt && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={() => setSelAppt(null)}>
-          <div className="w-full max-w-4xl h-[85vh] rounded-xl border border-[#f3cfe0] bg-white p-4 shadow-[0_8px_30px_rgba(0,0,0,0.12)] flex flex-col" onClick={(e) => e.stopPropagation()}>
+        <div className="fixed inset-0 z-50 flex justify-end bg-black/40" onClick={() => setSelAppt(null)}>
+          <div className="h-full w-full max-w-lg border-l border-[#f3cfe0] bg-white p-4 shadow-[-8px_0_30px_rgba(0,0,0,0.12)] flex flex-col" onClick={(e) => e.stopPropagation()}>
             <div className="mb-2 flex items-center justify-between border-b border-[#f3cfe0] pb-2">
               <h3 className="text-base font-semibold text-[#9d2463]">Hành chính & Sinh hiệu bệnh nhân</h3>
               <button onClick={() => setSelAppt(null)} className="rounded-md p-1 text-[#9d2463] hover:bg-[#fce7f3]">
