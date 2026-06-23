@@ -36,6 +36,8 @@ export default function HomeCheckin({
   staffId,
   canWriteClinical = false,
   defaultOpen = false,
+  canCheckinActions = true,
+  triggerLabel = "Check-in bệnh nhân",
 }: {
   rows: HomeCheckinRow[];
   staffId: string | null;
@@ -43,6 +45,12 @@ export default function HomeCheckin({
    *  Quản lý vẫn check-in (hành chính) nhưng xem hồ sơ lâm sàng ở chế độ chỉ-đọc. */
   canWriteClinical?: boolean;
   defaultOpen?: boolean;
+  /** Hiện cụm nút check-in/xác nhận/không-đến. Điều dưỡng (chế độ "Sinh hiệu hôm
+   *  nay") = false → CHỈ mở BN để nhập sinh hiệu, KHÔNG có nút check-in (đó là việc
+   *  Lễ tân). */
+  canCheckinActions?: boolean;
+  /** Nhãn nút mở khu (vd "Sinh hiệu bệnh nhân hôm nay" cho ĐD). */
+  triggerLabel?: string;
 }) {
   const router = useRouter();
   const [open, setOpen] = useState(defaultOpen);
@@ -189,8 +197,21 @@ export default function HomeCheckin({
                   {statusVN}
                 </span>
 
-                {/* Cột NÚT HÀNH ĐỘNG — đổi theo pha (mỗi pha 1 việc thật) */}
-                {completed ? (
+                {/* Cột NÚT HÀNH ĐỘNG — đổi theo pha (mỗi pha 1 việc thật).
+                    Chế độ vitals (ĐD): KHÔNG có nút check-in/xác nhận/không-đến — chỉ
+                    mở BN để nhập sinh hiệu; vẫn cho "In phiếu" khi đã khám xong. */}
+                {!canCheckinActions ? (
+                  completed ? (
+                    <a
+                      href={`/print/${r.id}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex min-h-8 shrink-0 items-center gap-1 rounded-lg border border-[#bbf7d0] bg-white px-2.5 text-xs font-semibold text-[#15803d] hover:bg-[#f0fdf4]"
+                    >
+                      <Printer size={13} /> In phiếu
+                    </a>
+                  ) : null
+                ) : completed ? (
                   // Đã khám xong — Lễ tân in phiếu khám bệnh (tab mới → Xuất PDF).
                   <a
                     href={`/print/${r.id}`}
@@ -252,7 +273,7 @@ export default function HomeCheckin({
         className="flex w-full items-center gap-2 rounded-xl border border-[#f3cfe0] bg-[#fce7f3] px-4 py-2.5 text-sm font-semibold text-[#9d2463] transition-colors hover:bg-[#fbcfe8]"
       >
         <UserCheck size={16} />
-        Check-in bệnh nhân
+        {triggerLabel}
         <span className="rounded-full bg-white px-2 py-0.5 text-xs font-medium text-[#9d2463]">
           {arrived}/{rows.length} đã đến
         </span>

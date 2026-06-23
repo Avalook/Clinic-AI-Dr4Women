@@ -13,7 +13,7 @@ import {
   getActiveStaff,
   getClinicStaffId,
 } from "../../../lib/clinic-session";
-import { type ClinicRole, canCheckin, canWriteClinical } from "../../../lib/roles";
+import { type ClinicRole, canCheckin, canWriteClinical, isNurseRole } from "../../../lib/roles";
 import HomeCheckin, { type HomeCheckinRow } from "./HomeCheckin";
 import type { ActiveStaff } from "../../../lib/clinic-session";
 import { vnTodayRangeUtc, fmtDate, vnLocalToUtcISO } from "../../../lib/datetime";
@@ -69,6 +69,10 @@ export default async function HomePage({
   // CHỈ Bác sĩ + Điều dưỡng ghi lâm sàng; Lễ tân/QL check-in nhưng xem chỉ-đọc.
   const writeClinical = canWriteClinical(role);
   const isReception = role === "RECEPTION"; // bảng trạng thái buổi khám: chỉ Lễ tân
+  // Điều dưỡng: khu "Sinh hiệu bệnh nhân hôm nay" — nhập sinh hiệu cho BN đã đến
+  // (Lễ tân check-in trước), KHÔNG có nút check-in. Bù lối nhập vitals đã mất sau
+  // khi bỏ check-in khỏi ĐD (canCheckin). Ghi sinh hiệu là việc lâm sàng của ĐD.
+  const isNurse = isNurseRole(role);
   const { startUtc: dayStart, endUtc: dayEnd } = vnTodayRangeUtc();
 
   // 2 bảng có tuần ĐỘC LẬP: weekAppt cho Lịch hẹn khám, weekRoster cho Lịch làm
@@ -153,7 +157,7 @@ export default async function HomePage({
       .lt("slot_start", apptEndUtc)
       .order("slot_start", { ascending: true })
       .limit(500),
-    showCheckin
+    showCheckin || isNurse
       ? supabase
           .from("appointment")
           .select(CHECKIN_SELECT)
@@ -291,6 +295,19 @@ export default async function HomePage({
           rows={checkinRows}
           staffId={staffId}
           canWriteClinical={writeClinical}
+        />
+      )}
+
+      {/* Sinh hiệu bệnh nhân hôm nay — CHỈ Điều dưỡng. Tái dùng HomeCheckin ở chế độ
+          vitals: mở BN (đã được Lễ tân check-in) → nhập sinh hiệu; KHÔNG có nút
+          check-in/xác nhận (đó là việc Lễ tân). writeClinical=true cho ĐD → form sửa được. */}
+      {isNurse && (
+        <HomeCheckin
+          rows={checkinRows}
+          staffId={staffId}
+          canWriteClinical={writeClinical}
+          canCheckinActions={false}
+          triggerLabel="Sinh hiệu bệnh nhân hôm nay"
         />
       )}
 
