@@ -3,7 +3,6 @@
 
 import {
   Home,
-  ListTodo,
   ClipboardList,
   Users,
   UserPlus,
@@ -35,12 +34,6 @@ export interface NavItem {
 
 export const NAV: NavItem[] = [
   { href: "/home", label: "Trang chủ", shortLabel: "Trang chủ", icon: Home },
-  {
-    href: "/cskh-today",
-    label: "Cần làm hôm nay",
-    shortLabel: "Cần làm",
-    icon: ListTodo,
-  },
   {
     href: "/appointments",
     label: "Lịch hẹn (check đặt lịch)",
