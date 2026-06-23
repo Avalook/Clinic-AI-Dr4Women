@@ -11,10 +11,12 @@ import { NAV, isActiveNav, navLabelFor } from "./nav-items";
 export default function Nav({
   role,
   onNavigate,
+  isCollapsed = false,
 }: {
   role: ClinicRole | null;
   /** Called after a nav item is tapped (used to close the mobile drawer). */
   onNavigate?: () => void;
+  isCollapsed?: boolean;
 }) {
   const pathname = usePathname();
   const visible = NAV.filter((item) => canSeeNav(role, item.href));
@@ -25,20 +27,22 @@ export default function Nav({
       {visible.map((item) => {
         const { href, badge, icon: Icon } = item;
         const active = isActiveNav(href, pathname, hrefs);
+        const label = navLabelFor(item, role);
         return (
           <Link
             key={href}
             href={href}
             onClick={onNavigate}
+            title={isCollapsed ? label : undefined}
             className={
               active
-                ? "flex items-center gap-2.5 border-l-2 border-[#ec4899] bg-[#1f1f1f] px-3 py-2.5 text-sm font-medium text-white transition-colors duration-150"
-                : "flex items-center gap-2.5 border-l-2 border-transparent px-3 py-2.5 text-sm text-[#a1a1aa] transition-colors duration-150 hover:bg-[#1a1a1a] hover:text-[#d4d4d8] active:bg-[#1a1a1a]"
+                ? `flex ${isCollapsed ? "justify-center" : "items-center gap-2.5"} border-l-2 border-[#ec4899] bg-[#1f1f1f] px-3 py-2.5 text-sm font-medium text-white transition-all duration-150`
+                : `flex ${isCollapsed ? "justify-center" : "items-center gap-2.5"} border-l-2 border-transparent px-3 py-2.5 text-sm text-[#a1a1aa] transition-all duration-150 hover:bg-[#1a1a1a] hover:text-[#d4d4d8] active:bg-[#1a1a1a]`
             }
           >
             <Icon size={16} strokeWidth={2} className="shrink-0" />
-            <span className="min-w-0 flex-1">{navLabelFor(item, role)}</span>
-            {badge && (
+            {!isCollapsed && <span className="min-w-0 flex-1">{label}</span>}
+            {!isCollapsed && badge && (
               <span className="shrink-0 rounded-full bg-[#3f3f46] px-1.5 py-0.5 text-[10px] font-medium text-[#d4d4d8]">
                 {badge}
               </span>
