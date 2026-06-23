@@ -9,6 +9,7 @@ import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { UserRound, CalendarClock } from "lucide-react";
+import { type ClinicRole } from "../../../../lib/roles";
 import type { Option } from "../AppointmentBooking";
 import { vnLocalToUtcISO, nowMs } from "../../../../lib/datetime";
 import {
@@ -91,12 +92,14 @@ function SectionHeader({
 }
 
 export default function NewPatientForm({
+  role,
   locations,
   services,
   doctors,
   provinces,
   variant = "full",
 }: {
+  role?: ClinicRole | null;
   locations: Option[];
   services: Option[];
   doctors: Option[];
@@ -870,8 +873,12 @@ export default function NewPatientForm({
                 ? "Tạo bệnh nhân & lượt khám"
                 : "Tạo bệnh nhân"
               : wantsAppointment
-                ? "Tạo bệnh nhân & đặt lịch"
-                : "Tạo bệnh nhân"}
+                ? role === "CSKH"
+                  ? "Nhập thông tin khách hàng & đặt lịch"
+                  : "Tạo bệnh nhân & đặt lịch"
+                : role === "CSKH"
+                  ? "Nhập thông tin khách hàng"
+                  : "Tạo bệnh nhân"}
         </button>
         <Link href="/patients" className={BTN_GHOST + " text-center"}>
           Huỷ

@@ -114,6 +114,9 @@ export function navLabelFor(
   role: ClinicRole | null,
   short = false,
 ): string {
+  if (item.href === "/patients/new" && role === "CSKH") {
+    return short ? "Nhập thông tin" : "Nhập thông tin khách hàng mới";
+  }
   return short ? (item.shortLabel ?? item.label) : item.label;
 }
 

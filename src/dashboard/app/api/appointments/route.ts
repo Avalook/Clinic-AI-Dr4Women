@@ -63,12 +63,14 @@ async function doctorConflictMessage(
       .gt("slot_end", slotStart);
     if (excludeId) q = q.neq("id", excludeId);
     const { data } = await q;
-    const c = (
+    const activeAppts = (
       (data as
         | { slot_start: string; slot_end: string; status: string }[]
         | null) ?? []
-    ).find((r) => r.status !== "CANCELLED" && r.status !== "NO_SHOW");
-    if (!c) return null;
+    ).filter((r) => r.status !== "CANCELLED" && r.status !== "NO_SHOW");
+
+    if (activeAppts.length < 6) return null;
+
     const { data: doc } = await db
       .from("staff")
       .select("full_name")
@@ -82,12 +84,12 @@ async function doctorConflictMessage(
         minute: "2-digit",
         hour12: false,
       });
-    const day = new Date(c.slot_start).toLocaleDateString("vi-VN", {
+    const day = new Date(slotStart).toLocaleDateString("vi-VN", {
       timeZone: "Asia/Ho_Chi_Minh",
       day: "2-digit",
       month: "2-digit",
     });
-    return `Bác sĩ${name ? ` ${name}` : ""} đang bận khung giờ ${hhmm(c.slot_start)}–${hhmm(c.slot_end)} ngày ${day}. Vui lòng chọn khung giờ khác.`;
+    return `Bác sĩ${name ? ` ${name}` : ""} đã đạt giới hạn 6 lịch hẹn trong khung giờ ${hhmm(slotStart)}–${hhmm(slotEnd)} ngày ${day}. Vui lòng chọn khung giờ khác.`;
   } catch {
     return null;
   }
@@ -320,7 +322,7 @@ export async function PATCH(request: Request) {
 
   const { data: appt, error: loadErr } = await db
     .from("appointment")
-    .select("id, doctor_id, status, clinic_patient_id, slot_start, queue_number")
+    .select("id, doctor_id, status, clinic_patient_id, slot_start, slot_end, queue_number")
     .eq("id", id)
     .maybeSingle();
   if (loadErr) {
@@ -404,7 +406,12 @@ export async function PATCH(request: Request) {
     patch.cancelled_at = new Date().toISOString();
     patch.cancellation_reason = (body.cancellation_reason ?? "").trim() || null;
   } else if (action === "reassign") {
-    patch.doctor_id = (body.doctor_id ?? "").trim() || null;
+    const newDoctor = (body.doctor_id ?? "").trim() || null;
+    patch.doctor_id = newDoctor;
+    if (newDoctor) {
+      const busy = await doctorConflictMessage(db, newDoctor, appt.slot_start, appt.slot_end, id);
+      if (busy) return NextResponse.json({ error: busy }, { status: 409 });
+    }
   } else if (action === "reschedule") {
     const ss = (body.slot_start ?? "").trim();
     const se = (body.slot_end ?? "").trim();

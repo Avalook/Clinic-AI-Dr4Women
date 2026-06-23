@@ -568,6 +568,7 @@ export default function ClinicalRecordForm({
   // / đang tải prefill (chưa tải xong mà sửa+lưu sẽ ghi đè rỗng — xem guard save())
   // / đang XEM LƯỢT KHÁM CŨ qua pager (viewingPast — chỉ đọc, không ghi đè lượt cũ).
   const ro = readOnly || locked || saving || arrivalPending || loading || viewingPast;
+  const vitalsRo = (readOnly && !vitalsOnly) || locked || saving || arrivalPending || loading || viewingPast;
   const roRest = ro || vitalsOnly; // đón-khám (vitalsOnly): mọi mục khác chỉ xem
   // "YYYY-MM-DD" theo giờ máy người dùng — min cho ô Ngày tái khám (mục X).
   const todayYmd = new Date().toLocaleDateString("en-CA");
@@ -652,7 +653,7 @@ export default function ClinicalRecordForm({
       </div>
 
       <div className="min-h-0 flex-1 space-y-4 overflow-y-auto px-4 py-3">
-        {readOnly && (
+        {readOnly && !vitalsOnly && (
           <p className="rounded-md bg-[#fce7f3] px-3 py-1.5 text-xs text-[#9d2463]">
             👁 Chế độ chỉ xem — Lễ tân không chỉnh sửa hồ sơ.
           </p>
@@ -806,7 +807,7 @@ export default function ClinicalRecordForm({
                       placeholder={k === "huyet_ap" ? "vd 120/80" : undefined}
                       className={INPUT + (warn || missing ? " border-[#dc2626]" : "")}
                       value={f[k]}
-                      disabled={ro}
+                      disabled={vitalsRo}
                       onChange={(e) => set(k, e.target.value)}
                     />
                     {(missing || warn) && (
@@ -1114,21 +1115,21 @@ export default function ClinicalRecordForm({
         <span
           className={
             "text-xs " +
-            (readOnly
+            (readOnly && !vitalsOnly
               ? "text-[#9d2463]"
               : msg?.startsWith("Đã lưu")
                 ? "text-[#15803d]"
                 : "text-[#dc2626]")
           }
         >
-          {readOnly ? "👁 Chỉ xem — không có quyền sửa." : (msg ?? "")}
+          {readOnly && !vitalsOnly ? "👁 Chỉ xem — không có quyền sửa." : (msg ?? "")}
         </span>
         <div className="flex gap-2">
           {/* Lễ tân chỉ-đọc / đang xem lượt cũ: ẨN nút Lưu hoàn toàn (không chỉ disable). */}
-          {!readOnly && !viewingPast && (
+          {((!readOnly || vitalsOnly) && !viewingPast) && (
             <button
               onClick={save}
-              disabled={ro}
+              disabled={vitalsOnly ? vitalsRo : ro}
               className="min-h-10 rounded-lg bg-[#ec4899] px-4 text-sm font-semibold text-white hover:bg-[#db2777] disabled:opacity-50"
             >
               {saving

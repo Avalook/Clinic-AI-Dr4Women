@@ -250,12 +250,14 @@ export async function POST(request: Request) {
   // (check-in/hành chính tách riêng ở /api/appointments — vẫn canCheckin).
   // TKYK chỉ NHẬP nháp (IN_PROGRESS); KHÔNG complete/finalize được (gate riêng).
   const allowed =
-    isDoctorRole(role) || isThuKyRole(role) || (vitalsOnly && isNurseRole(role));
+    isDoctorRole(role) ||
+    isThuKyRole(role) ||
+    (vitalsOnly && (isNurseRole(role) || role === "RECEPTION"));
   if (!allowed) {
     return NextResponse.json(
       {
         error: vitalsOnly
-          ? "Chỉ bác sĩ / điều dưỡng mới ghi sinh hiệu + lý do khám."
+          ? "Chỉ bác sĩ / điều dưỡng / lễ tân mới ghi sinh hiệu + lý do khám."
           : "Chỉ bác sĩ mới ghi hồ sơ khám.",
       },
       { status: 403 },

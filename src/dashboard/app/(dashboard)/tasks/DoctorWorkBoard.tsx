@@ -89,6 +89,7 @@ export default function DoctorWorkBoard({
   canEditAdmin = false,
   showPreVisitBrief = false,
   showSono = false,
+  vitalsOnly = false,
 }: {
   rows: DoctorApptRow[];
   staffId: string | null;
@@ -101,6 +102,7 @@ export default function DoctorWorkBoard({
   showPreVisitBrief?: boolean;
   /** Hiện form số đo siêu âm thai — chỉ Bác sĩ Siêu âm (server bật theo vai). */
   showSono?: boolean;
+  vitalsOnly?: boolean;
 }) {
   const [openId, setOpenId] = useState<string | null>(null);
   const [period, setPeriod] = useState("all");
@@ -323,6 +325,7 @@ export default function DoctorWorkBoard({
                 staffId={staffId}
                 fill
                 readOnly={readOnly}
+                vitalsOnly={vitalsOnly}
                 canEditAdmin={canEditAdmin}
                 showPreVisitBrief={showPreVisitBrief}
                 showSono={showSono}

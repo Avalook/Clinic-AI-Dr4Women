@@ -256,6 +256,7 @@ async function DoctorTasks(
   showPreVisitBrief = false,
   allDoctors = false,
   showSono = false,
+  vitalsOnly = false,
 ) {
   const supabase = await getSupabaseServer();
   const staffId = await getClinicStaffId();
@@ -363,6 +364,7 @@ async function DoctorTasks(
           showPreVisitBrief={showPreVisitBrief}
           /* Form số đo siêu âm: chỉ Bác sĩ Siêu âm (ULTRASOUND_DOCTOR). */
           showSono={showSono}
+          vitalsOnly={vitalsOnly}
         />
       )}
     </div>
@@ -398,8 +400,12 @@ export default async function TasksPage() {
   // (allDoctors). KHÔNG complete được lịch (gate isDoctorRole ở /api/appointments)
   // → "TKYK nhập, BS chốt".
   if (isThuKyRole(role)) return DoctorTasks(false, true, true);
-  // Lễ tân: CLONE Y HỆT board bác sĩ nhưng CHỈ ĐỌC (khóa mọi nút sửa).
-  if (isTasksReadOnly(role)) return DoctorTasks(true);
+  // Lễ tân: CLONE Y HỆT board bác sĩ nhưng ĐƯỢC ĐIỀN sinh hiệu (vitalsOnly).
+  // Thu ngân: chỉ xem (readOnly).
+  if (isTasksReadOnly(role)) {
+    const isReception = role === "RECEPTION";
+    return DoctorTasks(true, false, false, false, isReception);
+  }
 
   const supabase = await getSupabaseServer();
   const { startUtc } = vnTodayRangeUtc();
