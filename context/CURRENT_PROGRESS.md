@@ -1,3 +1,21 @@
+## ▶ LƯU Ý 2026-06-23 (chiều) — Điều dưỡng: nav/quyền + 3 hàng đợi + sinh hiệu + phiếu khám
+
+**ĐÃ SỬA (feedback PM cho vai Điều dưỡng `NURSE_ULTRASOUND`) — commit `a6a017e`:**
+- `+` nav `/patient-list` ("Thông tin bệnh nhân"): ĐD tra cứu BN + xem lịch sử khám (parity bác sĩ).
+- BỎ check-in khỏi ĐD (`canCheckin` chỉ còn RECEPTION + MANAGEMENT) — check-in là việc Lễ tân.
+- BỎ tạo BN khỏi ĐD (`canWriteIntake` + nav `/patients/new`) — ĐD không tạo BN.
+- 3 hàng đợi ĐD KHÔNG ảnh hưởng (chúng gate `canWriteClinical` / check role trực tiếp, ĐD vẫn ghi).
+
+**QUYẾT ĐỊNH (Quang 23/6): 3 hàng đợi (`/lab-queue`, `/service-queue`, `/sono`) TẠM GIỮ HẾT cho ĐD — KHÔNG tách/gộp.**
+LÝ DO: chưa có insight tách vai "Phụ siêu âm" + **phòng khám CHƯA phản hồi**. (Chi tiết: memory `dieu-duong-queues-decision`.)
+**OPEN khi PK phản hồi:** `/sono` (làn SA + làn XN phụ) CHỒNG LẤN `/lab-queue` (cùng là XN) và `/service-queue` (cùng đọc `service_log`). Nếu "Phụ siêu âm" chỉ lo siêu âm → nên BỎ làn XN trong `/sono` (dồn về `/lab-queue`). Nguồn order các hàng đợi = PHIẾU CHỈ ĐỊNH (Thủ thuật / Xét nghiệm / Siêu âm / Thuốc).
+
+**SINH HIỆU (vitals) — CHỜ QUANG CHỐT:** bỏ check-in khỏi ĐD → ĐD mất lối nhập sinh hiệu (vốn nằm trong form check-in trang chủ). Search thực hành phòng khám lớn: ghi sinh hiệu là việc CLINICAL (điều dưỡng / medical assistant), KHÔNG phải lễ tân (front desk = hành chính). ĐỀ XUẤT: vitals WRITE chỉ ĐD (+ bác sĩ); thêm lối cho ĐD nhập sinh hiệu KHÔNG qua check-in (vd từ "Thông tin bệnh nhân" → mở buổi khám hôm nay). Lễ tân chỉ XEM. CHƯA làm — chờ lệnh.
+
+**PHIẾU KHÁM theo loại (NT/PK/SK/NK/HMVS):** ĐÃ XONG trước đó (T-FORM-COMPACT-01/02). Engine `lib/form-schemas/` config-driven theo `service_code`, render qua `<ServiceFormEngine>` trong tab phiếu khám `ClinicalRecordForm.tsx`. Khớp đặc tả "Sáng Ý - Bàn giao KCB". Hạn chế còn lại: `resolveServiceCode` đang ĐOÁN theo TÊN dịch vụ (chưa truyền `service_type.code`).
+
+---
+
 ## ▶ Phiên 2026-06-23 — Quy ước nhánh + đọc lại dashboard
 
 **QUY ƯỚC NHÁNH (Quang chốt 23/6 — nguồn chân lý đầy đủ ở `CLAUDE.md §3`):**
