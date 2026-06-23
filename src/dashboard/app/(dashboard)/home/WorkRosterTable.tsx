@@ -47,7 +47,7 @@ export default function WorkRosterTable({
   }
 
   return (
-    <div className="resize overflow-auto rounded-xl border border-[#f3cfe0] bg-white shadow-[0_1px_3px_rgba(236,72,153,0.08)] max-h-[88vh] min-h-[180px] max-w-full">
+    <div className="overflow-auto rounded-xl border border-[#f3cfe0] bg-white shadow-[0_1px_3px_rgba(236,72,153,0.08)] max-h-[88vh] min-h-[180px] max-w-full">
       <table className="w-full min-w-max border-collapse text-xs">
         <thead>
           {/* Hàng 1: TẦNG (gộp cột) */}

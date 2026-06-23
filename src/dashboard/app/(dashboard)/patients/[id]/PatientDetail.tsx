@@ -241,9 +241,9 @@ export default async function PatientDetail({
         </div>
 
         {/* Desktop: table (≥md). */}
-        <div className="hidden resize overflow-auto rounded-lg border border-[#f3cfe0] bg-white shadow-[0_1px_3px_rgba(236,72,153,0.08)] max-h-[88vh] min-h-[180px] md:block">
+        <div className="hidden overflow-auto rounded-lg border border-[#f3cfe0] bg-white shadow-[0_1px_3px_rgba(236,72,153,0.08)] max-h-[88vh] min-h-[180px] md:block">
           <table className="min-w-full divide-y divide-[#f6e0ec] text-sm">
-            <thead className="bg-[#fce7f3] text-left text-[11px] uppercase tracking-wide text-[#9d2463]">
+            <thead className="sticky top-0 z-10 bg-[#fce7f3] text-left text-[11px] uppercase tracking-wide text-[#9d2463]">
               <tr>
                 <th className="px-4 py-2.5 font-semibold">Ngày giờ</th>
                 <th className="px-4 py-2.5 font-semibold">Dịch vụ</th>

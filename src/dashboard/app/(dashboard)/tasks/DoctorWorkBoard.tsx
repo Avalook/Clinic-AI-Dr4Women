@@ -187,7 +187,7 @@ export default function DoctorWorkBoard({
       </div>
 
       {/* Bảng lịch — khung kéo co dãn + cuộn (co thì cuộn, không vỡ cấu trúc). */}
-      <div className="resize overflow-auto rounded-xl border border-[#f3cfe0] bg-white shadow-[0_1px_3px_rgba(236,72,153,0.08)] max-h-[78vh] min-h-[200px] max-w-full">
+      <div className="overflow-auto rounded-xl border border-[#f3cfe0] bg-white shadow-[0_1px_3px_rgba(236,72,153,0.08)] max-h-[78vh] min-h-[200px] max-w-full">
         <table className="w-full min-w-max border-collapse text-xs">
           <thead className="sticky top-0 z-10 bg-[#fce7f3] text-left text-[10px] font-semibold uppercase tracking-wide text-[#9d2463]">
             <tr>

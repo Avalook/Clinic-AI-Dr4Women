@@ -36,13 +36,8 @@ export const TBL_ROW = "transition-colors hover:bg-[#fdf2f8]";
 export const TBL_ROW_ALT = "bg-white even:bg-[#fdf5f9]";
 export const TBL_DIV = "divide-y divide-[#f6e0ec]";
 
-// Khung bảng KÉO CO DÃN: trình duyệt vẽ tay nắm ở góc DƯỚI-PHẢI, người dùng kéo
-// chuột để phóng to/thu nhỏ cả NGANG lẫn DỌC. Bắt buộc đi kèm overflow-auto.
-// Thêm max-h/max-w để chặn kéo quá khổ, min-h/min-w để không bóp mất bảng.
-export const TBL_RESIZE =
-  "resize overflow-auto max-h-[88vh] min-h-[180px] min-w-[280px]";
-// Gợi ý nhỏ hiển thị dưới bảng cho người dùng biết có thể kéo.
-export const TBL_RESIZE_HINT = "↘ Kéo góc dưới-phải để phóng to / thu nhỏ bảng";
+// Khung bảng cuộn ngang+dọc: dùng overflow-auto + max-h để giới hạn chiều cao.
+// Bắt buộc đặt thead className sticky top-0 z-10 để header cố định khi cuộn.
 
 // Booking option lists (single source of truth).
 export const CHANNELS = [
