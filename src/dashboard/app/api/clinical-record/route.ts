@@ -22,6 +22,7 @@ interface ClinicalRecordRow {
 interface VisitRow {
   visit_id: string;
   status: string;
+  created_at: string | null;
   clinical_record: ClinicalRecordRow | ClinicalRecordRow[] | null;
 }
 
@@ -100,7 +101,7 @@ export async function GET(request: Request) {
       ? supabase
           .from("visit")
           .select(
-            "visit_id, status, clinical_record ( chief_complaint_at_visit, soap_subjective, soap_objective, soap_assessment, soap_plan )",
+            "visit_id, status, created_at, clinical_record ( chief_complaint_at_visit, soap_subjective, soap_objective, soap_assessment, soap_plan )",
           )
           .eq("visit_id", visitId)
           .eq("clinic_patient_id", patientId)
@@ -109,7 +110,7 @@ export async function GET(request: Request) {
         ? supabase
             .from("visit")
             .select(
-              "visit_id, status, clinical_record ( chief_complaint_at_visit, soap_subjective, soap_objective, soap_assessment, soap_plan )",
+              "visit_id, status, created_at, clinical_record ( chief_complaint_at_visit, soap_subjective, soap_objective, soap_assessment, soap_plan )",
             )
             .eq("appointment_id", appointmentId)
             .order("created_at", { ascending: false })
@@ -172,7 +173,7 @@ export async function GET(request: Request) {
     labs: labRes.data ?? [],
     history,
     prescriptions,
-    visit: visit ? { visit_id: visit.visit_id, status: visit.status } : null,
+    visit: visit ? { visit_id: visit.visit_id, status: visit.status, created_at: visit.created_at ?? null } : null,
     draft: {
       chief_complaint: cr?.chief_complaint_at_visit ?? "",
       subjective: cr?.soap_subjective ?? null,
@@ -285,13 +286,28 @@ export async function POST(request: Request) {
   // Tìm lượt khám gắn với lịch hẹn này.
   const { data: existing, error: findErr } = await db
     .from("visit")
-    .select("visit_id, status")
+    .select("visit_id, status, created_at")
     .eq("appointment_id", appointmentId)
     .order("created_at", { ascending: false })
     .limit(1)
     .maybeSingle();
   if (findErr) {
     return NextResponse.json({ error: findErr.message }, { status: 500 });
+  }
+
+  // 48h lock: không cho sửa hồ sơ đã tạo quá 48 tiếng (≈ 2 ca trực). Truyến
+  // ca/đính chính phải qua Trưởng ca — ché độ đầu đảm bảo touàn vẹn hồ sơ.
+  if (existing) {
+    const visitCreatedAt = (existing as Record<string, unknown>).created_at as string | null;
+    if (visitCreatedAt) {
+      const ageMs = Date.now() - new Date(visitCreatedAt).getTime();
+      if (ageMs > 48 * 3_600_000) {
+        return NextResponse.json(
+          { error: "Hồ sơ đã khóa sau 48h — không thể chỉnh sửa. Liên hệ Trưởng ca nếu cần đính chính." },
+          { status: 403 },
+        );
+      }
+    }
   }
 
   let visitId = existing?.visit_id ?? null;

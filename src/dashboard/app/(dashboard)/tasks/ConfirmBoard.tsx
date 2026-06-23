@@ -5,7 +5,7 @@
 // Panel có 2 nút: Xác nhận (cskh_confirm) / Không xác nhận → sửa tại chỗ.
 // CCCD KHÔNG hiển thị/sửa (D-identity).
 
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import { Check, Pencil, X, Ban, CalendarClock } from "lucide-react";
 import { fmtTimeOrNone, vnLocalToUtcISO, nowMs } from "../../../lib/datetime";
@@ -19,7 +19,7 @@ import {
   dayLabel,
   fmtDayMonth,
 } from "../../../lib/roster";
-import { digitsOnly, phoneError, daysInMonth } from "../../../lib/validation";
+import { digitsOnly, phoneError, daysInMonth, unaccentVi } from "../../../lib/validation";
 import { INPUT, LABEL } from "../form-ui";
 import Time24Input from "../Time24Input";
 import StatusBadge from "../StatusBadge";
@@ -114,6 +114,13 @@ export default function ConfirmBoard({
   const [reschedDate, setReschedDate] = useState("");
   const [reschedTime, setReschedTime] = useState("");
   const [reschedDoc, setReschedDoc] = useState("");
+  const [reschedDocQ, setReschedDocQ] = useState("");
+  const [reschedDocOpen, setReschedDocOpen] = useState(false);
+  const filteredDoctors = useMemo(() => {
+    const t = unaccentVi(reschedDocQ.trim());
+    if (!t) return doctors;
+    return doctors.filter((d) => unaccentVi(d.label).includes(t));
+  }, [reschedDocQ, doctors]);
 
   const sel = rows.find((r) => r.id === selId) ?? null;
   const locName = (id: string | null) =>
@@ -135,6 +142,7 @@ export default function ConfirmBoard({
     setReschedDate("");
     setReschedTime("");
     setReschedDoc("");
+    setReschedDocQ("");
   }
   function close() {
     setSelId(null);
@@ -537,18 +545,59 @@ export default function ConfirmBoard({
                   </div>
                   <div>
                     <label className={LABEL}>Bác sĩ (tuỳ chọn)</label>
-                    <select
-                      className={INPUT}
-                      value={reschedDoc}
-                      onChange={(e) => setReschedDoc(e.target.value)}
-                    >
-                      <option value="">— Giữ bác sĩ hiện tại —</option>
-                      {doctors.map((d) => (
-                        <option key={d.id} value={d.id}>
-                          {d.label}
-                        </option>
-                      ))}
-                    </select>
+                    <div className="relative">
+                      <input
+                        value={reschedDocQ}
+                        onChange={(e) => {
+                          setReschedDocQ(e.target.value);
+                          setReschedDoc(""); // xóa chọn cũ khi gõ đè
+                          setReschedDocOpen(true);
+                        }}
+                        onFocus={() => setReschedDocOpen(true)}
+                        onBlur={() => setTimeout(() => setReschedDocOpen(false), 150)}
+                        placeholder="Tìm bác sĩ… (bỏ trống để giữ hiện tại)"
+                        className={INPUT}
+                        autoComplete="off"
+                      />
+                      {reschedDocOpen && (
+                        <ul className="absolute z-30 mt-1 max-h-52 w-full overflow-auto rounded-lg border border-[#e4e4e7] bg-white shadow-lg">
+                          <li
+                            onMouseDown={() => {
+                              setReschedDoc("");
+                              setReschedDocQ("");
+                              setReschedDocOpen(false);
+                            }}
+                            className="cursor-pointer px-3 py-2 text-sm text-[#71717a] hover:bg-[#fdf2f8]"
+                          >
+                            — Giữ bác sĩ hiện tại —
+                          </li>
+                          {filteredDoctors.length === 0 ? (
+                            <li className="px-3 py-2 text-sm text-[#a1a1aa]">
+                              Không tìm thấy bác sĩ
+                            </li>
+                          ) : (
+                            filteredDoctors.map((d) => (
+                              <li
+                                key={d.id}
+                                onMouseDown={() => {
+                                  setReschedDoc(d.id);
+                                  setReschedDocQ(d.label);
+                                  setReschedDocOpen(false);
+                                }}
+                                className={
+                                  "cursor-pointer px-3 py-2 text-sm hover:bg-[#fdf2f8] " +
+                                  (d.id === reschedDoc
+                                    ? "bg-[#fce7f3] font-medium text-[#9d2463]"
+                                    : "text-[#171717]")
+                                }
+                              >
+                                {d.label}
+                              </li>
+                            ))
+                          )}
+                        </ul>
+                      )}
+                    </div>
                   </div>
                   <button
                     onClick={reschedule}

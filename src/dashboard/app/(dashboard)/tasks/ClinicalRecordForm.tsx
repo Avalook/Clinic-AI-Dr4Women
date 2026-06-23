@@ -293,6 +293,7 @@ export default function ClinicalRecordForm({
   const [pageIdx, setPageIdx] = useState(0);
   const pagesRef = useRef<PageRef[]>([]);
   const viewingPast = pageIdx > 0;
+  const showAll = viewingPast;
   // Đổi BN / lịch → component REMOUNT (cả 2 board truyền key={appt.id}) nên
   // pages/pageIdx tự reset, KHÔNG cần effect reset thủ công.
   // Đổi trang qua pager: bật loading NGAY trong handler (không setState trong
@@ -697,19 +698,24 @@ export default function ClinicalRecordForm({
       </div>
 
       {/* Banner cảnh báo = vùng TRÊN cố định (không cuộn cùng nội dung). */}
-      {((readOnly && !vitalsOnly) || locked || (arrivalPending && !readOnly)) && (
+      {((readOnly && !vitalsOnly) || locked || (arrivalPending && !readOnly) || viewingPast) && (
         <div className="space-y-1.5 border-b border-[#e4e4e7] px-4 py-2">
-          {readOnly && !vitalsOnly && (
-            <p className="rounded-md bg-[#fce7f3] px-3 py-1.5 text-xs text-[#9d2463]">
-              👁 Chế độ chỉ xem — Lễ tân không chỉnh sửa hồ sơ.
+          {viewingPast && (
+            <p className="rounded-md bg-[#eff6ff] px-3 py-1.5 text-xs text-[#1e40af]">
+              📋 Đang xem lượt khám cũ ngày {fmtDate(pages[pageIdx]?.date)} — chỉ đọc.
             </p>
           )}
-          {locked && (
+          {!viewingPast && readOnly && !vitalsOnly && (
+            <p className="rounded-md bg-[#fce7f3] px-3 py-1.5 text-xs text-[#9d2463]">
+              👁 Hồ sơ lâm sàng chỉ xem (Lễ tân/CSKH có thể sửa thông tin Hành chính ở tab tương ứng).
+            </p>
+          )}
+          {!viewingPast && locked && (
             <p className="rounded-md bg-[#fee2e2] px-3 py-1.5 text-xs text-[#dc2626]">
               🔒 Hồ sơ đã chốt (FINALIZED) — luật cấm sửa, chỉ xem.
             </p>
           )}
-          {arrivalPending && !readOnly && (
+          {!viewingPast && arrivalPending && !readOnly && (
             <p className="rounded-md bg-[#fef9c3] px-3 py-1.5 text-xs text-[#a16207]">
               🕓 Chờ lễ tân xác nhận bệnh nhân đã đến (check-in) — chưa khám được.
             </p>
@@ -718,22 +724,51 @@ export default function ClinicalRecordForm({
       )}
 
       {/* Thanh TAB (cố định) — chia 4 mục theo luồng khám; chỉ render tab đang chọn. */}
-      <div className="flex shrink-0 gap-1 overflow-x-auto border-b border-[#e4e4e7] px-3 py-2">
+      <div className="flex shrink-0 items-center gap-0.5 overflow-x-auto border-b border-[#e4e4e7] px-2 py-1.5">
+        <span className="mr-0.5 shrink-0 rounded bg-[#fce7f3] px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wider text-[#9d2463]">
+          Mới
+        </span>
         {TABS.map((t, i) => (
           <button
             key={t}
             type="button"
-            onClick={() => setTab(i)}
-            className={TAB + (i === tab ? TAB_ON : TAB_OFF)}
+            onClick={() => {
+              if (viewingPast) goPage(0);
+              setTab(i);
+            }}
+            className={TAB + (!viewingPast && i === tab ? TAB_ON : TAB_OFF)}
           >
             {t}
-            {tabFilled(i) && <span className="ml-1 text-[#ec4899]">✓</span>}
+            {!viewingPast && tabFilled(i) && <span className="ml-1 text-[#ec4899]">✓</span>}
           </button>
         ))}
+
+        {pages.length > 1 && (
+          <>
+            <span className="mx-1.5 shrink-0 select-none text-base leading-none text-[#d4d4d8]">│</span>
+            <span className="mr-0.5 shrink-0 rounded bg-[#f4f4f5] px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wider text-[#71717a]">
+              Cũ
+            </span>
+            {pages.slice(1).map((pg, i) => {
+              const visitIdx = i + 1;
+              const lanLabel = `Lần ${pages.length - visitIdx}`;
+              return (
+                <button
+                  key={pg.visitId ?? visitIdx}
+                  type="button"
+                  onClick={() => goPage(visitIdx)}
+                  className={TAB + (viewingPast && pageIdx === visitIdx ? TAB_ON : TAB_OFF)}
+                >
+                  {lanLabel}: {fmtDate(pg.date)}
+                </button>
+              );
+            })}
+          </>
+        )}
       </div>
 
       <div className="min-h-0 flex-1 space-y-4 overflow-y-auto px-4 py-3">
-        {tab === 0 && (
+        {tab === 0 && !showAll && (
         <Section
           no="I"
           title="Hành chính"
@@ -775,13 +810,13 @@ export default function ClinicalRecordForm({
 
         {/* Tóm tắt trước khám (bác sĩ): gọi-và-hiện, KHÔNG lưu. Đặt ở tab "Hành
             chính" để bác sĩ xem trước khi đọc/ghi hồ sơ. Read-only → hiện cả khi khóa. */}
-        {tab === 0 && showPreVisitBrief && p?.clinic_patient_id && (
+        {tab === 0 && !showAll && showPreVisitBrief && p?.clinic_patient_id && (
           <div className="border-t border-[#f4f4f5] pt-3">
             <PreVisitBrief id={p.clinic_patient_id} />
           </div>
         )}
 
-        {tab === 0 && (data?.history?.length ?? 0) > 0 && (
+        {tab === 0 && !showAll && (data?.history?.length ?? 0) > 0 && (
           <details className="border-t border-[#f4f4f5] pt-3" open>
             <summary className="cursor-pointer text-sm font-semibold text-[#171717]">
               Lịch sử khám trước ({data!.history.length})
@@ -818,7 +853,7 @@ export default function ClinicalRecordForm({
           </details>
         )}
 
-        {tab === 1 && (
+        {(tab === 1 || showAll) && (
         <Section no="" title="Sinh hiệu" editorLabel="lễ tân/điều dưỡng điền">
           <div className="grid grid-cols-2 gap-2">
             {/* Ô SỐ bắt buộc số + NGƯỠNG hợp lý (tránh gõ thừa số: 37→377). Huyết
@@ -882,13 +917,13 @@ export default function ClinicalRecordForm({
         {/* D25 — "Lý do khám bệnh" do BÁC SĨ đưa ra, ĐIỀU DƯỠNG nhập hộ vào bệnh
             án → mở quyền sửa cho cả luồng đón-khám (dùng `ro` thay `roRest`).
             Tách bạch với "Vấn đề khiến BN đi khám" của CSKH (không có ở form này). */}
-        {tab === 1 && (
+        {(tab === 1 || showAll) && (
         <Section no="II" title="Lý do khám bệnh" editorLabel="bác sĩ / điều dưỡng điền">
           <input className={INPUT} value={f.ly_do} disabled={ro} onChange={(e) => set("ly_do", e.target.value)} placeholder="VD: Khám thai" />
         </Section>
         )}
 
-        {tab === 0 && (
+        {tab === 0 && !showAll && (
         <Section no="III" title="Tiền sử dị ứng">
           <input
             className={INPUT}
@@ -900,7 +935,7 @@ export default function ClinicalRecordForm({
         </Section>
         )}
 
-        {tab === 0 && (
+        {tab === 0 && !showAll && (
         <Section no="IV" title="Tiền sử (mạn tính / Phẫu thuật / thuốc / gia đình)">
           <div className="space-y-2">
             <div>
@@ -935,7 +970,7 @@ export default function ClinicalRecordForm({
         </Section>
         )}
 
-        {tab === 1 && (
+        {(tab === 1 || showAll) && (
         <Section no="V" title="Bệnh sử & khám thai">
           <textarea className={INPUT} rows={2} value={f.benh_su} disabled={roRest} onChange={(e) => set("benh_su", e.target.value)} placeholder="Quá trình bệnh lý…" />
           {!loading && preg && (
@@ -984,7 +1019,7 @@ export default function ClinicalRecordForm({
 
         {/* Số đo siêu âm thai — CHỈ Bác sĩ Siêu âm (showSono). Lưu riêng qua
             /api/ultrasound (ultrasound_record), KHÔNG dính nút Lưu hồ sơ chính. */}
-        {tab === 1 && showSono && !viewingPast && p?.clinic_patient_id && (
+        {(tab === 1 || showAll) && showSono && !viewingPast && p?.clinic_patient_id && (
           <div className="border-t border-[#f4f4f5] pt-3">
             <SonoBiometry
               appointmentId={appt.id}
@@ -993,7 +1028,7 @@ export default function ClinicalRecordForm({
           </div>
         )}
 
-        {tab === 2 && (
+        {(tab === 2 || showAll) && (
         <Section no="VI" title="Kết quả cận lâm sàng" synced>
           {loading ? (
             <Loading />
@@ -1055,19 +1090,19 @@ export default function ClinicalRecordForm({
         </Section>
         )}
 
-        {tab === 3 && (
+        {(tab === 3 || showAll) && (
         <Section no="VII" title="Chuẩn đoán">
           <textarea className={INPUT} rows={2} value={f.chan_doan} disabled={roRest} onChange={(e) => set("chan_doan", e.target.value)} placeholder="VD: Z34 - Theo dõi thai…" />
         </Section>
         )}
 
-        {tab === 3 && (
+        {(tab === 3 || showAll) && (
         <Section no="VIII" title="Hướng xử lý & lời dặn">
           <textarea className={INPUT} rows={3} value={f.loi_dan} disabled={roRest} onChange={(e) => set("loi_dan", e.target.value)} />
         </Section>
         )}
 
-        {tab === 3 && !vitalsOnly && (
+        {(tab === 3 || showAll) && !vitalsOnly && (
           <Section no="IX" title="Đơn thuốc">
             <div className="space-y-2">
               {rx.length === 0 && (
@@ -1133,7 +1168,7 @@ export default function ClinicalRecordForm({
 
         {/* X — Theo dõi & Tái khám: nguồn dữ liệu cho CSKH nhắc tái khám
             (soap_plan.tai_kham). KHÔNG bắt buộc — không ảnh hưởng "Khám xong". */}
-        {tab === 3 && (
+        {(tab === 3 || showAll) && (
         <Section no="X" title="Theo dõi & Tái khám">
           <div className="space-y-2">
             <div>
@@ -1184,7 +1219,7 @@ export default function ClinicalRecordForm({
         {/* Phiếu khám CHUYÊN KHOA (engine config-driven) — pilot Phụ khoa. Chỉ hiện
             cho bác sĩ (KHÔNG ở luồng đón-khám vitalsOnly) khi dịch vụ có config +
             đã có visit. FINALIZED / lễ tân chỉ-đọc → read-only (route cũng chặn ghi). */}
-        {tab === 2 && !vitalsOnly && serviceCode && data?.visit?.visit_id && (
+        {tab === 2 && !vitalsOnly && !showAll && serviceCode && data?.visit?.visit_id && (
           <div className="border-t border-[#f4f4f5] pt-3">
             <ServiceFormEngine
               visitId={data.visit.visit_id}
@@ -1199,14 +1234,16 @@ export default function ClinicalRecordForm({
         <span
           className={
             "text-xs " +
-            (readOnly && !vitalsOnly
-              ? "text-[#9d2463]"
-              : msg?.startsWith("Đã lưu")
-                ? "text-[#15803d]"
-                : "text-[#dc2626]")
+            (viewingPast
+              ? "text-[#1e40af]"
+              : readOnly && !vitalsOnly
+                ? "text-[#9d2463]"
+                : msg?.startsWith("Đã lưu")
+                  ? "text-[#15803d]"
+                  : "text-[#dc2626]")
           }
         >
-          {readOnly && !vitalsOnly ? "👁 Chỉ xem — không có quyền sửa." : (msg ?? "")}
+          {viewingPast ? "📋 Lượt khám cũ — chỉ đọc." : readOnly && !vitalsOnly ? "👁 Hồ sơ lâm sàng chỉ xem." : (msg ?? "")}
         </span>
         <div className="flex gap-2">
           {/* Lễ tân chỉ-đọc / đang xem lượt cũ: ẨN nút Lưu hoàn toàn (không chỉ disable). */}

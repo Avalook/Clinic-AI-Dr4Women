@@ -5,7 +5,7 @@
 // appointment if a service + date + time were filled, and finally lands on the
 // patient's profile. No more two-screen flow.
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { UserRound, CalendarClock } from "lucide-react";
@@ -22,6 +22,7 @@ import {
   phoneError,
   cccdError,
   birthYearError,
+  unaccentVi,
 } from "../../../../lib/validation";
 import DateField from "../../DateField";
 import { LINH_VUC_OPTIONS } from "../../../../lib/linh-vuc";
@@ -173,6 +174,13 @@ export default function NewPatientForm({
   // Appointment (optional)
   const [serviceId, setServiceId] = useState("");
   const [doctorId, setDoctorId] = useState("");
+  const [doctorQ, setDoctorQ] = useState(""); // text hiện trong ô
+  const [doctorOpen, setDoctorOpen] = useState(false);
+  const filteredDoctors = useMemo(() => {
+    const t = unaccentVi(doctorQ.trim());
+    if (!t) return doctors;
+    return doctors.filter((d) => unaccentVi(d.label).includes(t));
+  }, [doctorQ, doctors]);
   const [apptDate, setApptDate] = useState("");
   const [apptTime, setApptTime] = useState("");
   const [duration, setDuration] = useState(30);
@@ -693,18 +701,59 @@ export default function NewPatientForm({
               </div>
               <div>
                 <label className={LABEL}>Bác sĩ</label>
-                <select
-                  value={doctorId}
-                  onChange={(e) => setDoctorId(e.target.value)}
-                  className={INPUT}
-                >
-                  <option value="">— Chưa phân bác sĩ —</option>
-                  {doctors.map((d) => (
-                    <option key={d.id} value={d.id}>
-                      {d.label}
-                    </option>
-                  ))}
-                </select>
+                <div className="relative">
+                  <input
+                    value={doctorQ}
+                    onChange={(e) => {
+                      setDoctorQ(e.target.value);
+                      setDoctorId(""); // xóa chọn cũ khi gõ đè
+                      setDoctorOpen(true);
+                    }}
+                    onFocus={() => setDoctorOpen(true)}
+                    onBlur={() => setTimeout(() => setDoctorOpen(false), 150)}
+                    placeholder="Tìm bác sĩ… (bỏ trống nếu chưa phân)"
+                    className={INPUT}
+                    autoComplete="off"
+                  />
+                  {doctorOpen && (
+                    <ul className="absolute z-30 mt-1 max-h-52 w-full overflow-auto rounded-lg border border-[#e4e4e7] bg-white shadow-lg">
+                      <li
+                        onMouseDown={() => {
+                          setDoctorId("");
+                          setDoctorQ("");
+                          setDoctorOpen(false);
+                        }}
+                        className="cursor-pointer px-3 py-2 text-sm text-[#71717a] hover:bg-[#fdf2f8]"
+                      >
+                        — Chưa phân bác sĩ —
+                      </li>
+                      {filteredDoctors.length === 0 ? (
+                        <li className="px-3 py-2 text-sm text-[#a1a1aa]">
+                          Không tìm thấy bác sĩ
+                        </li>
+                      ) : (
+                        filteredDoctors.map((d) => (
+                          <li
+                            key={d.id}
+                            onMouseDown={() => {
+                              setDoctorId(d.id);
+                              setDoctorQ(d.label);
+                              setDoctorOpen(false);
+                            }}
+                            className={
+                              "cursor-pointer px-3 py-2 text-sm hover:bg-[#fdf2f8] " +
+                              (d.id === doctorId
+                                ? "bg-[#fce7f3] font-medium text-[#9d2463]"
+                                : "text-[#171717]")
+                            }
+                          >
+                            {d.label}
+                          </li>
+                        ))
+                      )}
+                    </ul>
+                  )}
+                </div>
               </div>
             </>
           )}
@@ -736,18 +785,59 @@ export default function NewPatientForm({
           </div>
           <div>
             <label className={LABEL}>Bác sĩ</label>
-            <select
-              value={doctorId}
-              onChange={(e) => setDoctorId(e.target.value)}
-              className={INPUT}
-            >
-              <option value="">— Chưa phân bác sĩ —</option>
-              {doctors.map((d) => (
-                <option key={d.id} value={d.id}>
-                  {d.label}
-                </option>
-              ))}
-            </select>
+            <div className="relative">
+              <input
+                value={doctorQ}
+                onChange={(e) => {
+                  setDoctorQ(e.target.value);
+                  setDoctorId(""); // xóa chọn cũ khi gõ đè
+                  setDoctorOpen(true);
+                }}
+                onFocus={() => setDoctorOpen(true)}
+                onBlur={() => setTimeout(() => setDoctorOpen(false), 150)}
+                placeholder="Tìm bác sĩ… (bỏ trống nếu chưa phân)"
+                className={INPUT}
+                autoComplete="off"
+              />
+              {doctorOpen && (
+                <ul className="absolute z-30 mt-1 max-h-52 w-full overflow-auto rounded-lg border border-[#e4e4e7] bg-white shadow-lg">
+                  <li
+                    onMouseDown={() => {
+                      setDoctorId("");
+                      setDoctorQ("");
+                      setDoctorOpen(false);
+                    }}
+                    className="cursor-pointer px-3 py-2 text-sm text-[#71717a] hover:bg-[#fdf2f8]"
+                  >
+                    — Chưa phân bác sĩ —
+                  </li>
+                  {filteredDoctors.length === 0 ? (
+                    <li className="px-3 py-2 text-sm text-[#a1a1aa]">
+                      Không tìm thấy bác sĩ
+                    </li>
+                  ) : (
+                    filteredDoctors.map((d) => (
+                      <li
+                        key={d.id}
+                        onMouseDown={() => {
+                          setDoctorId(d.id);
+                          setDoctorQ(d.label);
+                          setDoctorOpen(false);
+                        }}
+                        className={
+                          "cursor-pointer px-3 py-2 text-sm hover:bg-[#fdf2f8] " +
+                          (d.id === doctorId
+                            ? "bg-[#fce7f3] font-medium text-[#9d2463]"
+                            : "text-[#171717]")
+                        }
+                      >
+                        {d.label}
+                      </li>
+                    ))
+                  )}
+                </ul>
+              )}
+            </div>
           </div>
           <div>
             <label className={LABEL}>Ngày khám</label>

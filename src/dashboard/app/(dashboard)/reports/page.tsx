@@ -10,6 +10,7 @@ import { getSupabaseServer } from "../../../lib/supabase-server";
 import { getClinicRole } from "../../../lib/clinic-session";
 import { isOpsAdmin } from "../../../lib/roles";
 import { vnTodayRangeUtc, fmtDate, VN_TZ } from "../../../lib/datetime";
+import PrintReportButton from "./PrintReportButton";
 
 export const dynamic = "force-dynamic";
 
@@ -203,11 +204,24 @@ export default async function ReportsPage() {
 
   return (
     <div className="space-y-6">
-      <header>
-        <h1 className="text-xl font-semibold text-[#171717]">Báo cáo</h1>
-        <p className="text-sm text-[#888888]">
-          KPI vận hành phòng khám · {fmtDate(new Date())} · Read-only
-        </p>
+      {/* Print CSS: khi in / lưu PDF ẩn sidebar, nav, nút bấm */}
+      <style>{`
+        @media print {
+          [data-sidebar], nav, aside, [class*="sidebar"],
+          #print-report-btn { display: none !important; }
+          body { background: white !important; }
+          .space-y-6 > * { page-break-inside: avoid; }
+        }
+      `}</style>
+
+      <header className="flex items-start justify-between gap-4">
+        <div>
+          <h1 className="text-xl font-semibold text-[#171717]">Báo cáo</h1>
+          <p className="text-sm text-[#888888]">
+            KPI vận hành phòng khám · {fmtDate(new Date())} · Read-only
+          </p>
+        </div>
+        <PrintReportButton />
       </header>
 
       {queryError && (
