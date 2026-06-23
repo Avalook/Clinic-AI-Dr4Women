@@ -70,7 +70,7 @@ export default async function NewPatientPage() {
         services={services}
         doctors={doctors}
         provinces={provinces}
-        variant={nurse ? "walkin" : "full"}
+        variant={(nurse || role === "RECEPTION") ? "walkin" : "full"}
       />
     </div>
   );

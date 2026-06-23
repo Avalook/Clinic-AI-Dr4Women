@@ -8,6 +8,7 @@
 export interface HasQueue {
   queue_number?: string | null;
   slot_start: string;
+  status?: string | null;
 }
 
 /** Khóa sắp xếp: [nhóm, số trong nhóm, giờ]. Nhóm 0 = ưu tiên, 1 = số, 2 = trống. */
@@ -26,6 +27,12 @@ export function queueRank(
 
 /** So sánh 2 lịch theo thứ tự khám (ƯT trước → số → giờ). Dùng cho Array.sort. */
 export function compareQueue(a: HasQueue, b: HasQueue): number {
+  const isCheckedInA = a.status === "CHECKED_IN";
+  const isCheckedInB = b.status === "CHECKED_IN";
+  if (isCheckedInA !== isCheckedInB) {
+    return isCheckedInA ? -1 : 1;
+  }
+
   const ra = queueRank(a.queue_number, a.slot_start);
   const rb = queueRank(b.queue_number, b.slot_start);
   if (ra[0] !== rb[0]) return ra[0] - rb[0];

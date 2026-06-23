@@ -95,6 +95,51 @@ async function doctorConflictMessage(
   }
 }
 
+export async function GET(request: Request) {
+  const caller = await getSupabaseServer();
+  const {
+    data: { user },
+  } = await caller.auth.getUser();
+  if (!user) return NextResponse.json({ error: "Unauthorised" }, { status: 401 });
+
+  const { searchParams } = new URL(request.url);
+  const date = searchParams.get("date"); // YYYY-MM-DD
+  const doctorId = searchParams.get("doctor_id");
+
+  if (!date) {
+    return NextResponse.json({ error: "Missing date parameter" }, { status: 400 });
+  }
+
+  // Parse start and end of day in UTC based on VN timezone
+  const startOfDay = new Date(`${date}T00:00:00+07:00`).toISOString();
+  const endOfDay = new Date(`${date}T23:59:59+07:00`).toISOString();
+
+  const db = getSupabaseService();
+  if (!db) {
+    return NextResponse.json(
+      { error: "SUPABASE_SERVICE_ROLE_KEY chưa cấu hình trên server." },
+      { status: 503 },
+    );
+  }
+
+  let query = db
+    .from("appointment")
+    .select("slot_start, queue_number, status, doctor_id")
+    .gte("slot_start", startOfDay)
+    .lte("slot_start", endOfDay)
+    .not("status", "eq", "CANCELLED")
+    .not("status", "eq", "NO_SHOW");
+
+  if (doctorId) {
+    query = query.eq("doctor_id", doctorId);
+  }
+
+  const { data, error } = await query;
+  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+
+  return NextResponse.json({ appointments: data });
+}
+
 export async function POST(request: Request) {
   const caller = await getSupabaseServer();
   const {

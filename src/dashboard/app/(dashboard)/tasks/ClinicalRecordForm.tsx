@@ -653,12 +653,6 @@ export default function ClinicalRecordForm({
                 Chỉ ghi Sinh hiệu
               </span>
             )}
-
-            {viewingPast && (
-              <span className="rounded bg-[#fce7f3] px-1.5 py-0.5 text-[10px] font-medium normal-case text-[#9d2463]">
-                👁 Lượt khám cũ — chỉ xem
-              </span>
-            )}
           </h3>
           <p className="text-xs text-[#888888]">
             {p?.full_name} · {p?.patient_code}
@@ -673,24 +667,19 @@ export default function ClinicalRecordForm({
       </div>
 
       {/* Banner cảnh báo = vùng TRÊN cố định (không cuộn cùng nội dung). */}
-      {((readOnly && !vitalsOnly) || locked || (arrivalPending && !readOnly) || viewingPast) && (
+      {!viewingPast && ((readOnly && !vitalsOnly) || locked || (arrivalPending && !readOnly)) && (
         <div className="space-y-1.5 border-b border-[#e4e4e7] px-4 py-2">
-          {viewingPast && (
-            <p className="rounded-md bg-[#eff6ff] px-3 py-1.5 text-xs text-[#1e40af]">
-              📋 Đang xem lượt khám cũ ngày {fmtDate(pages[pageIdx]?.date)} — chỉ đọc.
-            </p>
-          )}
-          {!viewingPast && readOnly && !vitalsOnly && (
+          {readOnly && !vitalsOnly && (
             <p className="rounded-md bg-[#fce7f3] px-3 py-1.5 text-xs text-[#9d2463]">
               👁 Hồ sơ lâm sàng chỉ xem (Lễ tân/CSKH có thể sửa thông tin Hành chính ở tab tương ứng).
             </p>
           )}
-          {!viewingPast && locked && (
+          {locked && (
             <p className="rounded-md bg-[#fee2e2] px-3 py-1.5 text-xs text-[#dc2626]">
               🔒 Hồ sơ đã chốt (FINALIZED) — luật cấm sửa, chỉ xem.
             </p>
           )}
-          {!viewingPast && arrivalPending && !readOnly && (
+          {arrivalPending && !readOnly && (
             <p className="rounded-md bg-[#fef9c3] px-3 py-1.5 text-xs text-[#a16207]">
               🕓 Chờ lễ tân xác nhận bệnh nhân đã đến (check-in) — chưa khám được.
             </p>
@@ -700,117 +689,89 @@ export default function ClinicalRecordForm({
 
       {/* Hàng 1: Khám mới / Khám cũ (chỉ hiển thị khi có >1 lượt khám) */}
       {pages.length > 1 && (
-        <div className="flex shrink-0 items-center gap-1.5 border-b border-[#e4e4e7] bg-[#fafafa] px-3 py-1.5">
-          <button
-            type="button"
-            onClick={() => {
-              if (viewingPast) goPage(0);
-            }}
-            className={`rounded-lg px-3 py-1 text-xs font-semibold uppercase tracking-wider transition-all duration-150 ${
-              !viewingPast
-                ? "bg-[#ec4899] text-white shadow-sm"
-                : "bg-white border border-[#e4e4e7] text-[#52525b] hover:bg-[#f4f4f5]"
-            }`}
-          >
-            Khám mới
-          </button>
-          <button
-            type="button"
-            onClick={() => {
-              if (!viewingPast) {
-                goPage(1); // Mặc định chọn lượt cũ gần nhất
-              }
-            }}
-            className={`rounded-lg px-3 py-1 text-xs font-semibold uppercase tracking-wider transition-all duration-150 ${
-              viewingPast
-                ? "bg-[#1e40af] text-white shadow-sm"
-                : "bg-white border border-[#e4e4e7] text-[#52525b] hover:bg-[#f4f4f5]"
-            }`}
-          >
-            Khám cũ
-          </button>
+        <div className="flex shrink-0 items-center border-b border-[#e4e4e7] bg-[#fafafa] px-3 py-1.5 select-none">
+          {/* Cụm nút chuyển đổi (đứng yên) */}
+          <div className="flex shrink-0 items-center gap-1.5 pr-3 border-r border-[#e4e4e7]">
+            <button
+              type="button"
+              onClick={() => {
+                if (viewingPast) goPage(0);
+              }}
+              className={`rounded-lg px-3 py-1 text-xs font-semibold uppercase tracking-wider transition-all duration-150 ${
+                !viewingPast
+                  ? "bg-[#ec4899] text-white shadow-sm"
+                  : "bg-white border border-[#e4e4e7] text-[#52525b] hover:bg-[#f4f4f5]"
+              }`}
+            >
+              Khám mới
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                if (!viewingPast) {
+                  goPage(1); // Mặc định chọn lượt cũ gần nhất
+                }
+              }}
+              className={`rounded-lg px-3 py-1 text-xs font-semibold uppercase tracking-wider transition-all duration-150 ${
+                viewingPast
+                  ? "bg-[#ec4899] text-white shadow-sm"
+                  : "bg-white border border-[#e4e4e7] text-[#52525b] hover:bg-[#f4f4f5]"
+              }`}
+            >
+              Khám cũ
+            </button>
+          </div>
+
+          {/* Danh sách các lần khám cũ di chuyển (chỉ hiện khi viewingPast) */}
+          {viewingPast && (
+            <div
+              className="flex-1 overflow-x-auto pl-3 flex items-center gap-1.5 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+              onWheel={(e) => {
+                if (e.deltaY !== 0) {
+                  e.currentTarget.scrollLeft += e.deltaY;
+                }
+              }}
+            >
+              {pages.slice(1).map((pg, i) => {
+                const visitIdx = i + 1;
+                const isSelected = pageIdx === visitIdx;
+                const lanLabel = `Lần ${pages.length - visitIdx}`;
+                return (
+                  <button
+                    key={pg.visitId ?? visitIdx}
+                    type="button"
+                    onClick={() => goPage(visitIdx)}
+                    className={`shrink-0 rounded-lg px-2.5 py-1 text-xs font-medium border transition-colors duration-150 ${
+                      isSelected
+                        ? "bg-[#eff6ff] font-semibold text-[#1e40af] border-[#bfdbfe]"
+                        : "bg-white border-[#e4e4e7] text-[#52525b] hover:bg-[#f4f4f5]"
+                    }`}
+                  >
+                    {lanLabel}: {fmtDate(pg.date)}
+                  </button>
+                );
+              })}
+            </div>
+          )}
         </div>
       )}
 
       {/* Thanh TAB (cố định) — chia 4 mục theo luồng khám; chỉ render tab đang chọn. */}
-      <div className="flex shrink-0 items-center gap-0.5 overflow-x-auto border-b border-[#e4e4e7] px-2 py-1.5">
-        <span className="mr-0.5 shrink-0 rounded bg-[#fce7f3] px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wider text-[#9d2463]">
-          Mới
-        </span>
-        {TABS.map((t, i) => (
-          <button
-            key={t}
-            type="button"
-            onClick={() => {
-              if (viewingPast) goPage(0);
-              setTab(i);
-            }}
-            className={TAB + (!viewingPast && i === tab ? TAB_ON : TAB_OFF)}
-          >
-            {t}
-            {!viewingPast && tabFilled(i) && <span className="ml-1 text-[#ec4899]">✓</span>}
-          </button>
-        ))}
-
-        {pages.length > 1 && (
-          <>
-            <span className="mx-1.5 shrink-0 select-none text-base leading-none text-[#d4d4d8]">│</span>
-            <span className="mr-0.5 shrink-0 rounded bg-[#f4f4f5] px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wider text-[#71717a]">
-              Cũ
-            </span>
-            <div className="relative inline-block text-left">
-              <button
-                type="button"
-                onClick={() => setPastOpen(!pastOpen)}
-                className={`inline-flex items-center gap-1 rounded-lg px-2.5 py-1 text-xs font-medium transition-colors ${
-                  viewingPast
-                    ? "bg-[#eff6ff] font-semibold text-[#1e40af] border border-[#bfdbfe]"
-                    : "border border-[#e4e4e7] bg-white text-[#52525b] hover:bg-[#f4f4f5]"
-                }`}
-              >
-                <span>
-                  {viewingPast
-                    ? `Lần ${pages.length - pageIdx}: ${fmtDate(pages[pageIdx]?.date)}`
-                    : "Chọn lần khám cũ"}
-                </span>
-                <span className="text-[10px] text-[#94a3b8]">▼</span>
-              </button>
-
-              {pastOpen && (
-                <>
-                  <div className="fixed inset-0 z-40" onClick={() => setPastOpen(false)} />
-                  <ul className="absolute left-0 top-full z-50 mt-1 max-h-60 w-56 overflow-auto rounded-lg border border-[#e4e4e7] bg-white p-1 shadow-lg ring-1 ring-black/5 animate-in fade-in slide-in-from-top-1 duration-100">
-                    {pages.slice(1).map((pg, i) => {
-                      const visitIdx = i + 1;
-                      const isSelected = pageIdx === visitIdx;
-                      const lanLabel = `Lần ${pages.length - visitIdx}`;
-                      return (
-                        <li key={pg.visitId ?? visitIdx}>
-                          <button
-                            type="button"
-                            onClick={() => {
-                              goPage(visitIdx);
-                              setPastOpen(false);
-                            }}
-                            className={`w-full rounded-md px-2.5 py-1.5 text-left text-xs transition-colors flex items-center justify-between ${
-                              isSelected
-                                ? "bg-[#eff6ff] font-semibold text-[#1e40af]"
-                                : "text-[#334155] hover:bg-[#f1f5f9]"
-                            }`}
-                          >
-                            <span>{lanLabel}: {fmtDate(pg.date)}</span>
-                            {isSelected && <span className="text-[#1e40af] font-bold">✓</span>}
-                          </button>
-                        </li>
-                      );
-                    })}
-                  </ul>
-                </>
-              )}
-            </div>
-          </>
-        )}
-      </div>
+      {!viewingPast && (
+        <div className="flex shrink-0 gap-1 overflow-x-auto border-b border-[#e4e4e7] px-3 py-1.5">
+          {TABS.map((t, i) => (
+            <button
+              key={t}
+              type="button"
+              onClick={() => setTab(i)}
+              className={TAB + (i === tab ? TAB_ON : TAB_OFF)}
+            >
+              {t}
+              {tabFilled(i) && <span className="ml-1 text-[#ec4899]">✓</span>}
+            </button>
+          ))}
+        </div>
+      )}
 
       <div className="min-h-0 flex-1 space-y-4 overflow-y-auto px-4 py-3">
         {tab === 0 && !showAll && (
@@ -1288,7 +1249,7 @@ export default function ClinicalRecordForm({
                   : "text-[#dc2626]")
           }
         >
-          {viewingPast ? "📋 Lượt khám cũ — chỉ đọc." : readOnly && !vitalsOnly ? "👁 Hồ sơ lâm sàng chỉ xem." : (msg ?? "")}
+          {viewingPast ? "" : readOnly && !vitalsOnly ? "👁 Hồ sơ lâm sàng chỉ xem." : (msg ?? "")}
         </span>
         <div className="flex gap-2">
           {/* Lễ tân chỉ-đọc / đang xem lượt cũ: ẨN nút Lưu hoàn toàn (không chỉ disable). */}

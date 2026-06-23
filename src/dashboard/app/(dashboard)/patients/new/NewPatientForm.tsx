@@ -70,6 +70,27 @@ function Req() {
   return <span className="text-[#ec4899]">*</span>;
 }
 
+function findServiceIdByLinhVuc(code: string, services: Option[]): string {
+  if (!code) return "";
+  const nameMap: Record<string, string[]> = {
+    PK: ["Phụ khoa", "PHU_KHOA"],
+    SK: ["Sản 1", "Sản khoa", "Sản", "SAN_1"],
+    NT: ["Nội tiết - Tình dục", "Nội tiết", "NOI_TIET_TINH_DUC"],
+    HMVS: ["Hiếm muộn", "Hiếm muộn - Vô sinh", "HIEM_MUON"],
+    NK: ["Nam khoa", "NAM_KHOA"],
+  };
+  const targets = nameMap[code] ?? [];
+  for (const t of targets) {
+    const found = services.find((s) => s.label.toLowerCase() === t.toLowerCase());
+    if (found) return found.id;
+  }
+  for (const t of targets) {
+    const found = services.find((s) => s.label.toLowerCase().includes(t.toLowerCase()));
+    if (found) return found.id;
+  }
+  return services[0]?.id ?? "";
+}
+
 function SectionHeader({
   icon,
   title,
@@ -183,7 +204,87 @@ export default function NewPatientForm({
   }, [doctorQ, doctors]);
   const [apptDate, setApptDate] = useState("");
   const [apptTime, setApptTime] = useState("");
-  const [duration, setDuration] = useState(30);
+  const [duration, setDuration] = useState(15);
+  const [existingAppts, setExistingAppts] = useState<any[]>([]);
+
+  // Fetch appointments for selected date to check availability / walk-in queues
+  useEffect(() => {
+    if (walkin) {
+      let active = true;
+      fetch(`/api/appointments?date=${encodeURIComponent(TODAY)}`)
+        .then((r) => (r.ok ? r.json() : { appointments: [] }))
+        .then((data) => {
+          if (!active) return;
+          const appts = data.appointments ?? [];
+          setExistingAppts(appts);
+          let maxNum = 0;
+          for (const appt of appts) {
+            const q = (appt.queue_number ?? "").trim();
+            const num = parseInt(q, 10);
+            if (Number.isFinite(num) && num > maxNum) {
+              maxNum = num;
+            }
+          }
+          setQueueNumber(String(maxNum + 1));
+        })
+        .catch(() => {});
+      return () => {
+        active = false;
+      };
+    } else {
+      if (!apptDate) {
+        setExistingAppts([]);
+        return;
+      }
+      let active = true;
+      fetch(`/api/appointments?date=${encodeURIComponent(apptDate)}${doctorId ? `&doctor_id=${encodeURIComponent(doctorId)}` : ""}`)
+        .then((r) => (r.ok ? r.json() : { appointments: [] }))
+        .then((data) => {
+          if (active) {
+            setExistingAppts(data.appointments ?? []);
+          }
+        })
+        .catch(() => {
+          if (active) setExistingAppts([]);
+        });
+      return () => {
+        active = false;
+      };
+    }
+  }, [apptDate, doctorId, walkin, TODAY]);
+
+  // CSKH: Tính toán số chỗ trống
+  const isSlotBooked = useMemo(() => {
+    if (!apptDate || !apptTime) return false;
+    try {
+      const targetUtcStr = vnLocalToUtcISO(apptDate, apptTime);
+      return existingAppts.some((appt) => {
+        const matchDoc = !doctorId || appt.doctor_id === doctorId;
+        return matchDoc && appt.slot_start === targetUtcStr;
+      });
+    } catch {
+      return false;
+    }
+  }, [apptDate, apptTime, doctorId, existingAppts]);
+
+  // CSKH: Tự động điền ƯT1 - ƯT4
+  useEffect(() => {
+    if (walkin) return;
+    if (!apptTime) {
+      setQueueNumber("");
+      return;
+    }
+    if (isSlotBooked) {
+      setQueueNumber("");
+      return;
+    }
+    const mins = apptTime.split(":")[1];
+    if (mins === "00") setQueueNumber("ƯT1");
+    else if (mins === "15") setQueueNumber("ƯT2");
+    else if (mins === "30") setQueueNumber("ƯT3");
+    else if (mins === "45") setQueueNumber("ƯT4");
+    else setQueueNumber("");
+  }, [apptTime, isSlotBooked, walkin]);
   // Kênh đặt = NHẬP TỰ DO (feedback: "cho điền thôi, sau tự tính"). Để trống được.
   const [channel, setChannel] = useState("");
   // Số khám (queue_number) — feedback B5#8.
@@ -656,21 +757,7 @@ export default function NewPatientForm({
               placeholder="VD: 123 Lê Lợi"
             />
           </div>
-          <div>
-            <label className={LABEL}>Lĩnh vực</label>
-            <select
-              value={linhVuc}
-              onChange={(e) => setLinhVuc(e.target.value)}
-              className={INPUT}
-            >
-              <option value="">— Chọn lĩnh vực —</option>
-              {LINH_VUC_OPTIONS.map((o) => (
-                <option key={o.code} value={o.code}>
-                  {o.label}
-                </option>
-              ))}
-            </select>
-          </div>
+
           <div className="sm:col-span-2">
             <label className={LABEL}>Vấn đề khiến bệnh nhân đi khám</label>
             <input
@@ -687,14 +774,19 @@ export default function NewPatientForm({
               <div>
                 <label className={LABEL}>Dịch vụ khám</label>
                 <select
-                  value={serviceId}
-                  onChange={(e) => setServiceId(e.target.value)}
+                  value={linhVuc}
+                  onChange={(e) => {
+                    const code = e.target.value;
+                    setLinhVuc(code);
+                    const svcId = findServiceIdByLinhVuc(code, services);
+                    setServiceId(svcId);
+                  }}
                   className={INPUT}
                 >
                   <option value="">— Chọn dịch vụ —</option>
-                  {services.map((s) => (
-                    <option key={s.id} value={s.id}>
-                      {s.label}
+                  {LINH_VUC_OPTIONS.map((o) => (
+                    <option key={o.code} value={o.code}>
+                      {o.label}
                     </option>
                   ))}
                 </select>
@@ -755,6 +847,15 @@ export default function NewPatientForm({
                   )}
                 </div>
               </div>
+              <div>
+                <label className={LABEL}>Số khám</label>
+                <input
+                  value={queueNumber}
+                  onChange={(e) => setQueueNumber(e.target.value)}
+                  className={INPUT}
+                  placeholder="Tự động tăng dần (hoặc gõ ƯT1, ƯT2,...)"
+                />
+              </div>
             </>
           )}
         </div>
@@ -771,14 +872,19 @@ export default function NewPatientForm({
           <div>
             <label className={LABEL}>Dịch vụ khám</label>
             <select
-              value={serviceId}
-              onChange={(e) => setServiceId(e.target.value)}
+              value={linhVuc}
+              onChange={(e) => {
+                const code = e.target.value;
+                setLinhVuc(code);
+                const svcId = findServiceIdByLinhVuc(code, services);
+                setServiceId(svcId);
+              }}
               className={INPUT}
             >
               <option value="">— Chọn dịch vụ —</option>
-              {services.map((s) => (
-                <option key={s.id} value={s.id}>
-                  {s.label}
+              {LINH_VUC_OPTIONS.map((o) => (
+                <option key={o.code} value={o.code}>
+                  {o.label}
                 </option>
               ))}
             </select>
@@ -855,7 +961,11 @@ export default function NewPatientForm({
               onChange={setApptTime}
               minHour={apptMinHour}
               maxHour={apptMaxHour}
+              minutesOptions={["00", "15", "30", "45"]}
             />
+            <p className="mt-1 text-[11px] text-[#dc2626] font-medium leading-normal">
+              ⚠️ Lưu ý: Quý khách vui lòng đến đúng giờ hoặc muộn nhất 15 phút để giữ chỗ. Nếu đến muộn, lịch hẹn sẽ không còn hiệu lực ưu tiên (sẽ xếp số vãng lai theo thứ tự đến trực tiếp).
+            </p>
             {apptCh && (
               <p className="mt-1 text-[11px] text-[#a1a1aa]">
                 Giờ mở cửa: {apptCh.open}–{apptCh.close}
@@ -872,18 +982,12 @@ export default function NewPatientForm({
             />
           </div>
           <div>
-            <label className={LABEL}>Thời lượng</label>
-            <select
-              value={duration}
-              onChange={(e) => setDuration(Number(e.target.value))}
-              className={INPUT}
-            >
-              {DURATIONS.map((d) => (
-                <option key={d} value={d}>
-                  {d} phút
-                </option>
-              ))}
-            </select>
+            <label className={LABEL}>Số chỗ còn trống</label>
+            <div className={`min-h-11 rounded-lg border border-[#e4e4e7] bg-gray-50 px-3 py-2 text-sm font-semibold flex items-center ${
+              !apptDate || !apptTime ? "text-[#71717a]" : isSlotBooked ? "text-[#dc2626]" : "text-[#15803d]"
+            }`}>
+              {!apptDate || !apptTime ? "Vui lòng chọn ngày/giờ" : isSlotBooked ? "Hết chỗ (0)" : "Còn 1 chỗ (1)"}
+            </div>
           </div>
           <div>
             <label className={LABEL}>Kênh đặt</label>
@@ -893,7 +997,7 @@ export default function NewPatientForm({
               className={INPUT}
             >
               <option value="">— Chọn kênh —</option>
-              {CHANNELS.map((c) => (
+              {CHANNELS.filter((c) => c.id !== "WALK_IN").map((c) => (
                 <option key={c.id} value={c.id}>
                   {c.label}
                 </option>

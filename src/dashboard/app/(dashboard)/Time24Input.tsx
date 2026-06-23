@@ -16,12 +16,14 @@ export default function Time24Input({
   onChange,
   minHour = 0,
   maxHour = 23,
+  minutesOptions,
 }: {
   value: string;
   onChange: (v: string) => void;
   /** Giới hạn giờ theo giờ mở cửa PK (vd T2–T6 chỉ 17–22). */
   minHour?: number;
   maxHour?: number;
+  minutesOptions?: string[];
 }) {
   const [h, m] = value ? value.split(":") : ["", ""];
   const hours = HOURS.filter((x) => {
@@ -64,7 +66,7 @@ export default function Time24Input({
         aria-label="Phút"
       >
         <option value="">Phút</option>
-        {MINUTES.map((x) => (
+        {(minutesOptions ?? MINUTES).map((x) => (
           <option key={x} value={x}>
             {x}
           </option>
