@@ -8,6 +8,7 @@ import StatusBadge from "../../StatusBadge";
 import PatientAdminEditor from "../../PatientAdminEditor";
 import { getSupabaseServer } from "../../../../lib/supabase-server";
 import { fmtDateTimeOrDate } from "../../../../lib/datetime";
+import { doctorName } from "../../../../lib/doctor-name";
 
 interface PatientRow {
   clinic_patient_id: string;
@@ -227,7 +228,7 @@ export default async function PatientDetail({
                 {a.service?.name ?? "—"}
               </p>
               <p className="text-xs text-[#4d4d4d]">
-                BS {a.doctor?.full_name ?? "—"} ·{" "}
+                {a.doctor?.full_name ? doctorName(a.doctor.full_name) : "—"} ·{" "}
                 {a.booking_channel ?? "—"}
               </p>
             </div>

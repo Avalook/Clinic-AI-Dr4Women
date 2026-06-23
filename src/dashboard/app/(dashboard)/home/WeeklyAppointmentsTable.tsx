@@ -8,6 +8,7 @@ import { Fragment } from "react";
 import { fmtTimeOrNone } from "../../../lib/datetime";
 import { dayLabel, fmtDayMonth } from "../../../lib/roster";
 import { compareQueue } from "../../../lib/queue";
+import { doctorName } from "../../../lib/doctor-name";
 
 export interface WeekApptRow {
   id: string;
@@ -29,12 +30,6 @@ export interface ApptDay {
 }
 
 const NO_DOCTOR = "Chưa phân bác sĩ";
-
-// Bỏ tiền tố chức danh ("BS"/"BS SA"/"ĐD"/"TL") để khỏi lặp "BS. BS …", nhưng
-// GIỮ HỌ TÊN ĐẦY ĐỦ (không viết tắt/in hoa) — yêu cầu hiển thị đủ tên bác sĩ.
-function cleanDoctor(name: string): string {
-  return name.replace(/^(BS\s*SA|BS|ĐD|TL)[.\s]+/i, "").trim();
-}
 
 function PhanLoai({ value }: { value: string }) {
   if (!value) return <span className="text-[#c9a3b8]">—</span>;
@@ -117,7 +112,7 @@ export default function WeeklyAppointmentsTable({ days }: { days: ApptDay[] }) {
                       </td>
                       <td className={`${CELL} whitespace-nowrap font-medium text-[#b83280]`}>
                         {a.doctor?.full_name
-                          ? `BS. ${cleanDoctor(a.doctor.full_name)}`
+                          ? doctorName(a.doctor.full_name)
                           : NO_DOCTOR}
                       </td>
                       <td className={`${CELL} text-[#171717]`}>

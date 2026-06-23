@@ -5,14 +5,17 @@
 //     + tìm tên/mã/SĐT). Mỗi dòng hiện LỊCH HẸN sắp tới của khách.
 //   • Phải: thông tin chi tiết của khách đang chọn (bôi HỒNG ở list).
 // Sau khi tạo khách mới, NewPatientForm điều hướng /customers?selected=<id> →
-// khách đó tự được chọn + bôi hồng. Lọc/tìm = điều hướng searchParams (server lọc
-// lại); CHỌN = state client.
+// khách đó tự được chọn + bôi hồng. Lọc/tìm: GÕ TỚI ĐÂU LỌC TỚI ĐÓ — lọc CLIENT
+// tức thì trên danh sách đã nạp + tự gọi server (debounce 350ms, bọc useTransition
+// nên KHÔNG nháy skeleton / không mất focus) để phủ toàn DB. KHÔNG cần bấm "Tìm"
+// (feedback PM 23/6). CHỌN = state client.
 
-import { useState } from "react";
+import { useState, useEffect, useMemo, useRef, useTransition } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Search, ExternalLink, X, CalendarClock } from "lucide-react";
 import { fmtDate, fmtDateTimeOrDate } from "../../../lib/datetime";
+import { unaccentVi } from "../../../lib/validation";
 import PatientAdminEditor from "../PatientAdminEditor";
 
 export interface CustomerRow {
@@ -86,6 +89,7 @@ export default function CustomersView({
   // (trừ khi vừa tạo khách mới → initialSelected để bôi hồng + xem ngay).
   const [sel, setSel] = useState<string | null>(initialSelected ?? null);
   const [term, setTerm] = useState(q);
+  const [isPending, startTransition] = useTransition();
 
   const selected = rows.find((r) => r.clinic_patient_id === sel) ?? null;
   const selectedAppt = selected
@@ -102,6 +106,37 @@ export default function CustomersView({
     const qs = p.toString();
     router.push(`/customers${qs ? `?${qs}` : ""}`);
   }
+
+  // Lọc CLIENT tức thì trên rows đã nạp (cảm giác như /patient-list) — không phân
+  // biệt dấu/hoa-thường, khớp một phần tên/mã/SĐT. Server (debounce dưới) sẽ phủ
+  // toàn DB cho từ khoá khớp BN nằm ngoài ~300 dòng đã nạp.
+  const shown = useMemo(() => {
+    const t = unaccentVi(term.trim());
+    if (!t) return rows;
+    return rows.filter(
+      (r) =>
+        unaccentVi(r.full_name).includes(t) ||
+        unaccentVi(r.patient_code).includes(t) ||
+        unaccentVi(r.phone_primary ?? "").includes(t),
+    );
+  }, [rows, term]);
+
+  // Tự động tìm khi gõ (debounce 350ms) — bỏ qua lần mount đầu + khi term trùng q
+  // hiện tại (tránh đẩy router thừa / lặp). startTransition → giữ danh sách cũ
+  // trong lúc server trả về (không nháy skeleton, không mất focus ô nhập).
+  const firstRun = useRef(true);
+  useEffect(() => {
+    if (firstRun.current) {
+      firstRun.current = false;
+      return;
+    }
+    if (term.trim() === q.trim()) return;
+    const id = setTimeout(() => {
+      startTransition(() => go(period, term, by));
+    }, 350);
+    return () => clearTimeout(id);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [term]);
 
   return (
     <div className="space-y-3">
@@ -144,7 +179,7 @@ export default function CustomersView({
         <form
           onSubmit={(e) => {
             e.preventDefault();
-            go(period, term, by);
+            startTransition(() => go(period, term, by));
           }}
           className="flex items-center gap-2"
         >
@@ -160,18 +195,12 @@ export default function CustomersView({
               className="min-h-9 w-full rounded-lg border border-[#e4e4e7] bg-white pl-8 pr-3 text-sm outline-none focus:border-[#ec4899] focus:ring-2 focus:ring-[#ec4899]/15 sm:w-64"
             />
           </div>
-          <button
-            type="submit"
-            className="min-h-9 rounded-lg bg-[#ec4899] px-3 text-sm font-medium text-white hover:bg-[#db2777]"
-          >
-            Tìm
-          </button>
-          {q && (
+          {term && (
             <button
               type="button"
               onClick={() => {
                 setTerm("");
-                go(period, "", by);
+                startTransition(() => go(period, "", by));
               }}
               className="min-h-9 rounded-lg border border-[#e4e4e7] bg-white px-3 text-sm text-[#52525b] hover:bg-[#f4f4f5]"
             >
@@ -189,7 +218,8 @@ export default function CustomersView({
 
       {/* Dòng đếm ĐẶT TRÊN cả 2 cột → list + chi tiết bắt đầu cùng 1 mốc (canh đều). */}
       <div className="text-xs text-[#888888]">
-        {rows.length} khách hàng
+        {shown.length} khách hàng
+        {isPending && " · đang tìm…"}
         {rows.length >= 300 && " (300 gần nhất — lọc hẹp hơn nếu cần)"}
         {selected && (
           <span className="text-[#9d2463]">
@@ -203,15 +233,17 @@ export default function CustomersView({
         {/* DANH SÁCH (trái) */}
         <div className="min-w-0 flex-1">
           <div className="h-[560px] max-h-[80vh] overflow-y-auto rounded-xl border border-[#f3cfe0] bg-white shadow-[0_1px_3px_rgba(236,72,153,0.08)]">
-            {rows.length === 0 ? (
+            {shown.length === 0 ? (
               <p className="px-4 py-12 text-center text-sm text-[#a1a1aa]">
-                {by === "appt"
-                  ? "Không có khách nào có lịch hẹn trong kỳ này."
-                  : "Chưa có bệnh nhân nào trong khoảng lọc này. Tạo ở “Tạo bệnh nhân”."}
+                {term.trim()
+                  ? "Không tìm thấy khách khớp từ khoá."
+                  : by === "appt"
+                    ? "Không có khách nào có lịch hẹn trong kỳ này."
+                    : "Chưa có bệnh nhân nào trong khoảng lọc này. Tạo ở “Tạo bệnh nhân”."}
               </p>
             ) : (
               <ul className="divide-y divide-[#f6e0ec]">
-                {rows.map((r) => {
+                {shown.map((r) => {
                   const active =
                     r.clinic_patient_id === selected?.clinic_patient_id;
                   const ap = apptByPatient[r.clinic_patient_id];

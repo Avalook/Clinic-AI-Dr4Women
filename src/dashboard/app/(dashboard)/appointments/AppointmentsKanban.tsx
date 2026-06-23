@@ -7,6 +7,7 @@
 import Link from "next/link";
 import AppointmentActions from "./AppointmentActions";
 import { fmtTimeOrNone, fmtDate } from "../../../lib/datetime";
+import { doctorName } from "../../../lib/doctor-name";
 
 export interface KanbanRow {
   id: string;
@@ -109,7 +110,7 @@ function Card({
 
       {/* Doctor + channel */}
       <p className="mt-0.5 text-xs text-[#71717a]">
-        BS {a.doctor?.full_name ?? "—"}
+        {a.doctor?.full_name ? doctorName(a.doctor.full_name) : "—"}
         {a.booking_channel ? ` · ${a.booking_channel}` : ""}
       </p>
 

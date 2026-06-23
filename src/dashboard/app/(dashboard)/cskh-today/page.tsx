@@ -17,6 +17,7 @@ import {
   nowMs,
   VN_TZ,
 } from "../../../lib/datetime";
+import { doctorName } from "../../../lib/doctor-name";
 import CskhFollowupList, {
   type FollowupBucket,
 } from "./CskhFollowupList";
@@ -343,7 +344,7 @@ export default async function CskhTodayPage() {
                   </p>
                   <p className="truncate text-xs text-[#888888]">
                     {a.service?.name ?? "Chưa chọn dịch vụ"}
-                    {a.doctor?.full_name ? ` · BS ${a.doctor.full_name}` : ""}
+                    {a.doctor?.full_name ? ` · ${doctorName(a.doctor.full_name)}` : ""}
                   </p>
                 </div>
                 <TasksLink />
