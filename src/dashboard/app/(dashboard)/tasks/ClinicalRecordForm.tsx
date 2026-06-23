@@ -294,6 +294,7 @@ export default function ClinicalRecordForm({
   const pagesRef = useRef<PageRef[]>([]);
   const viewingPast = pageIdx > 0;
   const showAll = viewingPast;
+  const [pastOpen, setPastOpen] = useState(false);
   // Đổi BN / lịch → component REMOUNT (cả 2 board truyền key={appt.id}) nên
   // pages/pageIdx tự reset, KHÔNG cần effect reset thủ công.
   // Đổi trang qua pager: bật loading NGAY trong handler (không setState trong
@@ -652,33 +653,7 @@ export default function ClinicalRecordForm({
                 Chỉ ghi Sinh hiệu
               </span>
             )}
-            {/* Pager lượt khám (◀ ▶): trang 1 = lượt mới nhất; ▶ lùi về lượt cũ
-                hơn, ◀ tiến tới lượt mới hơn. Chỉ hiện khi BN có ≥2 lượt. */}
-            {enableVisitPager && pages.length > 1 && (
-              <span className="inline-flex items-center gap-0.5 rounded-full border border-[#f3cfe0] bg-white px-0.5 py-0.5 normal-case">
-                <button
-                  type="button"
-                  onClick={() => goPage(Math.max(0, pageIdx - 1))}
-                  disabled={pageIdx === 0}
-                  aria-label="Lượt khám mới hơn"
-                  className="rounded-full p-0.5 text-[#9d2463] hover:bg-[#fdf2f8] disabled:opacity-30"
-                >
-                  <ChevronLeft size={15} />
-                </button>
-                <span className="px-1 text-[11px] font-medium text-[#9d2463]">
-                  trang {pageIdx + 1}/{pages.length}
-                </span>
-                <button
-                  type="button"
-                  onClick={() => goPage(Math.min(pages.length - 1, pageIdx + 1))}
-                  disabled={pageIdx >= pages.length - 1}
-                  aria-label="Lượt khám cũ hơn"
-                  className="rounded-full p-0.5 text-[#9d2463] hover:bg-[#fdf2f8] disabled:opacity-30"
-                >
-                  <ChevronRight size={15} />
-                </button>
-              </span>
-            )}
+
             {viewingPast && (
               <span className="rounded bg-[#fce7f3] px-1.5 py-0.5 text-[10px] font-medium normal-case text-[#9d2463]">
                 👁 Lượt khám cũ — chỉ xem
@@ -723,6 +698,40 @@ export default function ClinicalRecordForm({
         </div>
       )}
 
+      {/* Hàng 1: Khám mới / Khám cũ (chỉ hiển thị khi có >1 lượt khám) */}
+      {pages.length > 1 && (
+        <div className="flex shrink-0 items-center gap-1.5 border-b border-[#e4e4e7] bg-[#fafafa] px-3 py-1.5">
+          <button
+            type="button"
+            onClick={() => {
+              if (viewingPast) goPage(0);
+            }}
+            className={`rounded-lg px-3 py-1 text-xs font-semibold uppercase tracking-wider transition-all duration-150 ${
+              !viewingPast
+                ? "bg-[#ec4899] text-white shadow-sm"
+                : "bg-white border border-[#e4e4e7] text-[#52525b] hover:bg-[#f4f4f5]"
+            }`}
+          >
+            Khám mới
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              if (!viewingPast) {
+                goPage(1); // Mặc định chọn lượt cũ gần nhất
+              }
+            }}
+            className={`rounded-lg px-3 py-1 text-xs font-semibold uppercase tracking-wider transition-all duration-150 ${
+              viewingPast
+                ? "bg-[#1e40af] text-white shadow-sm"
+                : "bg-white border border-[#e4e4e7] text-[#52525b] hover:bg-[#f4f4f5]"
+            }`}
+          >
+            Khám cũ
+          </button>
+        </div>
+      )}
+
       {/* Thanh TAB (cố định) — chia 4 mục theo luồng khám; chỉ render tab đang chọn. */}
       <div className="flex shrink-0 items-center gap-0.5 overflow-x-auto border-b border-[#e4e4e7] px-2 py-1.5">
         <span className="mr-0.5 shrink-0 rounded bg-[#fce7f3] px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wider text-[#9d2463]">
@@ -749,20 +758,56 @@ export default function ClinicalRecordForm({
             <span className="mr-0.5 shrink-0 rounded bg-[#f4f4f5] px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wider text-[#71717a]">
               Cũ
             </span>
-            {pages.slice(1).map((pg, i) => {
-              const visitIdx = i + 1;
-              const lanLabel = `Lần ${pages.length - visitIdx}`;
-              return (
-                <button
-                  key={pg.visitId ?? visitIdx}
-                  type="button"
-                  onClick={() => goPage(visitIdx)}
-                  className={TAB + (viewingPast && pageIdx === visitIdx ? TAB_ON : TAB_OFF)}
-                >
-                  {lanLabel}: {fmtDate(pg.date)}
-                </button>
-              );
-            })}
+            <div className="relative inline-block text-left">
+              <button
+                type="button"
+                onClick={() => setPastOpen(!pastOpen)}
+                className={`inline-flex items-center gap-1 rounded-lg px-2.5 py-1 text-xs font-medium transition-colors ${
+                  viewingPast
+                    ? "bg-[#eff6ff] font-semibold text-[#1e40af] border border-[#bfdbfe]"
+                    : "border border-[#e4e4e7] bg-white text-[#52525b] hover:bg-[#f4f4f5]"
+                }`}
+              >
+                <span>
+                  {viewingPast
+                    ? `Lần ${pages.length - pageIdx}: ${fmtDate(pages[pageIdx]?.date)}`
+                    : "Chọn lần khám cũ"}
+                </span>
+                <span className="text-[10px] text-[#94a3b8]">▼</span>
+              </button>
+
+              {pastOpen && (
+                <>
+                  <div className="fixed inset-0 z-40" onClick={() => setPastOpen(false)} />
+                  <ul className="absolute left-0 top-full z-50 mt-1 max-h-60 w-56 overflow-auto rounded-lg border border-[#e4e4e7] bg-white p-1 shadow-lg ring-1 ring-black/5 animate-in fade-in slide-in-from-top-1 duration-100">
+                    {pages.slice(1).map((pg, i) => {
+                      const visitIdx = i + 1;
+                      const isSelected = pageIdx === visitIdx;
+                      const lanLabel = `Lần ${pages.length - visitIdx}`;
+                      return (
+                        <li key={pg.visitId ?? visitIdx}>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              goPage(visitIdx);
+                              setPastOpen(false);
+                            }}
+                            className={`w-full rounded-md px-2.5 py-1.5 text-left text-xs transition-colors flex items-center justify-between ${
+                              isSelected
+                                ? "bg-[#eff6ff] font-semibold text-[#1e40af]"
+                                : "text-[#334155] hover:bg-[#f1f5f9]"
+                            }`}
+                          >
+                            <span>{lanLabel}: {fmtDate(pg.date)}</span>
+                            {isSelected && <span className="text-[#1e40af] font-bold">✓</span>}
+                          </button>
+                        </li>
+                      );
+                    })}
+                  </ul>
+                </>
+              )}
+            </div>
           </>
         )}
       </div>
