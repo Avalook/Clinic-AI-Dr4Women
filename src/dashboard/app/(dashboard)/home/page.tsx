@@ -65,7 +65,7 @@ export default async function HomePage({
   const role = await getClinicRole();
   const staff = await getActiveStaff();
   const staffId = await getClinicStaffId();
-  const showCheckin = canCheckin(role); // ĐD/Lễ tân/Quản lý: khu check-in ở đây
+  const showCheckin = canCheckin(role) && role !== "RECEPTION"; // ĐD/Lễ tân/Quản lý: khu check-in ở đây, ẩn cho Lễ tân vì đã có trang riêng
   // CHỈ Bác sĩ + Điều dưỡng ghi lâm sàng; Lễ tân/QL check-in nhưng xem chỉ-đọc.
   const writeClinical = canWriteClinical(role);
   const isReception = role === "RECEPTION"; // bảng trạng thái buổi khám: chỉ Lễ tân

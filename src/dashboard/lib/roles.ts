@@ -198,6 +198,7 @@ const NAV_ROLES: Record<string, "all" | ClinicRole[]> = {
   "/patients": ["MANAGEMENT", "TRUONG_CA"],
   // Điều dưỡng cũng nhập được (khách vãng lai).
   "/patients/new": ["CSKH", "RECEPTION", "MANAGEMENT", "NURSE_ULTRASOUND", "TRUONG_CA"],
+  "/reception-checkin": ["RECEPTION", "MANAGEMENT", "TRUONG_CA", "NURSE_ULTRASOUND"],
   // /checkin đã chuyển hẳn lên Trang chủ (HomeCheckin) — route cũ đã xóa.
   // Lễ tân được THÊM vào: thấy "Công việc của tôi" nhưng ở chế độ CHỈ XEM
   // (clone giao diện board bác sĩ, khóa mọi nút sửa — xem isTasksReadOnly).

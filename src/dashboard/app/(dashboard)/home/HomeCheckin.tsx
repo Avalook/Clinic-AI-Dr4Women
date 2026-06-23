@@ -35,15 +35,17 @@ export default function HomeCheckin({
   rows,
   staffId,
   canWriteClinical = false,
+  defaultOpen = false,
 }: {
   rows: HomeCheckinRow[];
   staffId: string | null;
   /** CHỈ Bác sĩ + Điều dưỡng được ghi lâm sàng (sinh hiệu + lý do khám). Lễ tân /
    *  Quản lý vẫn check-in (hành chính) nhưng xem hồ sơ lâm sàng ở chế độ chỉ-đọc. */
   canWriteClinical?: boolean;
+  defaultOpen?: boolean;
 }) {
   const router = useRouter();
-  const [open, setOpen] = useState(false);
+  const [open, setOpen] = useState(defaultOpen);
   const [q, setQ] = useState("");
   const [busyId, setBusyId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -126,8 +128,7 @@ export default function HomeCheckin({
             //   SCHEDULED          → "Gọi xác nhận" (cskh_confirm)
             //   CSKH_CONFIRMED/CONFIRMED → "Check-in" (BN đã tới)
             //   CHECKED_IN         → đã vào hàng khám của bác sĩ (chỉ Hoàn tác)
-            const canCall = r.status === "SCHEDULED";
-            const canCheckIn = ["CSKH_CONFIRMED", "CONFIRMED"].includes(r.status);
+            const canCheckIn = ["SCHEDULED", "CSKH_CONFIRMED", "CONFIRMED"].includes(r.status);
             const statusVN = STATUS_VN[r.status] ?? r.status;
             const active = selId === r.id;
             return (
@@ -178,7 +179,7 @@ export default function HomeCheckin({
                       ? "bg-[#f4f4f5] text-[#52525b]"
                       : checkedIn
                         ? "bg-[#dcfce7] text-[#15803d]"
-                        : canCall
+                        : r.status === "SCHEDULED"
                           ? "bg-[#fef9c3] text-[#a16207]"
                           : canCheckIn
                             ? "bg-[#fce7f3] text-[#9d2463]"
@@ -214,26 +215,8 @@ export default function HomeCheckin({
                       Hoàn tác check-in
                     </button>
                   </div>
-                ) : canCall ? (
-                  // Chưa xác nhận → Lễ tân/CSKH gọi xác nhận với khách.
-                  <div className="flex shrink-0 flex-col items-end gap-1">
-                    <button
-                      onClick={() => act(r.id, "cskh_confirm")}
-                      disabled={busyId === r.id}
-                      className="min-h-9 rounded-lg bg-[#ec4899] px-3 text-xs font-semibold text-white hover:bg-[#db2777] disabled:opacity-50"
-                    >
-                      {busyId === r.id ? "..." : "Gọi xác nhận"}
-                    </button>
-                    <button
-                      onClick={() => act(r.id, "no_show")}
-                      disabled={busyId === r.id}
-                      className="text-[11px] text-[#a1a1aa] hover:text-[#dc2626] disabled:opacity-50"
-                    >
-                      Không đến
-                    </button>
-                  </div>
                 ) : canCheckIn ? (
-                  // Đã xác nhận, BN chưa đến → BN tới quầy thì Check-in.
+                  // Đã xác nhận/Chưa xác nhận, BN chưa đến → BN tới quầy thì Check-in.
                   <div className="flex shrink-0 flex-col items-end gap-1">
                     <button
                       onClick={() => act(r.id, "checkin")}
