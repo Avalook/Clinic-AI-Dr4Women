@@ -211,8 +211,9 @@ const NAV_ROLES: Record<string, "all" | ClinicRole[]> = {
   // ("Công việc của tôi" thu ngân nằm ở /tasks, gate bằng entry /tasks bên dưới.)
   "/cashier/thuoc": ["CASHIER_THUOC", "CASHIER", "MANAGEMENT", "TRUONG_CA"],
   "/cashier/dich-vu": ["CASHIER_DV", "CASHIER", "MANAGEMENT", "TRUONG_CA"],
-  // Bác sĩ + Lễ tân + Điều dưỡng tự đăng ký ca của mình; Quản lý + Trưởng ca xếp cả bảng.
-  "/schedule": [...DOCTOR_ROLES_LIST, "NURSE_ULTRASOUND", "RECEPTION", "MANAGEMENT", "TRUONG_CA"],
+  // MỌI vai trò tự đăng ký ca của mình (CSKH, thu ngân... cũng cần); Quản lý +
+  // Trưởng ca xếp cả bảng. Ca tự đăng ký vào trạng thái chờ duyệt (xem /api/roster).
+  "/schedule": "all",
   "/work-sessions": ["MANAGEMENT", "TRUONG_CA"],
   "/reports": ["MANAGEMENT", "TRUONG_CA"],
   // Cài đặt (tạo user / cấu hình hệ thống) = CHỈ Quản lý — ranh giới "thấp hơn
