@@ -304,6 +304,19 @@ export async function POST(request: Request) {
         origin: "dashboard:appointment-walkin-autocheckin",
       },
     });
+
+    // …và MỞ visit OPEN ngay (giống luồng PATCH check-in) → BN hiện trên bảng
+    // "Trạng thái BN buổi khám hôm nay" từ lúc tạo walk-in. Best-effort.
+    const { error: vErr } = await db.from("visit").insert({
+      clinic_patient_id,
+      appointment_id: data.id,
+      attending_doctor_id: doctor_id,
+      status: "OPEN",
+      checked_in_at: new Date().toISOString(),
+    });
+    if (vErr && vErr.code !== "23505") {
+      console.error("Mở visit lúc walk-in check-in lỗi:", vErr.message);
+    }
   }
 
   return NextResponse.json({ ok: true, appointment_id: data.id });
@@ -623,6 +636,46 @@ export async function PATCH(request: Request) {
       origin: `dashboard:appointment-${action}`,
     },
   });
+
+  // Lễ tân check-in → MỞ lượt khám (visit OPEN) NGAY, để BN hiện trên bảng
+  // "Trạng thái BN buổi khám hôm nay" (thanh tiến trình kiểu Grab) TỪ LÚC ĐẾN
+  // QUẦY — không phải đợi bác sĩ/ĐD ghi hồ sơ mới hiện (lỗi BN báo: check-in xong
+  // mà bảng trống). checked_in_at nuôi "đồng hồ chờ". UNIQUE(appointment_id)
+  // (mig 039) → đã có visit thì bỏ qua (23505). clinical-record sau đó tìm thấy
+  // visit OPEN này và ghi tiếp (OPEN ∈ WRITABLE) — KHÔNG tạo trùng. Best-effort:
+  // lỗi / chưa có bảng visit KHÔNG chặn việc check-in (đã thành công ở trên).
+  if (action === "checkin") {
+    const { data: had } = await db
+      .from("visit")
+      .select("visit_id")
+      .eq("appointment_id", id)
+      .limit(1)
+      .maybeSingle();
+    if (!had) {
+      const { error: vErr } = await db.from("visit").insert({
+        clinic_patient_id: appt.clinic_patient_id,
+        appointment_id: id,
+        attending_doctor_id: appt.doctor_id ?? null,
+        status: "OPEN",
+        checked_in_at: new Date().toISOString(),
+      });
+      if (vErr && vErr.code !== "23505") {
+        console.error("Mở visit lúc check-in lỗi:", vErr.message);
+      }
+    }
+  }
+
+  // Hoàn tác check-in → gỡ lượt khám CHƯA bắt đầu (visit còn OPEN, chưa ghi gì)
+  // để bảng trạng thái không còn BN ảo. CHỈ xoá khi status='OPEN' — đã sang
+  // IN_PROGRESS/FINALIZED nghĩa là đã có dữ liệu lâm sàng → KHÔNG đụng. Best-effort.
+  if (action === "undo_checkin") {
+    const { error: delErr } = await db
+      .from("visit")
+      .delete()
+      .eq("appointment_id", id)
+      .eq("status", "OPEN");
+    if (delErr) console.error("Gỡ visit OPEN lúc undo check-in lỗi:", delErr.message);
+  }
 
   // CSKH xác nhận lịch → GHI THẬT 1 việc "Đặt hẹn" vào cskh_action ngay (không
   // chờ Zalo/Pancake). Hiện luôn ở board "Theo dõi tình trạng lịch hẹn" cột Đặt
