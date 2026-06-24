@@ -179,11 +179,50 @@ export default async function HomePage({
           .lt("created_at", dayEnd)
           .order("created_at", { ascending: true })
           .limit(300)
-      : Promise.resolve({ data: [] }),
+      : Promise.resolve({ data: [], error: null }),
   ]);
   const checkinRows = (checkinRes.data as HomeCheckinRow[] | null) ?? [];
-  const visitStatusRows =
-    (visitStatusRes.data as VisitStatusRow[] | null) ?? [];
+
+  // Board trạng thái buổi khám: nếu select đầy đủ LỖI (DB chinh "gần rỗng" có
+  // thể CHƯA apply mig 058 exam_completed_at, hoặc thiếu quan hệ appointment FK)
+  // → KHÔNG để bảng trắng câm. Rơi xuống select TỐI THIỂU (không exam_completed_at,
+  // không join appointment), rồi lấy appointment.status riêng theo appointment_id.
+  let visitStatusRows = (visitStatusRes.data as VisitStatusRow[] | null) ?? [];
+  if (isReception && (visitStatusRes as { error?: unknown }).error) {
+    const FALLBACK_SELECT = `
+      visit_id, status, checked_in_at, created_at, appointment_id,
+      patient:patient!clinic_patient_id ( full_name, patient_code ),
+      doctor:staff!attending_doctor_id ( full_name ),
+      service:service_type!service_type_id ( name )
+    `;
+    const { data: fb } = await supabase
+      .from("visit")
+      .select(FALLBACK_SELECT)
+      .gte("created_at", dayStart)
+      .lt("created_at", dayEnd)
+      .order("created_at", { ascending: true })
+      .limit(300);
+    const rows = (fb as (VisitStatusRow & { appointment_id?: string })[] | null) ?? [];
+    const apptIds = [
+      ...new Set(rows.map((r) => r.appointment_id).filter((x): x is string => !!x)),
+    ];
+    if (apptIds.length) {
+      const { data: appts } = await supabase
+        .from("appointment")
+        .select("id, status")
+        .in("id", apptIds);
+      const statusById = new Map(
+        ((appts as { id: string; status: string }[] | null) ?? []).map((a) => [
+          a.id,
+          a.status,
+        ]),
+      );
+      for (const r of rows) {
+        r.appointment = { status: statusById.get(r.appointment_id ?? "") ?? null };
+      }
+    }
+    visitStatusRows = rows;
+  }
 
   // Mốc "Đã thanh toán" của thanh tiến trình: đã thu ĐỦ mọi khâu PHẢI thu của lượt
   // khám = DỊCH VỤ (luôn có, vì có dịch vụ khám) + THUỐC nếu lượt có đơn thuốc.
