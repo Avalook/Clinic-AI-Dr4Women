@@ -123,6 +123,7 @@ export default async function SchedulePage({
       {/* Không phải quản lý: form tự đăng ký ca CỦA MÌNH ở dưới (feedback C4). */}
       {!isAdmin && (
         <SelfRosterForm
+          key={week}
           weekStart={week}
           dates={dates}
           defaultStation={defaultStationForRole(role)}

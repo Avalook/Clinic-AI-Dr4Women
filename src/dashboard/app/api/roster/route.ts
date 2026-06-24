@@ -14,6 +14,7 @@ import {
   getActiveStaff,
 } from "../../../lib/clinic-session";
 import { isOpsAdmin } from "../../../lib/roles";
+import { weekStartOf } from "../../../lib/roster";
 
 type Auth =
   | {
@@ -101,7 +102,9 @@ export async function POST(request: Request) {
   const { data, error } = await auth.admin
     .from("work_roster")
     .insert({
-      week_start,
+      // Tính week_start TỪ work_date (không tin client) — tránh lệch tuần khi
+      // form còn giữ ngày cũ lúc người dùng chuyển tuần (state không reset).
+      week_start: weekStartOf(work_date),
       work_date,
       shift,
       station,
