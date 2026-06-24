@@ -145,7 +145,8 @@ export default async function HomePage({
     supabase
       .from("work_roster")
       .select("work_date, station, staff_name, shift")
-      .eq("week_start", weekRoster),
+      .eq("week_start", weekRoster)
+      .eq("status", "APPROVED"), // chỉ ca đã duyệt mới lên lịch chung trang chủ
     supabase
       .from("appointment")
       .select(WEEK_APPT_SELECT)

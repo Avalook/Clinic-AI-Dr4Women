@@ -21,6 +21,7 @@ import WorkRosterTable, {
   type RosterRow,
 } from "../home/WorkRosterTable";
 import SelfRosterForm from "./SelfRosterForm";
+import PendingApprovalPanel from "./PendingApprovalPanel";
 
 export const dynamic = "force-dynamic";
 
@@ -28,6 +29,7 @@ export const dynamic = "force-dynamic";
 interface RosterRowWithId extends RosterRow {
   id: string;
   staff_id: string | null;
+  status: "PENDING" | "APPROVED" | "REJECTED";
 }
 
 export default async function SchedulePage({
@@ -48,12 +50,22 @@ export default async function SchedulePage({
   const supabase = await getSupabaseServer();
   const { data } = await supabase
     .from("work_roster")
-    .select("id, work_date, shift, station, staff_id, staff_name")
+    .select("id, work_date, shift, station, staff_id, staff_name, status")
     .eq("week_start", week)
     .order("sort", { ascending: true });
   const rows = (data as RosterRowWithId[] | null) ?? [];
+
+  // Lịch chung CHỈ hiện ca đã duyệt. Ca PENDING/REJECTED không lọt vào bảng.
+  const approvedRows = rows.filter((r) => r.status === "APPROVED");
+
+  // Của tôi: gồm cả ca chờ duyệt để hiện nhãn trạng thái trong form.
   const myRows = myStaffId
-    ? rows.filter((r) => r.staff_id === myStaffId)
+    ? rows.filter((r) => r.staff_id === myStaffId && r.status !== "REJECTED")
+    : [];
+
+  // Admin: hàng đợi ca chờ duyệt của tuần này.
+  const pendingRows = isAdmin
+    ? rows.filter((r) => r.status === "PENDING")
     : [];
 
   const weekLabel = `${fmtDayMonth(dates[0])} – ${fmtDayMonth(dates[6])}`;
@@ -92,8 +104,21 @@ export default async function SchedulePage({
         </Link>
       </div>
 
-      {/* Bảng ma trận — DÙNG CHUNG với Trang chủ, mọi vai trò thấy giống nhau. */}
-      <WorkRosterTable dates={dates} rows={rows} />
+      {/* Bảng ma trận — DÙNG CHUNG với Trang chủ. Chỉ ca ĐÃ DUYỆT mới hiện. */}
+      <WorkRosterTable dates={dates} rows={approvedRows} />
+
+      {/* Quản lý: hàng đợi duyệt ca tự đăng ký của tuần này. */}
+      {isAdmin && pendingRows.length > 0 && (
+        <PendingApprovalPanel
+          rows={pendingRows.map((r) => ({
+            id: r.id,
+            work_date: r.work_date,
+            station: r.station,
+            shift: r.shift as "FULL" | "SANG" | "CHIEU",
+            staff_name: r.staff_name ?? "",
+          }))}
+        />
+      )}
 
       {/* Không phải quản lý: form tự đăng ký ca CỦA MÌNH ở dưới (feedback C4). */}
       {!isAdmin && (
@@ -106,6 +131,7 @@ export default async function SchedulePage({
             work_date: r.work_date,
             station: r.station,
             shift: r.shift as "FULL" | "SANG" | "CHIEU",
+            status: r.status as "PENDING" | "APPROVED",
           }))}
         />
       )}

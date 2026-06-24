@@ -108,12 +108,49 @@ export async function POST(request: Request) {
       staff_id,
       staff_name,
       sort: body.sort ?? 0,
+      // Quản lý xếp lịch → duyệt luôn. Nhân viên tự đăng ký → chờ duyệt, chưa
+      // hiện trên lịch chung tới khi quản lý duyệt (xem PATCH bên dưới).
+      status: auth.isAdmin ? "APPROVED" : "PENDING",
     })
     .select("id")
     .single();
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
   return NextResponse.json({ ok: true, id: data.id });
+}
+
+// Quản lý duyệt / từ chối ca tự đăng ký (PENDING). Body: { id, action }.
+//  - approve → status = APPROVED (hiện lên lịch chung).
+//  - reject  → status = REJECTED (ẩn khỏi lịch chung, lưu lại để đối chiếu).
+export async function PATCH(request: Request) {
+  const auth = await authorize();
+  if (!auth.ok) return auth.res;
+  if (!auth.isAdmin) {
+    return NextResponse.json(
+      { error: "Chỉ quản lý được duyệt ca." },
+      { status: 403 },
+    );
+  }
+
+  let body: { id?: string; action?: string };
+  try {
+    body = (await request.json()) as { id?: string; action?: string };
+  } catch {
+    return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
+  }
+  const id = (body.id ?? "").trim();
+  if (!id) return NextResponse.json({ error: "Thiếu id." }, { status: 400 });
+  if (body.action !== "approve" && body.action !== "reject") {
+    return NextResponse.json({ error: "action không hợp lệ." }, { status: 400 });
+  }
+  const status = body.action === "approve" ? "APPROVED" : "REJECTED";
+
+  const { error } = await auth.admin
+    .from("work_roster")
+    .update({ status, updated_at: new Date().toISOString() })
+    .eq("id", id);
+  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  return NextResponse.json({ ok: true });
 }
 
 export async function DELETE(request: Request) {

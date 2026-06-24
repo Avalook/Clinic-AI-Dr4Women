@@ -35,6 +35,7 @@ export default async function ScheduleEditPage({
       .from("work_roster")
       .select("id, work_date, shift, station, staff_id, staff_name")
       .eq("week_start", week)
+      .eq("status", "APPROVED") // lưới sửa = lịch chính thức; ca chờ duyệt ở panel /schedule
       .order("work_date", { ascending: true })
       .order("sort", { ascending: true }),
     supabase

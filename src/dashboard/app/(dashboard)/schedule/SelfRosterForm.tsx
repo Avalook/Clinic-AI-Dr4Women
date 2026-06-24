@@ -23,6 +23,7 @@ export interface MyRosterRow {
   work_date: string;
   station: string;
   shift: Shift;
+  status: "PENDING" | "APPROVED";
 }
 
 export default function SelfRosterForm({
@@ -42,9 +43,11 @@ export default function SelfRosterForm({
   const [shift, setShift] = useState<Shift>("FULL");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
 
   async function add() {
     setError(null);
+    setNotice(null);
     setBusy(true);
     const res = await fetch("/api/roster", {
       method: "POST",
@@ -61,6 +64,7 @@ export default function SelfRosterForm({
       setError((await res.json()).error ?? "Lỗi khi thêm.");
       return;
     }
+    setNotice("Đã gửi đăng ký. Ca sẽ lên lịch chung sau khi quản lý duyệt.");
     router.refresh();
   }
 
@@ -115,6 +119,11 @@ export default function SelfRosterForm({
           {error}
         </p>
       )}
+      {notice && (
+        <p className="mt-2 rounded bg-[#fef9c3] px-3 py-2 text-sm text-[#854d0e]">
+          {notice}
+        </p>
+      )}
       <div className="mt-3">
         <button onClick={add} disabled={busy} className={BTN}>
           {busy ? "Đang lưu..." : "+ Đăng ký ca"}
@@ -135,6 +144,15 @@ export default function SelfRosterForm({
                 · {STATION_LABEL[r.station] ?? r.station}
                 {r.shift !== "FULL" && (
                   <span className="text-[#a1a1aa]"> ({SHIFT_LABEL[r.shift]})</span>
+                )}
+                {r.status === "PENDING" ? (
+                  <span className="ml-2 rounded bg-[#fef9c3] px-1.5 py-0.5 text-xs font-medium text-[#854d0e]">
+                    Chờ duyệt
+                  </span>
+                ) : (
+                  <span className="ml-2 rounded bg-[#dcfce7] px-1.5 py-0.5 text-xs font-medium text-[#166534]">
+                    Đã duyệt
+                  </span>
                 )}
               </span>
               <button
