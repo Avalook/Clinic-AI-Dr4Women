@@ -14,4 +14,9 @@ CREATE INDEX IF NOT EXISTS idx_work_roster_week_status
 COMMENT ON COLUMN work_roster.status IS
   'PENDING = ca tự đăng ký chờ quản lý duyệt; APPROVED = đã lên lịch chung; REJECTED = bị từ chối';
 
+-- App đọc qua PostgREST (Supabase REST) có cache schema. Sau khi thêm cột mới,
+-- phải báo PostgREST nạp lại, nếu không query lọc `status` sẽ lỗi và trả rỗng
+-- (lịch trông như "mất" dù data còn nguyên).
+NOTIFY pgrst, 'reload schema';
+
 COMMIT;
