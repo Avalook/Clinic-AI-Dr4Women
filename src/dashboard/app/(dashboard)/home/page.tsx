@@ -98,13 +98,14 @@ export default async function HomePage({
 
   // Check-in hôm nay (đủ trường hành chính để mở hồ sơ lâm sàng ở cột phải).
   const CHECKIN_SELECT = `
-    id, slot_start, status, queue_number,
+    id, slot_start, status, queue_number, booking_channel,
     patient:patient!clinic_patient_id (
       clinic_patient_id, patient_code, full_name, date_of_birth,
       phone_primary, phone_secondary, gender, ethnicity, nationality, occupation,
       patient_objection, address, guardian_name
     ),
-    service:service_type!service_type_id ( name )
+    service:service_type!service_type_id ( name ),
+    visit:visit!appointment_id ( checked_in_at )
   `;
 
   // Trạng thái BN buổi khám hôm nay (chỉ Lễ tân) — đọc visit TẠO HÔM NAY +
@@ -183,7 +184,16 @@ export default async function HomePage({
           .limit(300)
       : Promise.resolve({ data: [], error: null }),
   ]);
-  const checkinRows = (checkinRes.data as HomeCheckinRow[] | null) ?? [];
+  // visit embed (1-nhiều phía appointment) trả MẢNG → phẳng hoá thành checked_in_at
+  // để compareQueue dùng THỨ TỰ GỌI ưu tiên (Model ②) cho người đã check-in.
+  const checkinRows = (
+    (checkinRes.data as
+      | (HomeCheckinRow & { visit?: { checked_in_at: string | null }[] | null })[]
+      | null) ?? []
+  ).map((r) => ({
+    ...r,
+    checked_in_at: r.visit?.[0]?.checked_in_at ?? null,
+  })) as HomeCheckinRow[];
 
   // Board trạng thái buổi khám: nếu select đầy đủ LỖI (DB chinh "gần rỗng" có
   // thể CHƯA apply mig 058 exam_completed_at, hoặc thiếu quan hệ appointment FK)

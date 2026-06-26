@@ -17,6 +17,7 @@ import {
   Tag,
   ScanLine,
   ClipboardCheck,
+  ListOrdered,
   type LucideIcon,
 } from "lucide-react";
 import { type ClinicRole } from "../../lib/roles";
@@ -63,6 +64,13 @@ export const NAV: NavItem[] = [
     label: "Công việc của tôi",
     shortLabel: "Việc",
     icon: CheckSquare,
+  },
+  // Số thứ tự GỌI khám — ưu tiên người có hẹn, gọi theo tên (xem chung).
+  {
+    href: "/queue",
+    label: "Số thứ tự gọi khám",
+    shortLabel: "Gọi khám",
+    icon: ListOrdered,
   },
   // Trưởng ca (hành chính): theo dõi buổi (read-only).
   {

@@ -9,7 +9,13 @@ export interface HasQueue {
   queue_number?: string | null;
   slot_start: string;
   status?: string | null;
+  // — Dữ liệu cho THỨ TỰ GỌI ưu tiên (Model ②). Có thì dùng, thiếu thì fallback. —
+  booking_channel?: string | null; // "WALK_IN" = vãng lai; còn lại = đặt hẹn online
+  checked_in_at?: string | null; // ISO — mốc giờ ĐẾN thực tế (từ visit.checked_in_at)
 }
+
+/** Cửa sổ trễ: người có hẹn check-in muộn quá ngần này thì MẤT ưu tiên giờ hẹn. */
+export const LATE_GRACE_MS = 10 * 60_000;
 
 /** Khóa sắp xếp: [nhóm, số trong nhóm, giờ]. Nhóm 0 = ưu tiên, 1 = số, 2 = trống. */
 export function queueRank(
@@ -25,7 +31,32 @@ export function queueRank(
   return [2, 0, slotStart];
 }
 
-/** So sánh 2 lịch theo thứ tự khám (ƯT trước → số → giờ). Dùng cho Array.sort. */
+/**
+ * Khóa THỨ TỰ GỌI KHÁM (Model ②) cho người ĐÃ check-in:
+ *   tầng −1: ƯT (người quen nhà bác sĩ) — gõ tay, luôn lên đầu, theo số ƯT.
+ *   tầng  0: CÓ HẸN & đến ĐÚNG GIỜ (checked_in_at ≤ giờ hẹn + 10') — sắp theo GIỜ HẸN.
+ *   tầng  1: walk-in HOẶC có hẹn đến TRỄ — sắp theo GIỜ ĐẾN (vé tự nhường người tới trước).
+ * Thiếu cả booking_channel lẫn checked_in_at ⇒ fallback thứ tự cũ (ƯT → số → giờ).
+ */
+export function callRank(a: HasQueue): [number, number, string] {
+  if (a.booking_channel == null && a.checked_in_at == null) {
+    return queueRank(a.queue_number, a.slot_start);
+  }
+  const s = (a.queue_number ?? "").trim();
+  const ut = /^(?:Ư|U)\s*T\s*0*(\d*)/i.exec(s);
+  if (ut) return [-1, ut[1] ? Number(ut[1]) : 0, a.slot_start];
+
+  const slotMs = new Date(a.slot_start).getTime();
+  const isBooked = !!a.booking_channel && a.booking_channel !== "WALK_IN";
+  if (isBooked && a.checked_in_at) {
+    const inMs = new Date(a.checked_in_at).getTime();
+    if (inMs <= slotMs + LATE_GRACE_MS) return [0, slotMs, a.checked_in_at];
+  }
+  const arriveMs = a.checked_in_at ? new Date(a.checked_in_at).getTime() : slotMs;
+  return [1, arriveMs, a.checked_in_at ?? a.slot_start];
+}
+
+/** So sánh 2 lịch theo thứ tự khám. Người đã đến: ưu tiên Model ②; chưa đến: ƯT → số → giờ. */
 export function compareQueue(a: HasQueue, b: HasQueue): number {
   const isCheckedInA = a.status === "CHECKED_IN";
   const isCheckedInB = b.status === "CHECKED_IN";
@@ -33,8 +64,8 @@ export function compareQueue(a: HasQueue, b: HasQueue): number {
     return isCheckedInA ? -1 : 1;
   }
 
-  const ra = queueRank(a.queue_number, a.slot_start);
-  const rb = queueRank(b.queue_number, b.slot_start);
+  const ra = isCheckedInA ? callRank(a) : queueRank(a.queue_number, a.slot_start);
+  const rb = isCheckedInB ? callRank(b) : queueRank(b.queue_number, b.slot_start);
   if (ra[0] !== rb[0]) return ra[0] - rb[0];
   if (ra[1] !== rb[1]) return ra[1] - rb[1];
   return ra[2].localeCompare(rb[2]);

@@ -48,6 +48,10 @@ export interface DoctorApptRow {
     guardian_name: string | null;
   } | null;
   service: { name: string } | null;
+  /** Kênh đặt — "WALK_IN" = vãng lai; còn lại = đặt hẹn online. Cho THỨ TỰ GỌI (Model ②). */
+  booking_channel?: string | null;
+  /** Mốc giờ ĐẾN thật (visit.checked_in_at). Cho THỨ TỰ GỌI ưu tiên người có hẹn đúng giờ. */
+  checked_in_at?: string | null;
 }
 
 const STATUS_GROUPS: { key: string; label: string; statuses: string[] }[] = [

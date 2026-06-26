@@ -237,13 +237,14 @@ async function CashierTasks(modes: CashierMode[]) {
 
 // Bác sĩ: lịch của MÌNH (đủ trường hành chính để dựng hồ sơ lâm sàng).
 const DOCTOR_SELECT = `
-  id, slot_start, status, queue_number,
+  id, slot_start, status, queue_number, booking_channel,
   patient:patient!clinic_patient_id (
     clinic_patient_id, patient_code, full_name, date_of_birth,
     phone_primary, phone_secondary, gender, ethnicity, nationality, occupation,
     patient_objection, address, guardian_name
   ),
-  service:service_type!service_type_id ( name )
+  service:service_type!service_type_id ( name ),
+  visit:visit!appointment_id ( checked_in_at )
 `;
 
 // readOnly = LỄ TÂN xem clone giao diện board bác sĩ ở chế độ CHỈ ĐỌC. Lễ tân
@@ -319,7 +320,11 @@ async function DoctorTasks(
         : new Date(r.slot_start).getTime() > e
           ? "Tái khám"
           : "Khám lần đầu";
-    return { ...r, phan_loai };
+    // visit embed (1-nhiều phía appointment) trả MẢNG → phẳng hoá checked_in_at
+    // cho compareQueue dùng THỨ TỰ GỌI ưu tiên (Model ②).
+    const visit = (r as { visit?: { checked_in_at: string | null }[] | null })
+      .visit;
+    return { ...r, phan_loai, checked_in_at: visit?.[0]?.checked_in_at ?? null };
   });
 
   return (

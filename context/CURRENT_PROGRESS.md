@@ -1,3 +1,21 @@
+## ▶ 2026-06-26 (tối) — THỨ TỰ GỌI KHÁM ưu tiên (Model ②) + trang lẻ /queue
+
+**Bối cảnh / nỗi đau:** số vé (queue_number) cấp lúc ĐẾN nên KHÔNG thể là thứ tự gọi: người hẹn 9:00 đến 9:03 sẽ thua 2 khách vãng lai đến 9:00 (đã tự check-in, có vé trước). Quang chốt: **tách số vé (chỉ định danh) khỏi thứ tự GỌI**; gọi bệnh nhân **theo TÊN**; người có hẹn đến đúng giờ xếp trước vãng lai; đến trễ quá cửa sổ thì tụt xuống theo giờ đến.
+
+**Quyết định đã chốt:** cửa sổ trễ = **10 phút**; làm luôn mục 3 (đồng bộ các board đang có).
+
+**Việc đã làm:**
+- `lib/queue.ts`: thêm `HasQueue.booking_channel` + `HasQueue.checked_in_at`, hằng `LATE_GRACE_MS = 10'`, hàm **`callRank()`** (tầng −1 ƯT người quen → tầng 0 CÓ HẸN đến ≤ giờ hẹn+10' xếp theo GIỜ HẸN → tầng 1 vãng lai / đến trễ xếp theo GIỜ ĐẾN). `compareQueue` nay dùng `callRank` cho hàng ĐÃ check-in, fallback `queueRank` (ƯT→số→giờ) khi thiếu 2 field mới ⇒ tương thích ngược.
+- Trang lẻ mới **`app/(dashboard)/queue/`** (`page.tsx` + `QueueBoard.tsx`): lấy lịch hôm nay status CHECKED_IN + embed `visit.checked_in_at`/`status` + `booking_channel`; gom theo bác sĩ, mỗi cột sắp theo `callRank`, tách "Đang khám" (visit IN_PROGRESS) lên trên; hiển thị TÊN to + nhãn "Có hẹn/Vãng lai" + số vé; tự refresh 30s. Chỉ-đọc.
+- Nav: `lib/roles.ts` NAV_ROLES `+"/queue"` (CSKH/QL/Lễ tân/Trưởng ca/TKYK/ĐD + bác sĩ); `nav-items.ts` `+` mục "Số thứ tự gọi khám" (icon ListOrdered).
+- **Mục 3 — đồng bộ board cũ:** thêm `booking_channel` + embed `visit.checked_in_at` (phẳng hoá mảng→field) vào CHECKIN_SELECT (`home/page.tsx` → HomeCheckin) và DOCTOR_SELECT (`tasks/page.tsx` → DoctorWorkBoard); `DoctorApptRow` thêm 2 field optional. WeeklyAppointmentsTable để fallback (overview tuần, không cần).
+
+**Kiểm chứng:** tsc sạch; lint 0 lỗi mới (chỉ warning baseline `isThuKyRole` unused có sẵn); `next build` thành công, route `/queue` xuất hiện (dynamic).
+
+**Chưa làm:** chưa push (chờ Quang "OK"). Lưu ý DB: dùng cột có sẵn (`booking_channel`, `visit.checked_in_at`) — KHÔNG migration.
+
+---
+
 ## ▶ 2026-06-26 (chiều) — Lễ tân walk-in: bảng "Tải hôm nay theo bác sĩ" + bỏ auto-ƯT-theo-phút
 
 **Bối cảnh:** Quang hỏi sao lễ tân không có "rạp chiếu phim". Phân tích: màn Tạo BN của lễ tân là **walk-in** (khách đang ở quầy → tạo + mở lượt khám NGAY) nên không có khối đặt-giờ-tương-lai; "rạp chiếu phim" (chọn slot tương lai) là việc CSKH/tái khám, không hợp walk-in. Thử đặt board check-in lên /home → Quang bác (trùng "Lịch hẹn khám", gây loạn) → ĐÃ GỠ.
