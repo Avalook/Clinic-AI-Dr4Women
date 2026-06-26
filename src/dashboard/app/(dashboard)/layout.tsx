@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 import Shell from "./Shell";
 import DeclinedNotice, { type DeclinedItem } from "./DeclinedNotice";
 import RosterNotifier from "./RosterNotifier";
+import RealtimeRefresher from "./RealtimeRefresher";
 import { leaveClinic } from "../(auth)/enter/actions";
 import { getSupabaseServer } from "../../lib/supabase-server";
 import { getClinicRole, getClinicStaffId } from "../../lib/clinic-session";
@@ -64,6 +65,7 @@ export default async function DashboardLayout({
       {children}
       <DeclinedNotice items={declined} />
       <RosterNotifier staffId={staffId} />
+      <RealtimeRefresher />
     </Shell>
   );
 }

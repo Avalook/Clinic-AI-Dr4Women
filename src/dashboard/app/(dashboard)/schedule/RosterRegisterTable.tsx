@@ -11,7 +11,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { X, Trash2 } from "lucide-react";
+import { X, Trash2, Check } from "lucide-react";
 import {
   STATIONS,
   STATION_SEGMENTS,
@@ -53,18 +53,42 @@ export default function RosterRegisterTable({
   dates,
   rows,
   myStaffId,
+  isApprover = false,
 }: {
   weekStart: string;
   dates: string[];
   rows: RegisterRow[];
   /** staff_id người đang đăng nhập; null = chưa chọn danh tính (không đăng ký được). */
   myStaffId: string | null;
+  /** Quản lý hệ thống: hiện nút Duyệt / Từ chối ngay trong popup ô. */
+  isApprover?: boolean;
 }) {
   const router = useRouter();
   const [open, setOpen] = useState<{ date: string; station: string } | null>(null);
   const [shift, setShift] = useState<Shift>("FULL");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // Duyệt/từ chối ngay trong popup (chỉ Quản lý). rejectingId = ca đang mở ô lý do.
+  const [rejectingId, setRejectingId] = useState<string | null>(null);
+  const [reason, setReason] = useState("");
+
+  async function decide(id: string, action: "approve" | "reject", reasonText?: string) {
+    setError(null);
+    setBusy(true);
+    const res = await fetch("/api/roster", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ id, action, reason: reasonText }),
+    });
+    setBusy(false);
+    if (!res.ok) {
+      setError((await res.json()).error ?? "Lỗi khi duyệt.");
+      return;
+    }
+    setRejectingId(null);
+    setReason("");
+    router.refresh();
+  }
 
   // byCell[date|station] = các đăng ký ở ô đó (mọi người, mọi trạng thái).
   const byCell = new Map<string, RegisterRow[]>();
@@ -177,6 +201,8 @@ export default function RosterRegisterTable({
                         onClick={() => {
                           setError(null);
                           setShift("FULL");
+                          setRejectingId(null);
+                          setReason("");
                           setOpen({ date: d, station: s.key });
                         }}
                         className="flex h-full min-h-[40px] w-full flex-col gap-0.5 px-1.5 py-1.5 text-center transition-colors hover:bg-[#fdeef6]"
@@ -249,40 +275,96 @@ export default function RosterRegisterTable({
                   {openCellRows.map((r) => {
                     const b = STATUS_BADGE[r.status];
                     return (
-                      <li
-                        key={r.id}
-                        className="flex items-center justify-between gap-2 text-xs text-[#4d4d4d]"
-                      >
-                        <span className="min-w-0">
-                          <span className="font-medium text-[#171717]">
-                            {r.staff_name}
-                          </span>
-                          {r.shift !== "FULL" && (
-                            <span className="text-[#a1a1aa]">
-                              {" "}
-                              ({SHIFT_LABEL[r.shift]})
+                      <li key={r.id} className="text-xs text-[#4d4d4d]">
+                        <div className="flex items-center justify-between gap-2">
+                          <span className="min-w-0">
+                            <span className="font-medium text-[#171717]">
+                              {r.staff_name}
                             </span>
-                          )}
-                          <span
-                            className={"ml-1.5 rounded px-1.5 py-0.5 font-medium " + b.cls}
-                          >
-                            {b.label}
-                          </span>
-                          {r.status === "REJECTED" && r.reject_reason && (
-                            <span className="block text-[#dc2626]">
-                              Lý do: {r.reject_reason}
+                            {r.shift !== "FULL" && (
+                              <span className="text-[#a1a1aa]">
+                                {" "}
+                                ({SHIFT_LABEL[r.shift]})
+                              </span>
+                            )}
+                            <span
+                              className={"ml-1.5 rounded px-1.5 py-0.5 font-medium " + b.cls}
+                            >
+                              {b.label}
                             </span>
+                            {r.status === "REJECTED" && r.reject_reason && (
+                              <span className="block text-[#dc2626]">
+                                Lý do: {r.reject_reason}
+                              </span>
+                            )}
+                          </span>
+                          {r.staff_id === myStaffId && r.status === "PENDING" && (
+                            <button
+                              onClick={() => remove(r.id)}
+                              disabled={busy}
+                              aria-label="Xoá ca của tôi"
+                              className="shrink-0 rounded p-1 text-[#a1a1aa] hover:bg-[#fee2e2] hover:text-[#dc2626] disabled:opacity-50"
+                            >
+                              <Trash2 size={14} />
+                            </button>
                           )}
-                        </span>
-                        {r.staff_id === myStaffId && r.status === "PENDING" && (
-                          <button
-                            onClick={() => remove(r.id)}
-                            disabled={busy}
-                            aria-label="Xoá ca của tôi"
-                            className="shrink-0 rounded p-1 text-[#a1a1aa] hover:bg-[#fee2e2] hover:text-[#dc2626] disabled:opacity-50"
-                          >
-                            <Trash2 size={14} />
-                          </button>
+                        </div>
+
+                        {/* Quản lý: Duyệt / Từ chối ngay tại đây cho ca chờ duyệt. */}
+                        {isApprover && r.status === "PENDING" && (
+                          <div className="mt-1.5">
+                            {rejectingId === r.id ? (
+                              <div className="rounded-lg border border-[#fde68a] bg-[#fffbeb] p-2">
+                                <textarea
+                                  value={reason}
+                                  onChange={(e) => setReason(e.target.value)}
+                                  rows={2}
+                                  autoFocus
+                                  placeholder="Lý do từ chối (gửi cho người đăng ký)…"
+                                  className="w-full resize-none rounded-md border border-[#e4e4e7] px-2.5 py-1.5 text-xs focus:border-[#ec4899] focus:outline-none"
+                                />
+                                <div className="mt-1.5 flex justify-end gap-1.5">
+                                  <button
+                                    onClick={() => {
+                                      setRejectingId(null);
+                                      setReason("");
+                                    }}
+                                    className="rounded-md border border-[#e4e4e7] bg-white px-2.5 py-1 text-xs text-[#4d4d4d] hover:bg-[#f4f4f5]"
+                                  >
+                                    Huỷ
+                                  </button>
+                                  <button
+                                    onClick={() => decide(r.id, "reject", reason)}
+                                    disabled={busy || !reason.trim()}
+                                    className="rounded-md bg-[#dc2626] px-2.5 py-1 text-xs font-medium text-white hover:bg-[#b91c1c] disabled:opacity-50"
+                                  >
+                                    Xác nhận từ chối
+                                  </button>
+                                </div>
+                              </div>
+                            ) : (
+                              <div className="flex gap-1.5">
+                                <button
+                                  onClick={() => decide(r.id, "approve")}
+                                  disabled={busy}
+                                  className="flex items-center gap-1 rounded-md bg-[#16a34a] px-2.5 py-1 text-xs font-medium text-white hover:bg-[#15803d] disabled:opacity-50"
+                                >
+                                  <Check size={13} /> Duyệt
+                                </button>
+                                <button
+                                  onClick={() => {
+                                    setError(null);
+                                    setReason("");
+                                    setRejectingId(r.id);
+                                  }}
+                                  disabled={busy}
+                                  className="flex items-center gap-1 rounded-md border border-[#e4e4e7] bg-white px-2.5 py-1 text-xs font-medium text-[#dc2626] hover:bg-[#fee2e2] disabled:opacity-50"
+                                >
+                                  <X size={13} /> Từ chối
+                                </button>
+                              </div>
+                            )}
+                          </div>
                         )}
                       </li>
                     );

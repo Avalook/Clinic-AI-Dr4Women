@@ -13,7 +13,7 @@ import {
   getClinicStaffId,
   getActiveStaff,
 } from "../../../lib/clinic-session";
-import { isOpsAdmin } from "../../../lib/roles";
+import { isAdminRole } from "../../../lib/roles";
 import { weekStartOf } from "../../../lib/roster";
 
 type Auth =
@@ -45,7 +45,9 @@ async function authorize(): Promise<Auth> {
   if (!user) {
     return { ok: false, res: NextResponse.json({ error: "Unauthorised" }, { status: 401 }) };
   }
-  const isAdmin = isOpsAdmin(await getClinicRole());
+  // Quyền "duyệt + tự duyệt + xếp cho người khác" CHỈ thuộc Quản lý hệ thống
+  // (MANAGEMENT). Trưởng ca dưới quản lý → đăng ký ca như nhân viên (PENDING).
+  const isAdmin = isAdminRole(await getClinicRole());
   const staffId = await getClinicStaffId();
   const staff = await getActiveStaff();
   const staffName = staff?.full_name ?? staff?.short_name ?? "";
@@ -88,9 +90,14 @@ export async function POST(request: Request) {
   const station = (body.station ?? "").trim();
   const shift = body.shift === "SANG" || body.shift === "CHIEU" ? body.shift : "FULL";
 
-  // Quản lý: xếp cho người được chọn. Khác: ép staff_id/name = chính mình.
-  const staff_id = auth.isAdmin ? body.staff_id || null : auth.staffId;
-  const staff_name = auth.isAdmin ? (body.staff_name ?? "").trim() : auth.staffName;
+  // Quản lý XẾP CHO NGƯỜI KHÁC khi gửi kèm staff_id (qua /schedule/edit). Mọi
+  // trường hợp còn lại — gồm Quản lý TỰ đăng ký trên bảng (không gửi staff_id) —
+  // ép staff_id/name = chính người gọi. Nhờ vậy bảng đăng ký không cần gửi tên.
+  const assignOther = auth.isAdmin && !!body.staff_id;
+  const staff_id = assignOther ? body.staff_id || null : auth.staffId;
+  const staff_name = assignOther
+    ? (body.staff_name ?? "").trim()
+    : auth.staffName;
 
   if (!week_start || !work_date || !station || !staff_name) {
     return NextResponse.json(

@@ -9,7 +9,7 @@
 import Link from "next/link";
 import { getSupabaseServer } from "../../../lib/supabase-server";
 import { getClinicRole, getClinicStaffId } from "../../../lib/clinic-session";
-import { isOpsAdmin } from "../../../lib/roles";
+import { isOpsAdmin, isAdminRole } from "../../../lib/roles";
 import {
   fmtDayMonth,
   weekDates,
@@ -23,7 +23,6 @@ import WorkRosterTable, {
 import RosterRegisterTable, {
   type RegisterRow,
 } from "./RosterRegisterTable";
-import PendingApprovalPanel from "./PendingApprovalPanel";
 
 export const dynamic = "force-dynamic";
 
@@ -45,7 +44,8 @@ export default async function SchedulePage({
   const dates = weekDates(week);
 
   const role = await getClinicRole();
-  const isAdmin = isOpsAdmin(role);
+  const isAdmin = isOpsAdmin(role); // ops admin (gồm Trưởng ca): nút "Sửa lịch".
+  const isApprover = isAdminRole(role); // CHỈ Quản lý: duyệt/từ chối ca trong popup.
   // Lấy staff_id cho MỌI vai (kể cả admin) để bảng đăng ký nhận diện ca của mình.
   const myStaffId = await getClinicStaffId();
 
@@ -63,11 +63,6 @@ export default async function SchedulePage({
 
   // Lịch chung CHỈ hiện ca đã duyệt. Ca PENDING/REJECTED không lọt vào bảng.
   const approvedRows = rows.filter((r) => r.status === "APPROVED");
-
-  // Admin: hàng đợi ca chờ duyệt của tuần này.
-  const pendingRows = isAdmin
-    ? rows.filter((r) => r.status === "PENDING")
-    : [];
 
   const weekLabel = `${fmtDayMonth(dates[0])} – ${fmtDayMonth(dates[6])}`;
   const navHref = (w: string) => `/schedule?week=${w}`;
@@ -111,20 +106,8 @@ export default async function SchedulePage({
         <WorkRosterTable dates={dates} rows={approvedRows} />
       </section>
 
-      {/* Quản lý: hàng đợi duyệt ca tự đăng ký của tuần này (duyệt / từ chối kèm lý do). */}
-      {isAdmin && pendingRows.length > 0 && (
-        <PendingApprovalPanel
-          rows={pendingRows.map((r) => ({
-            id: r.id,
-            work_date: r.work_date,
-            station: r.station,
-            shift: r.shift as "FULL" | "SANG" | "CHIEU",
-            staff_name: r.staff_name ?? "",
-          }))}
-        />
-      )}
-
-      {/* BẢNG 2 — Đăng ký lịch làm việc (tương tác: click ô → tự đăng ký ca). */}
+      {/* BẢNG 2 — Đăng ký lịch làm việc (tương tác: click ô → tự đăng ký ca;
+          Quản lý duyệt / từ chối ngay trong popup của ô). */}
       <section className="space-y-2">
         <h2 className="text-sm font-semibold text-[#171717]">
           Đăng ký lịch làm việc
@@ -139,6 +122,7 @@ export default async function SchedulePage({
           weekStart={week}
           dates={dates}
           myStaffId={myStaffId}
+          isApprover={isApprover}
           rows={rows.map(
             (r): RegisterRow => ({
               id: r.id,
