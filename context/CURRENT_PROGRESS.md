@@ -1,3 +1,20 @@
+## ▶ 2026-06-26 (chiều) — Lễ tân walk-in: bảng "Tải hôm nay theo bác sĩ" + bỏ auto-ƯT-theo-phút
+
+**Bối cảnh:** Quang hỏi sao lễ tân không có "rạp chiếu phim". Phân tích: màn Tạo BN của lễ tân là **walk-in** (khách đang ở quầy → tạo + mở lượt khám NGAY) nên không có khối đặt-giờ-tương-lai; "rạp chiếu phim" (chọn slot tương lai) là việc CSKH/tái khám, không hợp walk-in. Thử đặt board check-in lên /home → Quang bác (trùng "Lịch hẹn khám", gây loạn) → ĐÃ GỠ.
+
+**Nỗi đau thật (memory bottleneck-thanh):** phòng khám nghẽn quanh 1 trạm BS Thành, cách chữa là đẩy bớt sang BS phụ. ⇒ thứ lễ tân cần khi tạo walk-in là NHÌN tải từng bác sĩ hôm nay để ĐỊNH TUYẾN, không phải chọn slot.
+
+**Việc đã làm:**
+- Mới `app/(dashboard)/patients/DoctorLoadBoard.tsx` — bảng CHỈ-ĐỌC "Tải hôm nay theo bác sĩ": hàng = bác sĩ, cột = giờ, mỗi ghế = 1 lịch (chưa đến hồng / đã đến xanh / xong xám) + cột "Tổng", tô đậm hàng bác sĩ ĐANG CHỌN. Nhúng vào màn walk-in của lễ tân (`NewPatientForm.tsx`, dùng lại `existingAppts` walk-in đã fetch). KHÔNG check-in (đã có ở /home), KHÔNG đặt slot, KHÔNG đụng backend.
+- **Số khám:** giữ NGUYÊN = số chung toàn PK theo thời gian (`route.ts` POST + PATCH check-in `max+1`). KHÔNG đổi per-doctor (Quang chốt: số là số chung theo thời gian; BN khám BS nào đã ghi rõ).
+- **Bỏ auto-ƯT-theo-phút** (misfeature): `AppointmentBooking.tsx` + `NewPatientForm.tsx` trước đây tự dập `số khám = ƯT1/2/3/4` chỉ theo PHÚT slot (00→ƯT1…), và PATCH check-in GIỮ NGUYÊN ⇒ khách online vô tình chọn phút :00 bị đánh dấu ƯT (người quen) — SAI nghĩa. ƯT thật = người quen nhà bác sĩ, gõ tay. Sửa: effect chỉ để TRỐNG số khám CSKH (check-in cấp số theo thời gian); placeholder đổi "Để trống — gõ ƯT cho người quen nhà bác sĩ".
+
+**Kiểm chứng:** tsc sạch; lint 3 file (DoctorLoadBoard 0/0; 2 file CSKH = lỗi baseline có sẵn, không lỗi mới); `next build` Compiled successfully.
+
+**Chưa làm:** chưa push (chờ Quang "OK"). /home reception board đã gỡ hẳn.
+
+---
+
 ## ▶ 2026-06-26 — CSKH: "Số chỗ còn trống" → sơ đồ đặt chỗ kiểu rạp chiếu phim (dùng chung BN mới + tái khám)
 
 **Việc đã làm:**

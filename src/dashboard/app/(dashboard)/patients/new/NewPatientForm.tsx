@@ -12,6 +12,7 @@ import { UserRound, CalendarClock } from "lucide-react";
 import { type ClinicRole } from "../../../../lib/roles";
 import type { Option } from "../AppointmentBooking";
 import CinemaSlotPicker from "../CinemaSlotPicker";
+import DoctorLoadBoard from "../DoctorLoadBoard";
 import { vnLocalToUtcISO, nowMs } from "../../../../lib/datetime";
 import {
   todayVn,
@@ -283,23 +284,12 @@ export default function NewPatientForm({
     }
   }, [apptDate, apptTime, doctorId, existingAppts]);
 
-  // CSKH: Tự động điền ƯT1 - ƯT4
+  // CSKH: số khám ĐỂ TRỐNG — hệ thống cấp SỐ CHUNG THEO THỜI GIAN lúc check-in.
+  // KHÔNG tự dập "ƯT" theo phút (sai nghĩa): ƯT chỉ dành cho NGƯỜI QUEN nhà bác sĩ,
+  // do người nhập gõ tay khi cần. Đổi ngày/giờ → xoá số đang điền cho gọn.
   useEffect(() => {
     if (walkin) return;
-    if (!apptTime) {
-      setQueueNumber("");
-      return;
-    }
-    if (isSlotBooked) {
-      setQueueNumber("");
-      return;
-    }
-    const mins = apptTime.split(":")[1];
-    if (mins === "00") setQueueNumber("ƯT1");
-    else if (mins === "15") setQueueNumber("ƯT2");
-    else if (mins === "30") setQueueNumber("ƯT3");
-    else if (mins === "45") setQueueNumber("ƯT4");
-    else setQueueNumber("");
+    setQueueNumber("");
   }, [apptTime, isSlotBooked, walkin]);
   // Kênh đặt = NHẬP TỰ DO (feedback: "cho điền thôi, sau tự tính"). Để trống được.
   const [channel, setChannel] = useState("");
@@ -860,7 +850,14 @@ export default function NewPatientForm({
                   value={queueNumber}
                   onChange={(e) => setQueueNumber(e.target.value)}
                   className={INPUT}
-                  placeholder="Tự động tăng dần (hoặc gõ ƯT1, ƯT2,...)"
+                  placeholder="Tự động cấp theo thời gian (số chung toàn phòng khám)"
+                />
+              </div>
+              <div className="sm:col-span-2">
+                <DoctorLoadBoard
+                  appts={existingAppts}
+                  doctors={doctors}
+                  selectedDoctorId={doctorId}
                 />
               </div>
             </>
@@ -985,7 +982,7 @@ export default function NewPatientForm({
               value={queueNumber}
               onChange={(e) => setQueueNumber(e.target.value)}
               className={INPUT}
-              placeholder="VD: 5 / ƯT1 (tuỳ chọn)"
+              placeholder="Để trống — gõ ƯT cho người quen nhà bác sĩ"
             />
           </div>
           <div className="sm:col-span-2">
