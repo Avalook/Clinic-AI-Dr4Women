@@ -1078,7 +1078,7 @@ export default function NewPatientForm({
                   ? "Nhập thông tin khách hàng"
                   : "Tạo bệnh nhân"}
         </button>
-        <Link href="/patients" className={BTN_GHOST + " text-center"}>
+        <Link href="/patient-list" className={BTN_GHOST + " text-center"}>
           Huỷ
         </Link>
       </div>

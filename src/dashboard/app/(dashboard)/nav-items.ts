@@ -4,7 +4,6 @@
 import {
   Home,
   ClipboardList,
-  Users,
   UserPlus,
   CheckSquare,
   Calendar,
@@ -52,7 +51,6 @@ export const NAV: NavItem[] = [
     shortLabel: "BN đã khám",
     icon: Stethoscope,
   },
-  { href: "/patients", label: "Bệnh nhân (tra cứu)", shortLabel: "Tra cứu", icon: Users },
   {
     href: "/patients/new",
     label: "Tạo bệnh nhân",

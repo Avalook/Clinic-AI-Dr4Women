@@ -8,7 +8,7 @@
 
 import { getSupabaseServer } from "../../../lib/supabase-server";
 import { requireNavAccess, getClinicRole } from "../../../lib/clinic-session";
-import { isTasksReadOnly, isDoctorRole } from "../../../lib/roles";
+import { isDoctorRole, isOpsAdmin } from "../../../lib/roles";
 import PatientListView, { type ExaminedRow } from "./PatientListView";
 import type { DoctorApptRow } from "../tasks/DoctorWorkBoard";
 
@@ -41,13 +41,13 @@ const one = <T,>(x: T | T[] | null): T | null =>
 export default async function PatientListPage() {
   await requireNavAccess("/patient-list");
   const role = await getClinicRole();
-  // Lễ tân + Bác sĩ + CSKH: bấm BN bật popup hồ sơ (chỉ đọc lâm sàng, sửa được
-  // hành chính) trượt sang phải — y hệt nhau. Quản lý giữ điều hướng sang trang
-  // chi tiết (còn nút đặt lịch tái khám ở đó; trang đó cũng đã sửa được hành chính).
-  const enablePopup =
-    isTasksReadOnly(role) || isDoctorRole(role) || role === "CSKH";
-  // CSKH + Lễ tân: nút "Tái khám" trong popup → trang đặt lịch /patients/[id].
-  const showRebook = role === "CSKH" || role === "RECEPTION";
+  // MỌI vai: bấm BN bật popup hồ sơ (chỉ đọc lâm sàng, sửa được hành chính)
+  // trượt sang phải — y hệt nhau. Trước đây Quản lý/Trưởng ca điều hướng sang
+  // trang chi tiết /patients/[id] (lệch UX); nay đồng bộ popup cho tất cả.
+  const enablePopup = true;
+  // CSKH + Lễ tân + Quản lý/Trưởng ca: nút "Tái khám" trong popup → /patients/[id].
+  const showRebook =
+    role === "CSKH" || role === "RECEPTION" || isOpsAdmin(role);
   // Bác sĩ: pager ◀ ▶ xem lượt khám trước/sau ngay trong phiếu.
   const showPager = isDoctorRole(role);
   const supabase = await getSupabaseServer();

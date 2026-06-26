@@ -191,8 +191,6 @@ const NAV_ROLES: Record<string, "all" | ClinicRole[]> = {
   // + ĐIỀU DƯỠNG (feedback PM 23/6): nav "Thông tin bệnh nhân" để tra cứu BN +
   // xem lịch sử khám (giống bác sĩ). Sửa lâm sàng/sinh hiệu vẫn theo buổi khám.
   "/patient-list": ["CSKH", "RECEPTION", "MANAGEMENT", "CASHIER", "CASHIER_THUOC", "CASHIER_DV", "TRUONG_CA", "TKYK", "NURSE_ULTRASOUND", ...DOCTOR_ROLES_LIST],
-  // Tra cứu BN đầy đủ (phân trang) — Quản lý + Trưởng ca. CSKH/Lễ tân dùng /customers.
-  "/patients": ["MANAGEMENT", "TRUONG_CA"],
   // ĐIỀU DƯỠNG ĐÃ BỎ (feedback PM 23/6: ĐD không tạo BN).
   "/patients/new": ["CSKH", "RECEPTION", "MANAGEMENT", "TRUONG_CA"],
   // /checkin đã chuyển hẳn lên Trang chủ (HomeCheckin) — route cũ đã xóa.

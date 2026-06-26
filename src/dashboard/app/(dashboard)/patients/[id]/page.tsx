@@ -39,7 +39,7 @@ export default async function PatientDetailPage({
       .eq("clinic_patient_id", id)
       .limit(1)
       .maybeSingle();
-    if (!own) redirect("/patients");
+    if (!own) redirect("/patient-list");
   }
 
   // Booking is an intake action (CSKH / Lễ tân / Quản lý). Only those roles see

@@ -134,7 +134,7 @@ export default async function PatientDetail({
           Không tìm thấy bệnh nhân.
         </div>
         <Link
-          href="/patients"
+          href="/patient-list"
           className="text-sm text-[#ec4899] hover:underline"
         >
           ← Về danh sách BN
