@@ -14,6 +14,7 @@ import { unaccentVi } from "../../../lib/validation";
 import Time24Input from "../Time24Input";
 import DateField from "../DateField";
 import { LINH_VUC_OPTIONS } from "../../../lib/linh-vuc";
+import CinemaSlotPicker from "./CinemaSlotPicker";
 
 function findServiceIdByLinhVuc(code: string, services: Option[]): string {
   if (!code) return "";
@@ -87,7 +88,10 @@ export default function AppointmentBooking({
       return;
     }
     let active = true;
-    fetch(`/api/appointments?date=${encodeURIComponent(apptDate)}${doctorId ? `&doctor_id=${encodeURIComponent(doctorId)}` : ""}`)
+    // Lấy lịch của MỌI bác sĩ trong ngày (KHÔNG lọc doctor_id) để sơ đồ "rạp
+    // chiếu phim" vẽ được từng hàng bác sĩ. isSlotBooked vẫn lọc theo doctorId
+    // ở phía client nhờ field appt.doctor_id còn nguyên trong kết quả.
+    fetch(`/api/appointments?date=${encodeURIComponent(apptDate)}`)
       .then((r) => (r.ok ? r.json() : { appointments: [] }))
       .then((data) => {
         if (active) {
@@ -100,7 +104,7 @@ export default function AppointmentBooking({
     return () => {
       active = false;
     };
-  }, [apptDate, doctorId]);
+  }, [apptDate]);
 
   // CSKH: Tính toán số chỗ trống
   const isSlotBooked = useMemo(() => {
@@ -301,13 +305,31 @@ export default function AppointmentBooking({
             placeholder="VD: 5 / ƯT1 (tuỳ chọn)"
           />
         </div>
-        <div className="space-y-1">
-          <label className={LABEL}>Số chỗ còn trống</label>
-          <div className={`min-h-11 rounded-lg border border-[#e4e4e7] bg-gray-50 px-3 py-2 text-sm font-semibold flex items-center ${
-            !apptDate || !apptTime ? "text-[#71717a]" : isSlotBooked ? "text-[#dc2626]" : "text-[#15803d]"
-          }`}>
-            {!apptDate || !apptTime ? "Vui lòng chọn ngày/giờ" : isSlotBooked ? "Hết chỗ (0)" : "Còn 1 chỗ (1)"}
-          </div>
+        <div className="space-y-1 sm:col-span-2">
+          <label className={LABEL}>Chọn chỗ (sơ đồ trống)</label>
+          <CinemaSlotPicker
+            date={apptDate}
+            doctors={doctors}
+            existingAppts={existingAppts}
+            selectedDoctorId={doctorId}
+            selectedTime={apptTime}
+            onPick={(docId, t) => {
+              setApptTime(t);
+              setDoctorId(docId);
+              setDoctorQ(docId ? (doctors.find((d) => d.id === docId)?.label ?? "") : "");
+            }}
+          />
+          {apptDate && apptTime && (
+            <p
+              className={`text-[11px] font-medium ${
+                isSlotBooked ? "text-[#dc2626]" : "text-[#15803d]"
+              }`}
+            >
+              {isSlotBooked
+                ? "Khung đang chọn đã kín — chọn ô khác."
+                : "Khung đang chọn còn trống."}
+            </p>
+          )}
         </div>
         <div className="space-y-1">
           <label className={LABEL}>Cơ sở *</label>

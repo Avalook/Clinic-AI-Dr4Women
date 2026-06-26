@@ -1,3 +1,21 @@
+## ▶ 2026-06-26 — CSKH: "Số chỗ còn trống" → sơ đồ đặt chỗ kiểu rạp chiếu phim (dùng chung BN mới + tái khám)
+
+**Việc đã làm:**
+- Mới: `app/(dashboard)/patients/CinemaSlotPicker.tsx` — component lưới đặt chỗ dùng chung. Mỗi bác sĩ 1 hàng, mỗi ô = 1 khung 15' trong giờ mở cửa (`clinicHoursForDate`). Ô đã có lịch / quá giờ → khoá; ô trống bấm → `onPick(doctorId, "HH:mm")`. Component thuần render (parent truyền `existingAppts`, nhận callback) → tái dùng được cả 2 luồng.
+- `patients/AppointmentBooking.tsx` (luồng **tái khám** qua `PatientBooking` + step 2): thay khối "Số chỗ còn trống" bằng `<CinemaSlotPicker/>` (span 2 cột), giữ Time24Input làm nhập tay dự phòng. Fetch `/api/appointments` **bỏ** filter `doctor_id` → lấy lịch mọi bác sĩ để vẽ đủ hàng.
+- `patients/new/NewPatientForm.tsx` (luồng **BN mới**): thay y hệt; fetch non-walkin bỏ `doctor_id`.
+
+**Quyết định & lý do:**
+- 1 component dùng chung thay vì 2 bản: logic chọn giờ ở 2 màn vốn trùng 100%; yêu cầu của Quang là tái khám cũng phải có "rạp chiếu phim".
+- **Giữ** Time24Input (nhập tay) làm dự phòng theo chốt với Quang; picker và ô nhập tay đồng bộ qua cùng state `apptTime/doctorId`.
+- **KHÔNG** đụng backend: GET `/api/appointments` khi bỏ `doctor_id` đã trả lịch mọi bác sĩ kèm field `doctor_id`.
+
+**Kiểm chứng:** `next build` Errors 0; typecheck sạch; lint 3 file — CinemaSlotPicker 0 lỗi, 2 file kia số lỗi = baseline (toàn lỗi có sẵn: DURATIONS/setDuration/any/set-state-in-effect, không thuộc vùng sửa).
+
+**Chưa làm / cần khi chạy thử:** chưa push (chờ Quang "OK"). Refactor gộp trùng lặp NewPatientForm↔AppointmentBooking để sau (ngoài scope).
+
+---
+
 ## ▶ LƯU Ý 2026-06-23 (chiều) — Điều dưỡng: nav/quyền + 3 hàng đợi + sinh hiệu + phiếu khám
 
 **ĐÃ SỬA (feedback PM cho vai Điều dưỡng `NURSE_ULTRASOUND`) — commit `a6a017e`:**
