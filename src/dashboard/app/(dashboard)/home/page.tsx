@@ -26,6 +26,7 @@ import WeeklyAppointmentsTable, {
 import WorkRosterTable, { type RosterRow } from "./WorkRosterTable";
 import VisitStatusBoard, { type VisitStatusRow } from "./VisitStatusBoard";
 import VisitStatusRealtime from "./VisitStatusRealtime";
+import RosterBell from "../RosterBell";
 
 export const dynamic = "force-dynamic";
 
@@ -311,6 +312,7 @@ export default async function HomePage({
 
   return (
     <div className="space-y-6">
+      <RosterBell />
       <header>
         <h1 className="text-xl font-semibold text-[#171717]">
           {greet(role, staff)}

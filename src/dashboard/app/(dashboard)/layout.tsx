@@ -1,7 +1,7 @@
 import { redirect } from "next/navigation";
 import Shell from "./Shell";
 import DeclinedNotice, { type DeclinedItem } from "./DeclinedNotice";
-import RosterNotifier from "./RosterNotifier";
+import { NotificationProvider } from "./NotificationContext";
 import RealtimeRefresher from "./RealtimeRefresher";
 import { leaveClinic } from "../(auth)/enter/actions";
 import { getSupabaseServer } from "../../lib/supabase-server";
@@ -61,11 +61,12 @@ export default async function DashboardLayout({
   }
 
   return (
-    <Shell role={role} identity={identity} leaveAction={leaveClinic}>
-      {children}
-      <DeclinedNotice items={declined} />
-      <RosterNotifier staffId={staffId} />
-      <RealtimeRefresher />
-    </Shell>
+    <NotificationProvider staffId={staffId}>
+      <Shell role={role} identity={identity} leaveAction={leaveClinic}>
+        {children}
+        <DeclinedNotice items={declined} />
+        <RealtimeRefresher />
+      </Shell>
+    </NotificationProvider>
   );
 }
