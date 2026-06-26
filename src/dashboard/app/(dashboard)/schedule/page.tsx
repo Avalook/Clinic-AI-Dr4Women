@@ -8,7 +8,11 @@
 
 import Link from "next/link";
 import { getSupabaseServer } from "../../../lib/supabase-server";
-import { getClinicRole, getClinicStaffId } from "../../../lib/clinic-session";
+import {
+  getClinicRole,
+  getClinicStaffId,
+  getActiveStaff,
+} from "../../../lib/clinic-session";
 import { isOpsAdmin, isAdminRole } from "../../../lib/roles";
 import {
   fmtDayMonth,
@@ -48,6 +52,8 @@ export default async function SchedulePage({
   const isApprover = isAdminRole(role); // CHỈ Quản lý: duyệt/từ chối ca trong popup.
   // Lấy staff_id cho MỌI vai (kể cả admin) để bảng đăng ký nhận diện ca của mình.
   const myStaffId = await getClinicStaffId();
+  const myStaff = await getActiveStaff();
+  const myStaffName = myStaff?.full_name ?? myStaff?.short_name ?? undefined;
 
   // Lấy TOÀN BỘ phân công của tuần (cho mọi vai trò) → bảng ma trận đồng bộ với
   // trang chủ. Form "Đăng ký ca của tôi" lọc client-side theo staff_id.
@@ -122,6 +128,7 @@ export default async function SchedulePage({
           weekStart={week}
           dates={dates}
           myStaffId={myStaffId}
+          myStaffName={myStaffName}
           isApprover={isApprover}
           rows={rows.map(
             (r): RegisterRow => ({

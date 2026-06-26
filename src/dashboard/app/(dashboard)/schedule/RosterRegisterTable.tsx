@@ -9,7 +9,7 @@
 //     khi được duyệt. Ca PENDING của chính mình có nút xoá.
 // Ghi qua /api/roster (POST đăng ký, DELETE huỷ) rồi router.refresh().
 
-import { useState } from "react";
+import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { X, Trash2, Check } from "lucide-react";
 import {
@@ -53,6 +53,7 @@ export default function RosterRegisterTable({
   dates,
   rows,
   myStaffId,
+  myStaffName,
   isApprover = false,
 }: {
   weekStart: string;
@@ -60,39 +61,81 @@ export default function RosterRegisterTable({
   rows: RegisterRow[];
   /** staff_id người đang đăng nhập; null = chưa chọn danh tính (không đăng ký được). */
   myStaffId: string | null;
+  /** Tên người đăng nhập — hiện ngay cho ca vừa đăng ký (optimistic). */
+  myStaffName?: string;
   /** Quản lý hệ thống: hiện nút Duyệt / Từ chối ngay trong popup ô. */
   isApprover?: boolean;
 }) {
   const router = useRouter();
   const [open, setOpen] = useState<{ date: string; station: string } | null>(null);
   const [shift, setShift] = useState<Shift>("FULL");
-  const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   // Duyệt/từ chối ngay trong popup (chỉ Quản lý). rejectingId = ca đang mở ô lý do.
   const [rejectingId, setRejectingId] = useState<string | null>(null);
   const [reason, setReason] = useState("");
+  const [, startTransition] = useTransition();
+
+  // OPTIMISTIC UI — cập nhật ngay khi bấm (khỏi chờ refetch cả trang cho mượt).
+  //   overrides: ghi đè trạng thái theo id ("REMOVED" = ẩn ca).
+  //   optimistic: ca vừa đăng ký, chưa kịp về từ server.
+  // Khi data server mới phản ánh đúng thay đổi → tự bỏ override/optimistic tương ứng.
+  const [overrides, setOverrides] = useState<
+    Record<string, "APPROVED" | "REJECTED" | "REMOVED">
+  >({});
+  const [optimistic, setOptimistic] = useState<RegisterRow[]>([]);
+
+  const refresh = () => startTransition(() => router.refresh());
+
+  // Danh sách hiệu lực = data server + áp optimistic (TÍNH KHI RENDER, không dùng
+  // effect): ẩn ca REMOVED, đổi trạng thái theo override, thêm ca vừa đăng ký nếu
+  // server chưa trả về (dedupe theo người+ngày+trạm để không trùng sau khi refetch).
+  const effRows: RegisterRow[] = [
+    ...rows
+      .filter((r) => overrides[r.id] !== "REMOVED")
+      .map((r) =>
+        overrides[r.id]
+          ? { ...r, status: overrides[r.id] as RegisterRow["status"] }
+          : r,
+      ),
+    ...optimistic.filter(
+      (o) =>
+        !rows.some(
+          (r) =>
+            r.staff_id === o.staff_id &&
+            r.work_date === o.work_date &&
+            r.station === o.station,
+        ),
+    ),
+  ];
 
   async function decide(id: string, action: "approve" | "reject", reasonText?: string) {
     setError(null);
-    setBusy(true);
+    setOverrides((ov) => ({
+      ...ov,
+      [id]: action === "approve" ? "APPROVED" : "REJECTED",
+    }));
+    setRejectingId(null);
+    setReason("");
     const res = await fetch("/api/roster", {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ id, action, reason: reasonText }),
     });
-    setBusy(false);
     if (!res.ok) {
+      setOverrides((ov) => {
+        const n = { ...ov };
+        delete n[id];
+        return n;
+      });
       setError((await res.json()).error ?? "Lỗi khi duyệt.");
       return;
     }
-    setRejectingId(null);
-    setReason("");
-    router.refresh();
+    refresh();
   }
 
   // byCell[date|station] = các đăng ký ở ô đó (mọi người, mọi trạng thái).
   const byCell = new Map<string, RegisterRow[]>();
-  for (const r of rows) {
+  for (const r of effRows) {
     const k = cellKey(r.work_date, r.station);
     const list = byCell.get(k) ?? [];
     list.push(r);
@@ -100,45 +143,64 @@ export default function RosterRegisterTable({
   }
 
   const openCellRows = open ? byCell.get(cellKey(open.date, open.station)) ?? [] : [];
-  const myHere = openCellRows.find((r) => r.staff_id === myStaffId);
+  // "Đã đăng ký" chỉ tính ca ĐANG hiệu lực (Chờ duyệt / Đã duyệt) của mình. Ca bị
+  // TỪ CHỐI không tính → cho phép đăng ký lại ô đó.
+  const myHere = openCellRows.find(
+    (r) => r.staff_id === myStaffId && r.status !== "REJECTED",
+  );
 
   async function register() {
     if (!open) return;
+    const { date, station } = open;
     setError(null);
-    setBusy(true);
+    const tempId = `temp-${date}-${station}-${shift}`;
+    setOptimistic((opt) => [
+      ...opt,
+      {
+        id: tempId,
+        work_date: date,
+        station,
+        shift,
+        staff_id: myStaffId,
+        staff_name: myStaffName ?? "Tôi",
+        status: "PENDING",
+        reject_reason: null,
+      },
+    ]);
+    setOpen(null);
     const res = await fetch("/api/roster", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        week_start: weekStart,
-        work_date: open.date,
-        station: open.station,
-        shift,
-      }),
+      body: JSON.stringify({ week_start: weekStart, work_date: date, station, shift }),
     });
-    setBusy(false);
     if (!res.ok) {
+      setOptimistic((opt) => opt.filter((o) => o.id !== tempId));
       setError((await res.json()).error ?? "Lỗi khi đăng ký.");
+      setOpen({ date, station });
       return;
     }
-    setOpen(null);
-    router.refresh();
+    refresh();
   }
 
   async function remove(id: string) {
-    setBusy(true);
+    setError(null);
+    setOverrides((ov) => ({ ...ov, [id]: "REMOVED" }));
+    setOpen(null);
     const res = await fetch("/api/roster", {
       method: "DELETE",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ id }),
     });
-    setBusy(false);
     if (!res.ok) {
+      setOverrides((ov) => {
+        const n = { ...ov };
+        delete n[id];
+        return n;
+      });
       setError((await res.json()).error ?? "Lỗi khi xoá.");
       return;
     }
-    setOpen(null);
-    router.refresh();
+    refresh();
   }
 
   return (
@@ -301,7 +363,6 @@ export default function RosterRegisterTable({
                           {r.staff_id === myStaffId && r.status === "PENDING" && (
                             <button
                               onClick={() => remove(r.id)}
-                              disabled={busy}
                               aria-label="Xoá ca của tôi"
                               className="shrink-0 rounded p-1 text-[#a1a1aa] hover:bg-[#fee2e2] hover:text-[#dc2626] disabled:opacity-50"
                             >
@@ -335,7 +396,7 @@ export default function RosterRegisterTable({
                                   </button>
                                   <button
                                     onClick={() => decide(r.id, "reject", reason)}
-                                    disabled={busy || !reason.trim()}
+                                    disabled={!reason.trim()}
                                     className="rounded-md bg-[#dc2626] px-2.5 py-1 text-xs font-medium text-white hover:bg-[#b91c1c] disabled:opacity-50"
                                   >
                                     Xác nhận từ chối
@@ -346,7 +407,6 @@ export default function RosterRegisterTable({
                               <div className="flex gap-1.5">
                                 <button
                                   onClick={() => decide(r.id, "approve")}
-                                  disabled={busy}
                                   className="flex items-center gap-1 rounded-md bg-[#16a34a] px-2.5 py-1 text-xs font-medium text-white hover:bg-[#15803d] disabled:opacity-50"
                                 >
                                   <Check size={13} /> Duyệt
@@ -357,7 +417,6 @@ export default function RosterRegisterTable({
                                     setReason("");
                                     setRejectingId(r.id);
                                   }}
-                                  disabled={busy}
                                   className="flex items-center gap-1 rounded-md border border-[#e4e4e7] bg-white px-2.5 py-1 text-xs font-medium text-[#dc2626] hover:bg-[#fee2e2] disabled:opacity-50"
                                 >
                                   <X size={13} /> Từ chối
@@ -397,10 +456,8 @@ export default function RosterRegisterTable({
               <p className="rounded bg-[#eff6ff] px-3 py-2 text-sm text-[#1d4ed8]">
                 Bạn đã đăng ký ô này
                 {myHere.status === "PENDING"
-                  ? " (đang chờ quản lý duyệt)."
-                  : myHere.status === "APPROVED"
-                    ? " và đã được duyệt."
-                    : ". Ca trước bị từ chối — có thể xoá rồi đăng ký lại."}
+                  ? " — đang chờ quản lý duyệt."
+                  : " và đã được duyệt."}
               </p>
             ) : (
               <div className="flex items-end gap-2">
@@ -422,10 +479,9 @@ export default function RosterRegisterTable({
                 </div>
                 <button
                   onClick={register}
-                  disabled={busy}
-                  className="rounded-lg bg-[#ec4899] px-4 py-2 text-sm font-medium text-white hover:bg-[#db2777] disabled:opacity-50"
+                  className="rounded-lg bg-[#ec4899] px-4 py-2 text-sm font-medium text-white hover:bg-[#db2777]"
                 >
-                  {busy ? "Đang lưu..." : "Đăng ký"}
+                  Đăng ký
                 </button>
               </div>
             )}
