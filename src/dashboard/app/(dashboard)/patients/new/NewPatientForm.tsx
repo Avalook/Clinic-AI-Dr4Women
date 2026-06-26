@@ -342,8 +342,26 @@ export default function NewPatientForm({
     : !!(serviceId && apptDate && apptTime);
   // Bắt buộc trước khi lưu: Họ tên + SĐT + Giới tính + Cơ sở (Ngày sinh kiểm
   // trong save() vì có toggle "Chỉ biết năm"). Nút khoá tới khi đủ.
+  // Khách thường (không vãng lai) phải đủ: Tỉnh/TP + Phường/Xã + Dịch vụ + Bác sĩ
+  // + Ngày + Giờ khám + Kênh đặt (mới đủ điều kiện tạo lượt khám). Walk-in giữ nguyên.
+  const requiredForCustomer =
+    walkin ||
+    !!(
+      provinceCode &&
+      wardCode &&
+      serviceId &&
+      doctorId &&
+      apptDate &&
+      apptTime &&
+      channel
+    );
   const canSubmit =
-    fullName.trim() && locationId && phone.trim() && gender && !submitting;
+    fullName.trim() &&
+    locationId &&
+    phone.trim() &&
+    gender &&
+    requiredForCustomer &&
+    !submitting;
   // Giờ mở cửa PK theo ngày khám đã chọn (T2–T6 17–23h; T7+CN cả ngày).
   const apptCh = apptDate ? clinicHoursForDate(apptDate) : null;
   const apptMinHour = apptCh ? Number(apptCh.open.slice(0, 2)) : 0;
@@ -449,6 +467,38 @@ export default function NewPatientForm({
     } else if (dobErr) {
       setError(dobErr);
       return;
+    }
+    // BẮT BUỘC (khách thường, không vãng lai): Tỉnh/TP + Phường/Xã + Dịch vụ +
+    // Bác sĩ + Ngày + Giờ khám + Kênh đặt — đủ thì mới tạo được lượt khám.
+    if (!walkin) {
+      if (!provinceCode) {
+        setError("Chọn Tỉnh / Thành phố.");
+        return;
+      }
+      if (!wardCode) {
+        setError("Chọn Phường / Xã.");
+        return;
+      }
+      if (!serviceId) {
+        setError("Chọn dịch vụ khám.");
+        return;
+      }
+      if (!doctorId) {
+        setError("Chọn bác sĩ.");
+        return;
+      }
+      if (!apptDate) {
+        setError("Chọn ngày khám.");
+        return;
+      }
+      if (!apptTime) {
+        setError("Chọn giờ khám.");
+        return;
+      }
+      if (!channel) {
+        setError("Chọn kênh đặt.");
+        return;
+      }
     }
     // Lịch khám (không phải vãng lai): KHÔNG cho đặt vào quá khứ — thời gian thực.
     if (!walkin && wantsAppointment) {
