@@ -1,3 +1,30 @@
+<!-- ════════════════════════════════════════════════════════════════════
+     📍 BÀN GIAO PHIÊN (đọc khối này TRƯỚC) — cập nhật 2026-06-26 tối
+     ════════════════════════════════════════════════════════════════════ -->
+
+## 📍 ĐANG Ở ĐÂU — bàn giao cho phiên sau (vd mở remote ở nhà)
+
+**Việc gần nhất ĐÃ XONG & ĐÃ PUSH (`avalook/chinh` = `9cd79aa`):** trang lẻ `/queue`
+"Số thứ tự GỌI khám" ưu tiên Model ② (chi tiết ngay mục dưới). KHÔNG đụng DB.
+
+**Bản đồ file ↔ logic (sửa ở đâu nếu cần đổi tiếp):**
+| Muốn đổi gì | File | Điểm cần sửa |
+|---|---|---|
+| Luật xếp thứ tự GỌI / cửa sổ trễ | `src/dashboard/lib/queue.ts` | `callRank()` + hằng `LATE_GRACE_MS` (đang 10') |
+| Giao diện bảng gọi số | `src/dashboard/app/(dashboard)/queue/QueueBoard.tsx` | client, gom theo bác sĩ, refresh 30s |
+| Dữ liệu trang gọi số | `src/dashboard/app/(dashboard)/queue/page.tsx` | SELECT + lọc CHECKED_IN hôm nay |
+| Ai thấy menu /queue | `lib/roles.ts` (NAV_ROLES) + `app/(dashboard)/nav-items.ts` | |
+| Board check-in /home & "Việc của tôi" | `home/page.tsx` (CHECKIN_SELECT) · `tasks/page.tsx` (DOCTOR_SELECT) · `tasks/DoctorWorkBoard.tsx` | đều dùng `compareQueue` từ `lib/queue.ts` |
+
+**CÒN TREO (ý tưởng, CHƯA làm — chờ Quang quyết):**
+- `/queue` mới chỉ HIỂN THỊ + tự refresh, **chưa có nút thao tác** "đã gọi / bỏ qua / gọi lại". Nếu cần biến thành bảng điều khiển thật thì làm thêm action + cột trạng thái gọi.
+- `LATE_GRACE_MS` đang **cứng 10'** — nếu muốn chỉnh theo phòng khám thì cân nhắc đưa thành cấu hình.
+- `WeeklyAppointmentsTable` (overview tuần) cố ý để fallback, chưa gắn 2 field mới.
+
+**Quy tắc còn hiệu lực:** mọi việc trên nhánh `chinh`; push chỉ `git push avalook chinh` SAU khi Quang nói "OK"; đổi DB → đưa SQL cho Quang paste vào prod (atf), KHÔNG tự apply.
+
+---
+
 ## ▶ 2026-06-26 (tối) — THỨ TỰ GỌI KHÁM ưu tiên (Model ②) + trang lẻ /queue
 
 **Bối cảnh / nỗi đau:** số vé (queue_number) cấp lúc ĐẾN nên KHÔNG thể là thứ tự gọi: người hẹn 9:00 đến 9:03 sẽ thua 2 khách vãng lai đến 9:00 (đã tự check-in, có vé trước). Quang chốt: **tách số vé (chỉ định danh) khỏi thứ tự GỌI**; gọi bệnh nhân **theo TÊN**; người có hẹn đến đúng giờ xếp trước vãng lai; đến trễ quá cửa sổ thì tụt xuống theo giờ đến.

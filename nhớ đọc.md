@@ -23,6 +23,15 @@ Người hẹn 9:00 đến 9:03 từng bị thua 2 khách vãng lai đến 9:00 
 ## Cách xem
 - Đăng nhập (CSKH / Lễ tân / Quản lý / Bác sĩ…) → sidebar mục **"Số thứ tự gọi khám"** (`/queue`).
 
+## 🗺️ Sửa ở đâu nếu cần đổi tiếp
+| Muốn đổi | File | Điểm |
+|---|---|---|
+| Luật xếp gọi / cửa sổ trễ | `src/dashboard/lib/queue.ts` | `callRank()` + `LATE_GRACE_MS` (10') |
+| Giao diện bảng gọi | `app/(dashboard)/queue/QueueBoard.tsx` | client, refresh 30s |
+| Dữ liệu bảng gọi | `app/(dashboard)/queue/page.tsx` | SELECT + lọc CHECKED_IN hôm nay |
+| Ai thấy menu | `lib/roles.ts` NAV_ROLES + `nav-items.ts` | |
+| Board /home & "Việc của tôi" | `home/page.tsx`, `tasks/page.tsx`, `tasks/DoctorWorkBoard.tsx` | đều dùng `compareQueue` |
+
 ## Còn treo / cần lưu ý
 - Cửa sổ trễ đang để cứng **10'** trong `lib/queue.ts` (`LATE_GRACE_MS`). Muốn đổi thì sửa 1 chỗ đó.
 - Trang `/queue` chỉ hiển thị + tự refresh, CHƯA có nút "đã gọi / bỏ qua". Nếu cần thao tác thì làm thêm sau.
