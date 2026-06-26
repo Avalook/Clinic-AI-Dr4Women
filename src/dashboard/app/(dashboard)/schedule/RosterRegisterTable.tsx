@@ -379,6 +379,16 @@ export default function RosterRegisterTable({
               </p>
             )}
 
+            {isApprover && openCellRows.length === 0 && (
+              <p className="rounded bg-[#fafafa] px-3 py-2 text-sm text-[#71717a]">
+                Chưa có ai đăng ký ô này.
+              </p>
+            )}
+
+            {/* Form tự đăng ký — CHỈ cho nhân viên trực ca. Quản lý hệ thống mở
+                popup chỉ để duyệt/từ chối, không tự đăng ký ca → ẩn phần này. */}
+            {!isApprover && (
+              <>
             {myStaffId == null ? (
               <p className="rounded bg-[#fef9c3] px-3 py-2 text-sm text-[#854d0e]">
                 Chưa chọn danh tính nhân viên — không thể tự đăng ký ca.
@@ -422,6 +432,8 @@ export default function RosterRegisterTable({
             <p className="mt-3 text-xs text-[#a1a1aa]">
               Ca đăng ký sẽ ở trạng thái “Chờ duyệt” đến khi quản lý xác nhận.
             </p>
+              </>
+            )}
           </div>
         </div>
       )}
