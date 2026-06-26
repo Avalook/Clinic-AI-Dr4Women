@@ -135,9 +135,13 @@ export async function PATCH(request: Request) {
     );
   }
 
-  let body: { id?: string; action?: string };
+  let body: { id?: string; action?: string; reason?: string };
   try {
-    body = (await request.json()) as { id?: string; action?: string };
+    body = (await request.json()) as {
+      id?: string;
+      action?: string;
+      reason?: string;
+    };
   } catch {
     return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
   }
@@ -147,10 +151,14 @@ export async function PATCH(request: Request) {
     return NextResponse.json({ error: "action không hợp lệ." }, { status: 400 });
   }
   const status = body.action === "approve" ? "APPROVED" : "REJECTED";
+  // Từ chối → lưu lý do (cắt gọn để người đăng ký biết). Duyệt → xoá lý do cũ
+  // (phòng khi ca từng bị từ chối rồi quản lý đổi ý duyệt lại).
+  const reject_reason =
+    body.action === "reject" ? (body.reason ?? "").trim() || null : null;
 
   const { error } = await auth.admin
     .from("work_roster")
-    .update({ status, updated_at: new Date().toISOString() })
+    .update({ status, reject_reason, updated_at: new Date().toISOString() })
     .eq("id", id);
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
   return NextResponse.json({ ok: true });

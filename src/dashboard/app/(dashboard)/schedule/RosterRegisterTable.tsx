@@ -1,0 +1,348 @@
+"use client";
+
+// "Đăng ký lịch làm việc" — bảng MA TRẬN tương tác (ngày × trạm, gom theo tầng,
+// CÙNG layout với bảng "Lịch làm việc" read-only ở trên). Khác bảng trên ở chỗ:
+//   - Hiện MỌI đăng ký của MỌI người + trạng thái (Chờ duyệt / Đã duyệt / Từ chối)
+//     để ai cũng thấy lịch dự kiến của người khác mà tự liệu.
+//   - Click 1 ô → modal "nảy ra" để tự đăng ký ca CỦA MÌNH ngay tại trạm+ngày đó.
+//     Đăng ký xong → status PENDING (chờ quản lý duyệt), không lên lịch chung tới
+//     khi được duyệt. Ca PENDING của chính mình có nút xoá.
+// Ghi qua /api/roster (POST đăng ký, DELETE huỷ) rồi router.refresh().
+
+import { useState } from "react";
+import { useRouter } from "next/navigation";
+import { X, Trash2 } from "lucide-react";
+import {
+  STATIONS,
+  STATION_SEGMENTS,
+  STATION_LABEL,
+  FLOOR_COLOR,
+  SHIFTS,
+  SHIFT_LABEL,
+  dayShort,
+  fmtDayMonth,
+  type Shift,
+} from "../../../lib/roster";
+
+export interface RegisterRow {
+  id: string;
+  work_date: string;
+  station: string;
+  shift: Shift;
+  staff_id: string | null;
+  staff_name: string;
+  status: "PENDING" | "APPROVED" | "REJECTED";
+  reject_reason: string | null;
+}
+
+const STATUS_BADGE: Record<RegisterRow["status"], { cls: string; label: string }> = {
+  PENDING: { cls: "bg-[#fef9c3] text-[#854d0e]", label: "Chờ duyệt" },
+  APPROVED: { cls: "bg-[#dcfce7] text-[#166534]", label: "Đã duyệt" },
+  REJECTED: { cls: "bg-[#fee2e2] text-[#dc2626]", label: "Từ chối" },
+};
+
+const TH_BASE =
+  "border-b border-r border-[#f3cfe0] px-2 py-2 text-center align-middle font-semibold text-[#9d2463]";
+
+function cellKey(date: string, station: string) {
+  return `${date}|${station}`;
+}
+
+export default function RosterRegisterTable({
+  weekStart,
+  dates,
+  rows,
+  myStaffId,
+}: {
+  weekStart: string;
+  dates: string[];
+  rows: RegisterRow[];
+  /** staff_id người đang đăng nhập; null = chưa chọn danh tính (không đăng ký được). */
+  myStaffId: string | null;
+}) {
+  const router = useRouter();
+  const [open, setOpen] = useState<{ date: string; station: string } | null>(null);
+  const [shift, setShift] = useState<Shift>("FULL");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  // byCell[date|station] = các đăng ký ở ô đó (mọi người, mọi trạng thái).
+  const byCell = new Map<string, RegisterRow[]>();
+  for (const r of rows) {
+    const k = cellKey(r.work_date, r.station);
+    const list = byCell.get(k) ?? [];
+    list.push(r);
+    byCell.set(k, list);
+  }
+
+  const openCellRows = open ? byCell.get(cellKey(open.date, open.station)) ?? [] : [];
+  const myHere = openCellRows.find((r) => r.staff_id === myStaffId);
+
+  async function register() {
+    if (!open) return;
+    setError(null);
+    setBusy(true);
+    const res = await fetch("/api/roster", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        week_start: weekStart,
+        work_date: open.date,
+        station: open.station,
+        shift,
+      }),
+    });
+    setBusy(false);
+    if (!res.ok) {
+      setError((await res.json()).error ?? "Lỗi khi đăng ký.");
+      return;
+    }
+    setOpen(null);
+    router.refresh();
+  }
+
+  async function remove(id: string) {
+    setBusy(true);
+    const res = await fetch("/api/roster", {
+      method: "DELETE",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ id }),
+    });
+    setBusy(false);
+    if (!res.ok) {
+      setError((await res.json()).error ?? "Lỗi khi xoá.");
+      return;
+    }
+    setOpen(null);
+    router.refresh();
+  }
+
+  return (
+    <>
+      <div className="overflow-auto rounded-xl border border-[#f3cfe0] bg-white shadow-[0_1px_3px_rgba(236,72,153,0.08)] max-h-[88vh] min-h-[180px] max-w-full">
+        <table className="w-full min-w-max border-collapse text-xs">
+          <thead>
+            <tr className="bg-[#fce7f3]">
+              <th
+                rowSpan={2}
+                className="sticky left-0 z-20 border-b border-r border-[#f3cfe0] bg-[#fce7f3] px-2 py-2 text-left font-semibold text-[#9d2463]"
+              >
+                Ngày
+              </th>
+              {STATION_SEGMENTS.map((seg) =>
+                seg.floor === "" ? (
+                  seg.stations.map((s) => (
+                    <th key={s.key} rowSpan={2} className={`min-w-[110px] ${TH_BASE}`}>
+                      {s.short}
+                    </th>
+                  ))
+                ) : (
+                  <th
+                    key={seg.floor}
+                    colSpan={seg.stations.length}
+                    className={`${TH_BASE} border-t-2`}
+                    style={{ borderTopColor: FLOOR_COLOR[seg.floor] ?? "#ec4899" }}
+                  >
+                    {seg.floor}
+                  </th>
+                ),
+              )}
+            </tr>
+            <tr className="bg-[#fdf2f8]">
+              {STATIONS.filter((s) => s.floor !== "").map((s) => (
+                <th
+                  key={s.key}
+                  className="min-w-[104px] border-b border-r border-[#f3cfe0] px-2 py-1.5 text-center font-medium text-[#b83280]"
+                >
+                  {s.short}
+                </th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {dates.map((d, ri) => (
+              <tr key={d} className={"align-top " + (ri % 2 ? "bg-[#fdf7fb]" : "bg-white")}>
+                <td className="sticky left-0 z-10 whitespace-nowrap border-b border-r border-[#f3cfe0] bg-inherit px-2 py-2 font-medium text-[#171717]">
+                  {dayShort(d)} · {fmtDayMonth(d)}
+                </td>
+                {STATIONS.map((s) => {
+                  const list = byCell.get(cellKey(d, s.key)) ?? [];
+                  return (
+                    <td
+                      key={s.key}
+                      className="border-b border-r border-[#f3cfe0] p-0"
+                    >
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setError(null);
+                          setShift("FULL");
+                          setOpen({ date: d, station: s.key });
+                        }}
+                        className="flex h-full min-h-[40px] w-full flex-col gap-0.5 px-1.5 py-1.5 text-center transition-colors hover:bg-[#fdeef6]"
+                      >
+                        {list.length === 0 ? (
+                          <span className="text-[#e0b9cd]">+</span>
+                        ) : (
+                          list.map((r) => {
+                            const b = STATUS_BADGE[r.status];
+                            return (
+                              <span
+                                key={r.id}
+                                className={
+                                  "block whitespace-nowrap rounded px-1 leading-snug " +
+                                  b.cls +
+                                  (r.status === "REJECTED" ? " line-through" : "") +
+                                  (r.staff_id === myStaffId ? " ring-1 ring-[#ec4899]/40" : "")
+                                }
+                                title={`${b.label}${r.reject_reason ? " — " + r.reject_reason : ""}`}
+                              >
+                                {r.staff_name}
+                                {r.shift !== "FULL" ? ` (${SHIFT_LABEL[r.shift]})` : ""}
+                              </span>
+                            );
+                          })
+                        )}
+                      </button>
+                    </td>
+                  );
+                })}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+
+      {/* Modal "nảy ra" khi click 1 ô */}
+      {open && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 p-4"
+          onClick={() => setOpen(null)}
+        >
+          <div
+            className="w-full max-w-md rounded-xl border border-[#e4e4e7] bg-white p-4 shadow-xl"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="mb-3 flex items-start justify-between gap-2">
+              <h3 className="text-sm font-semibold text-[#171717]">
+                Đăng ký ca · {dayShort(open.date)} {fmtDayMonth(open.date)}
+                <span className="block text-xs font-normal text-[#71717a]">
+                  {STATION_LABEL[open.station] ?? open.station}
+                </span>
+              </h3>
+              <button
+                onClick={() => setOpen(null)}
+                aria-label="Đóng"
+                className="rounded-md p-1 text-[#a1a1aa] hover:bg-[#f4f4f5]"
+              >
+                <X size={16} />
+              </button>
+            </div>
+
+            {/* Ai đã đăng ký ô này (để biết lịch dự kiến của người khác). */}
+            {openCellRows.length > 0 && (
+              <div className="mb-3 rounded-lg border border-[#f4f4f5] bg-[#fafafa] p-2">
+                <p className="mb-1 text-xs font-medium text-[#71717a]">
+                  Đã đăng ký ô này
+                </p>
+                <ul className="space-y-1">
+                  {openCellRows.map((r) => {
+                    const b = STATUS_BADGE[r.status];
+                    return (
+                      <li
+                        key={r.id}
+                        className="flex items-center justify-between gap-2 text-xs text-[#4d4d4d]"
+                      >
+                        <span className="min-w-0">
+                          <span className="font-medium text-[#171717]">
+                            {r.staff_name}
+                          </span>
+                          {r.shift !== "FULL" && (
+                            <span className="text-[#a1a1aa]">
+                              {" "}
+                              ({SHIFT_LABEL[r.shift]})
+                            </span>
+                          )}
+                          <span
+                            className={"ml-1.5 rounded px-1.5 py-0.5 font-medium " + b.cls}
+                          >
+                            {b.label}
+                          </span>
+                          {r.status === "REJECTED" && r.reject_reason && (
+                            <span className="block text-[#dc2626]">
+                              Lý do: {r.reject_reason}
+                            </span>
+                          )}
+                        </span>
+                        {r.staff_id === myStaffId && r.status === "PENDING" && (
+                          <button
+                            onClick={() => remove(r.id)}
+                            disabled={busy}
+                            aria-label="Xoá ca của tôi"
+                            className="shrink-0 rounded p-1 text-[#a1a1aa] hover:bg-[#fee2e2] hover:text-[#dc2626] disabled:opacity-50"
+                          >
+                            <Trash2 size={14} />
+                          </button>
+                        )}
+                      </li>
+                    );
+                  })}
+                </ul>
+              </div>
+            )}
+
+            {error && (
+              <p className="mb-2 rounded bg-[#fee2e2] px-3 py-2 text-sm text-[#dc2626]">
+                {error}
+              </p>
+            )}
+
+            {myStaffId == null ? (
+              <p className="rounded bg-[#fef9c3] px-3 py-2 text-sm text-[#854d0e]">
+                Chưa chọn danh tính nhân viên — không thể tự đăng ký ca.
+              </p>
+            ) : myHere ? (
+              <p className="rounded bg-[#eff6ff] px-3 py-2 text-sm text-[#1d4ed8]">
+                Bạn đã đăng ký ô này
+                {myHere.status === "PENDING"
+                  ? " (đang chờ quản lý duyệt)."
+                  : myHere.status === "APPROVED"
+                    ? " và đã được duyệt."
+                    : ". Ca trước bị từ chối — có thể xoá rồi đăng ký lại."}
+              </p>
+            ) : (
+              <div className="flex items-end gap-2">
+                <div className="flex-1">
+                  <label className="mb-1 block text-xs font-medium text-[#71717a]">
+                    Ca
+                  </label>
+                  <select
+                    className="w-full rounded-lg border border-[#e4e4e7] px-3 py-2 text-sm focus:border-[#ec4899] focus:outline-none"
+                    value={shift}
+                    onChange={(e) => setShift(e.target.value as Shift)}
+                  >
+                    {SHIFTS.map((s) => (
+                      <option key={s} value={s}>
+                        {SHIFT_LABEL[s]}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <button
+                  onClick={register}
+                  disabled={busy}
+                  className="rounded-lg bg-[#ec4899] px-4 py-2 text-sm font-medium text-white hover:bg-[#db2777] disabled:opacity-50"
+                >
+                  {busy ? "Đang lưu..." : "Đăng ký"}
+                </button>
+              </div>
+            )}
+            <p className="mt-3 text-xs text-[#a1a1aa]">
+              Ca đăng ký sẽ ở trạng thái “Chờ duyệt” đến khi quản lý xác nhận.
+            </p>
+          </div>
+        </div>
+      )}
+    </>
+  );
+}

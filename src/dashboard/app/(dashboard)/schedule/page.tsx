@@ -1,9 +1,10 @@
-// Lịch làm việc — BẢNG MA TRẬN tuần (đồng bộ form ở mọi vai trò: cùng layout
-// với "Lịch làm việc · tuần này" trên Trang chủ — ngày × trạm, gom theo tầng).
-//  - Quản lý: thấy tất cả phân công + nút "Sửa lịch" → /schedule/edit.
-//  - Bác sĩ / điều dưỡng / lễ tân / CSKH: thấy bảng đầy đủ (tham khảo cả phòng
-//    khám) + form "Đăng ký ca của tôi" ở trên.
-// Read-only; ghi qua /api/roster (form đăng ký) hoặc /schedule/edit (quản lý).
+// Lịch làm việc — 2 BẢNG MA TRẬN tuần (đồng bộ mọi vai trò: cùng layout với
+// "Lịch làm việc · tuần này" trên Trang chủ — ngày × trạm, gom theo tầng):
+//  1. "Lịch làm việc" (read-only): chỉ ca ĐÃ DUYỆT — lịch chung chính thức.
+//  2. "Đăng ký lịch làm việc" (tương tác): click 1 ô → tự đăng ký ca CỦA MÌNH,
+//     thấy luôn đăng ký của người khác + trạng thái để tự liệu. Đăng ký → PENDING.
+//  - Quản lý: thêm nút "Sửa lịch" + hàng đợi "Chờ duyệt" (duyệt / từ chối kèm lý do).
+// Ghi qua /api/roster (đăng ký/duyệt) hoặc /schedule/edit (quản lý xếp tay).
 
 import Link from "next/link";
 import { getSupabaseServer } from "../../../lib/supabase-server";
@@ -15,19 +16,21 @@ import {
   weekStartOf,
   shiftWeek,
   currentWeekStartVn,
-  defaultStationForRole,
 } from "../../../lib/roster";
 import WorkRosterTable, {
   type RosterRow,
 } from "../home/WorkRosterTable";
-import SelfRosterForm from "./SelfRosterForm";
+import RosterRegisterTable, {
+  type RegisterRow,
+} from "./RosterRegisterTable";
 import PendingApprovalPanel from "./PendingApprovalPanel";
 
 export const dynamic = "force-dynamic";
 
-// Row kèm id để SelfRosterForm xoá được đúng ca (RosterRow của bảng không có id).
+// Row kèm id + trạng thái để bảng đăng ký phân biệt ca của mình & lý do từ chối.
 interface RosterRowWithId extends RosterRow {
   id: string;
+  reject_reason: string | null;
   staff_id: string | null;
   status: "PENDING" | "APPROVED" | "REJECTED";
 }
@@ -43,25 +46,23 @@ export default async function SchedulePage({
 
   const role = await getClinicRole();
   const isAdmin = isOpsAdmin(role);
-  const myStaffId = isAdmin ? null : await getClinicStaffId();
+  // Lấy staff_id cho MỌI vai (kể cả admin) để bảng đăng ký nhận diện ca của mình.
+  const myStaffId = await getClinicStaffId();
 
   // Lấy TOÀN BỘ phân công của tuần (cho mọi vai trò) → bảng ma trận đồng bộ với
   // trang chủ. Form "Đăng ký ca của tôi" lọc client-side theo staff_id.
   const supabase = await getSupabaseServer();
   const { data } = await supabase
     .from("work_roster")
-    .select("id, work_date, shift, station, staff_id, staff_name, status")
+    .select(
+      "id, work_date, shift, station, staff_id, staff_name, status, reject_reason",
+    )
     .eq("week_start", week)
     .order("sort", { ascending: true });
   const rows = (data as RosterRowWithId[] | null) ?? [];
 
   // Lịch chung CHỈ hiện ca đã duyệt. Ca PENDING/REJECTED không lọt vào bảng.
   const approvedRows = rows.filter((r) => r.status === "APPROVED");
-
-  // Của tôi: gồm cả ca chờ duyệt để hiện nhãn trạng thái trong form.
-  const myRows = myStaffId
-    ? rows.filter((r) => r.staff_id === myStaffId && r.status !== "REJECTED")
-    : [];
 
   // Admin: hàng đợi ca chờ duyệt của tuần này.
   const pendingRows = isAdmin
@@ -104,10 +105,13 @@ export default async function SchedulePage({
         </Link>
       </div>
 
-      {/* Bảng ma trận — DÙNG CHUNG với Trang chủ. Chỉ ca ĐÃ DUYỆT mới hiện. */}
-      <WorkRosterTable dates={dates} rows={approvedRows} />
+      {/* BẢNG 1 — Lịch làm việc chính thức (chỉ ca ĐÃ DUYỆT). */}
+      <section className="space-y-2">
+        <h2 className="text-sm font-semibold text-[#171717]">Lịch làm việc</h2>
+        <WorkRosterTable dates={dates} rows={approvedRows} />
+      </section>
 
-      {/* Quản lý: hàng đợi duyệt ca tự đăng ký của tuần này. */}
+      {/* Quản lý: hàng đợi duyệt ca tự đăng ký của tuần này (duyệt / từ chối kèm lý do). */}
       {isAdmin && pendingRows.length > 0 && (
         <PendingApprovalPanel
           rows={pendingRows.map((r) => ({
@@ -120,22 +124,35 @@ export default async function SchedulePage({
         />
       )}
 
-      {/* Không phải quản lý: form tự đăng ký ca CỦA MÌNH ở dưới (feedback C4). */}
-      {!isAdmin && (
-        <SelfRosterForm
+      {/* BẢNG 2 — Đăng ký lịch làm việc (tương tác: click ô → tự đăng ký ca). */}
+      <section className="space-y-2">
+        <h2 className="text-sm font-semibold text-[#171717]">
+          Đăng ký lịch làm việc
+        </h2>
+        <p className="text-xs text-[#71717a]">
+          Bấm vào ô (ngày × vị trí) để đăng ký ca của bạn. Ca đăng ký ở trạng thái
+          “Chờ duyệt” đến khi quản lý xác nhận; bạn cũng thấy đăng ký của người khác
+          để tự liệu lịch.
+        </p>
+        <RosterRegisterTable
           key={week}
           weekStart={week}
           dates={dates}
-          defaultStation={defaultStationForRole(role)}
-          myRows={myRows.map((r) => ({
-            id: r.id,
-            work_date: r.work_date,
-            station: r.station,
-            shift: r.shift as "FULL" | "SANG" | "CHIEU",
-            status: r.status as "PENDING" | "APPROVED",
-          }))}
+          myStaffId={myStaffId}
+          rows={rows.map(
+            (r): RegisterRow => ({
+              id: r.id,
+              work_date: r.work_date,
+              station: r.station,
+              shift: r.shift as "FULL" | "SANG" | "CHIEU",
+              staff_id: r.staff_id,
+              staff_name: r.staff_name ?? "",
+              status: r.status,
+              reject_reason: r.reject_reason,
+            }),
+          )}
         />
-      )}
+      </section>
     </div>
   );
 }
