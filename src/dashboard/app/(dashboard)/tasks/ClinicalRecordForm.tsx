@@ -13,7 +13,6 @@ import { X, Plus, ChevronLeft, ChevronRight, CalendarPlus } from "lucide-react";
 import { fmtDate, fmtDateTimeOrDate } from "../../../lib/datetime";
 import { INPUT, LABEL } from "../form-ui";
 import PatientAdminEditor from "../PatientAdminEditor";
-import PreVisitBrief from "../PreVisitBrief";
 import SonoBiometry from "./SonoBiometry";
 import ServiceFormEngine from "./ServiceFormEngine";
 import { resolveServiceCode } from "../../../lib/form-schemas";
@@ -812,14 +811,6 @@ export default function ClinicalRecordForm({
             </dl>
           )}
         </Section>
-        )}
-
-        {/* Tóm tắt trước khám (bác sĩ): gọi-và-hiện, KHÔNG lưu. Đặt ở tab "Hành
-            chính" để bác sĩ xem trước khi đọc/ghi hồ sơ. Read-only → hiện cả khi khóa. */}
-        {tab === 0 && !showAll && showPreVisitBrief && p?.clinic_patient_id && (
-          <div className="border-t border-[#f4f4f5] pt-3">
-            <PreVisitBrief id={p.clinic_patient_id} />
-          </div>
         )}
 
         {tab === 0 && !showAll && (data?.history?.length ?? 0) > 0 && (
