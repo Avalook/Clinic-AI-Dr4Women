@@ -221,6 +221,10 @@ export default function NewPatientForm({
   const [apptTime, setApptTime] = useState("");
   const [duration, setDuration] = useState(15);
   const [existingAppts, setExistingAppts] = useState<any[]>([]);
+  // CAP-01: phân loại tải để engine ngân sách (newCap + Thành-min) chặn đúng.
+  // BN nhập-mới mặc định là ca KHÁM MỚI; lễ tân đổi sang Tái khám khi cần.
+  const [patientKind, setPatientKind] = useState<"NEW" | "RETURN">("NEW");
+  const [needSono, setNeedSono] = useState(false);
 
   // Fetch appointments for selected date to check availability / walk-in queues
   useEffect(() => {
@@ -390,6 +394,8 @@ export default function NewPatientForm({
         slot_end: end.toISOString(),
         booking_channel: walkin ? "WALK_IN" : channel,
         queue_number: queueNumber,
+        patient_kind: patientKind,
+        need_sono: needSono,
       }),
     });
     if (!res.ok) {
@@ -895,6 +901,34 @@ export default function NewPatientForm({
                 </div>
               </div>
               <div>
+                <label className={LABEL}>Loại khám</label>
+                <select
+                  value={patientKind}
+                  onChange={(e) =>
+                    setPatientKind(e.target.value as "NEW" | "RETURN")
+                  }
+                  className={INPUT}
+                >
+                  <option value="NEW">Khám mới</option>
+                  <option value="RETURN">Tái khám</option>
+                </select>
+                <label
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 6,
+                    marginTop: 6,
+                  }}
+                >
+                  <input
+                    type="checkbox"
+                    checked={needSono}
+                    onChange={(e) => setNeedSono(e.target.checked)}
+                  />
+                  Có siêu âm
+                </label>
+              </div>
+              <div>
                 <label className={LABEL}>Số khám</label>
                 <input
                   value={queueNumber}
@@ -1025,6 +1059,34 @@ export default function NewPatientForm({
                 Giờ mở cửa: {apptCh.open}–{apptCh.close}
               </p>
             )}
+          </div>
+          <div>
+            <label className={LABEL}>Loại khám</label>
+            <select
+              value={patientKind}
+              onChange={(e) =>
+                setPatientKind(e.target.value as "NEW" | "RETURN")
+              }
+              className={INPUT}
+            >
+              <option value="NEW">Khám mới</option>
+              <option value="RETURN">Tái khám</option>
+            </select>
+            <label
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: 6,
+                marginTop: 6,
+              }}
+            >
+              <input
+                type="checkbox"
+                checked={needSono}
+                onChange={(e) => setNeedSono(e.target.checked)}
+              />
+              Có siêu âm
+            </label>
           </div>
           <div>
             <label className={LABEL}>Số khám</label>
