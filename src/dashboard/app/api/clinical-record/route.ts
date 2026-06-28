@@ -249,11 +249,13 @@ export async function POST(request: Request) {
   // GHI LÂM SÀNG = Bác sĩ + Thư ký Y khoa (nhập hộ) ghi FULL hồ sơ; ĐIỀU DƯỠNG
   // (vitalsOnly) chỉ ghi Sinh hiệu + lý do khám. Lễ tân/Quản lý KHÔNG ghi lâm sàng
   // (check-in/hành chính tách riêng ở /api/appointments — vẫn canCheckin).
-  // TKYK chỉ NHẬP nháp (IN_PROGRESS); KHÔNG complete/finalize được (gate riêng).
+  // TKYK + Điều dưỡng được NHẬP hồ sơ như bác sĩ (mở quyền 29/6); finalize vẫn gate riêng.
+  // RECEPTION chỉ được ghi sinh hiệu (vitalsOnly) lúc check-in.
   const allowed =
     isDoctorRole(role) ||
     isThuKyRole(role) ||
-    (vitalsOnly && (isNurseRole(role) || role === "RECEPTION"));
+    isNurseRole(role) ||
+    (vitalsOnly && role === "RECEPTION");
   if (!allowed) {
     return NextResponse.json(
       {
@@ -329,7 +331,7 @@ export async function POST(request: Request) {
     // Điều dưỡng / Thư ký Y khoa tạo nháp: bác sĩ phụ trách = bác sĩ của LỊCH HẸN
     // (KHÔNG phải người đang nhập). Chỉ BÁC SĨ tự ghi mới lấy staffId làm attending.
     let attendingId: string | null = staffId;
-    if (vitalsOnly || isThuKyRole(role)) {
+    if (vitalsOnly || isThuKyRole(role) || isNurseRole(role)) {
       const { data: ap } = await db
         .from("appointment")
         .select("doctor_id")

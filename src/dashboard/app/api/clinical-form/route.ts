@@ -2,7 +2,8 @@
 //   GET  ?visitId=&serviceCode=         → form_data đã lưu (hoặc {} nếu chưa có).
 //   POST { visitId, serviceCode, form_data }  → tạo/cập nhật (upsert) form_data.
 //   PATCH = alias POST (cùng upsert).
-// Gate: chỉ BÁC SĨ (isDoctorRole) mới ghi. service_code phải có trong registry.
+// Gate: ai có quyền ghi lâm sàng (canWriteClinical: BS, BS siêu âm, TKYK, Điều dưỡng)
+// mới ghi. service_code phải có trong registry.
 //
 // ⚠️ SAFETY GATE FINALIZED (migration 043 append-only đang PENDING → ép Ở APP LAYER):
 //   visit.status = 'FINALIZED' → form READ-ONLY, route TỪ CHỐI ghi (409). Sửa hồ sơ
@@ -13,7 +14,7 @@ import { NextResponse } from "next/server";
 import { getSupabaseServer } from "../../../lib/supabase-server";
 import { getSupabaseService } from "../../../lib/supabase-service";
 import { getClinicRole, getClinicStaffId } from "../../../lib/clinic-session";
-import { isDoctorRole } from "../../../lib/roles";
+import { canWriteClinical } from "../../../lib/roles";
 import { getFormSchema } from "../../../lib/form-schemas";
 
 // GET: đọc qua RLS (caller). Không cần quyền ghi.
@@ -59,9 +60,9 @@ async function write(request: Request) {
   if (!user) return NextResponse.json({ error: "Unauthorised" }, { status: 401 });
 
   const role = await getClinicRole();
-  if (!isDoctorRole(role)) {
+  if (!canWriteClinical(role)) {
     return NextResponse.json(
-      { error: "Chỉ bác sĩ mới điền phiếu khám chuyên khoa." },
+      { error: "Bạn không có quyền điền phiếu khám chuyên khoa." },
       { status: 403 },
     );
   }

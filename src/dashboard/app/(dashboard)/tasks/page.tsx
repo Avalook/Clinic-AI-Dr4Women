@@ -404,7 +404,8 @@ export default async function TasksPage() {
   // Điều dưỡng (NURSE_ULTRASOUND): hỗ trợ BS nhập bệnh án (sinh hiệu + lý do khám)
   // → cùng board bác sĩ, GHI được (readOnly=false), thấy MỌI bác sĩ (allDoctors),
   // không siêu âm, không xem tóm tắt trước khám.
-  if (isNurseRole(role)) return DoctorTasks(false, false, true, false, true);
+  // Điều dưỡng được điền hồ sơ như bác sĩ (mở quyền 29/6): bỏ vitalsOnly.
+  if (isNurseRole(role)) return DoctorTasks(false, false, true, false, false);
   // Lễ tân: xem board bác sĩ, ĐƯỢC điền sinh hiệu (vitalsOnly), ĐƯỢC sửa hành chính.
   // Thu ngân: chỉ xem (readOnly).
   if (isTasksReadOnly(role)) {
