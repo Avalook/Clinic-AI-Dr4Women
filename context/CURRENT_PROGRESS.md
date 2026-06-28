@@ -1,6 +1,31 @@
 <!-- ════════════════════════════════════════════════════════════════════
-     📍 BÀN GIAO PHIÊN (đọc khối này TRƯỚC) — cập nhật 2026-06-26 tối
+     📍 BÀN GIAO PHIÊN (đọc khối này TRƯỚC) — cập nhật 2026-06-29
      ════════════════════════════════════════════════════════════════════ -->
+
+## 📍 CAP-01 — Capacity Phase 1 (engine ngân sách + newCap) — ĐÃ CODE, COMMIT LOCAL, CHƯA PUSH
+
+**Task:** `.ai/tasks/T-20260629-CAP-01-capacity-budget-phase1.md` (Decision Doc v2, DEC-1..8 đã ký).
+**Mục tiêu:** chặn quá tải BS Thành theo NGÂN SÁCH phút/khung-giờ + trần ca-mới (newCap), thay vì chỉ đếm số ca. Mô hình re-entrant (Thành chạm 2 lần B1+B3, rảnh khi BN siêu âm) — xem memory [[bottleneck-thanh-fragment-model]]. Production đã window-based nên KHÔNG có FRAGMENT, KHÔNG port prototype.
+
+**Đã làm:**
+- **DB (fzw dev đã apply 061+062 + NOTIFY pgrst; atf prod CHƯA — chờ Quang chạy):**
+  - **061** `capacity_budget`: `appointment` +4 cột nullable (`patient_kind`'NEW'|'RETURN', `thanh_min`, `sono_min`, `need_sono`); bảng mới `block_budget` (ngân sách/cơ sở×BS×thứ×giờ) + unique index COALESCE.
+  - **062** `seed_block_budget` (TRACKED, không paste tay): seed 42 dòng qua `INSERT...SELECT` tra ID **theo TÊN** (clinic_location + staff Thành), KHÔNG hard-code UUID (fzw≠atf), idempotent `ON CONFLICT DO NOTHING`, **FAIL-FAST `RAISE EXCEPTION`** nếu match BS Thành ≠ 1. Đã test fail-fast kích hoạt đúng.
+  - ⚠️ atf chưa có 061+062 → Quang phải chạy **061 schema + `NOTIFY pgrst,'reload schema'` + 062 seed** TRƯỚC khi push (không thì web prod lỗi cột thiếu / engine fail-open không chặn). Memory [[postgrest-reload-after-ddl]], [[two-supabase-prod-sync-workflow]]. Lưu ý: em chỉ truy cập fzw, atf do Quang chạy tay.
+- **Engine:** `src/dashboard/lib/capacity.ts` (thuần, không I/O): `vnBlockOf` (Asia/Ho_Chi_Minh), `suggestLoad`, `resolveBudget` (DEC-8 fallback), `evaluateBudget` (max_total→new_cap→quota kênh→ngân sách Thành→cảnh báo), `usageOf`+`cellState` (6 trạng thái ô).
+- **API:** `app/api/appointments/route.ts` POST chèn kiểm ngân sách SAU check trùng-giờ-BS, TRƯỚC insert (best-effort DEC-7, giữ net 6-overlap DEC-1, fail-open DEC-8); +4 cột vào payload. Endpoint mới `app/api/appointments/quote/route.ts` (GET, read-only) trả tải/khung cho UI.
+- **UI:** `AppointmentBooking.tsx` thêm select "Loại khám" + checkbox "Siêu âm" (gửi `patient_kind`/`need_sono`; backend tự gợi ý `thanh_min`/`sono_min`), strip chip 6 màu trạng thái khung-giờ dưới sơ đồ. NewPatientForm dùng chung component này → tự lan.
+
+**Test:** `tsc --noEmit` 0 lỗi; `next build` ✓ compiled (quote route đăng ký). Lint: 4 file mới/sửa của task → capacity/route/quote 0 lỗi; AppointmentBooking còn các lỗi lint CÓ SẴN TỪ TRƯỚC (DURATIONS/setDuration unused, any[], immutability@160) + 1 set-state-in-effect giống pattern committed dòng 104 — build không chặn (eslint ignored at build).
+
+**CÒN TREO / việc tiếp:**
+- **Chưa push** (chờ Quang "OK"). Trước khi push PHẢI apply 061 lên atf prod.
+- Phase 1.5: chống race bằng RPC + `pg_advisory_xact_lock` (hiện best-effort).
+- Phase 2: ngân sách `sono_min` (2 trạm) + Layer-2 hàng đợi B1/B2/B3.
+- Seed `block_budget` hiện là ước lượng — hiệu chỉnh từ `visit.exam_completed_at` sau 2–4 tuần (DEC-5).
+
+---
+
 
 ## 📍 ĐANG Ở ĐÂU — bàn giao cho phiên sau (vd mở remote ở nhà)
 

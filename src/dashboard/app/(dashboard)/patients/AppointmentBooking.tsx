@@ -16,6 +16,16 @@ import DateField from "../DateField";
 import { LINH_VUC_OPTIONS } from "../../../lib/linh-vuc";
 import CinemaSlotPicker from "./CinemaSlotPicker";
 
+// Capacity Phase 1 — màu/nhãn 6 trạng thái ô khung-giờ (khớp CellState ở lib/capacity.ts).
+const CELL_UI: Record<string, { label: string; bg: string; fg: string }> = {
+  free: { label: "Trống", bg: "#dcfce7", fg: "#166534" },
+  few: { label: "Còn ít", bg: "#fef9c3", fg: "#854d0e" },
+  return_only: { label: "Chỉ tái khám", bg: "#ffedd5", fg: "#9a3412" },
+  full_thanh: { label: "Đầy-Thành", bg: "#fee2e2", fg: "#991b1b" },
+  walkin_hold: { label: "Giữ vãng lai", bg: "#e0e7ff", fg: "#3730a3" },
+  locked: { label: "Khoá", bg: "#e5e7eb", fg: "#374151" },
+};
+
 function findServiceIdByLinhVuc(code: string, services: Option[]): string {
   if (!code) return "";
   const nameMap: Record<string, string[]> = {
@@ -79,7 +89,14 @@ export default function AppointmentBooking({
   const [apptDate, setApptDate] = useState("");
   const [apptTime, setApptTime] = useState("");
   const [duration, setDuration] = useState(15);
+  // Capacity Phase 1 (T-20260629-CAP-01) — CSKH chọn tay (DEC-3); backend gợi ý tải.
+  const [patientKind, setPatientKind] = useState(""); // "" | "RETURN" | "NEW"
+  const [needSono, setNeedSono] = useState(false);
   const [existingAppts, setExistingAppts] = useState<any[]>([]);
+  // Capacity Phase 1 — tải/khung-giờ để hiển thị (quote, read-only).
+  const [budgetBlocks, setBudgetBlocks] = useState<
+    { hour_start: number; state: string }[]
+  >([]);
 
   // Fetch appointments for selected date to check availability
   useEffect(() => {
@@ -105,6 +122,22 @@ export default function AppointmentBooking({
       active = false;
     };
   }, [apptDate]);
+
+  // Capacity Phase 1 — nạp tải/khung-giờ cho cơ sở+ngày+BS đã chọn (chỉ để hiển thị).
+  useEffect(() => {
+    // Không setState đồng bộ trong effect (tránh react-hooks/set-state-in-effect).
+    // Khi thiếu ngày/cơ sở thì bỏ qua; render đã guard theo apptDate+locationId nên
+    // dữ liệu cũ không hiện nhầm. setBudgetBlocks chỉ chạy trong .then (bất đồng bộ).
+    if (!apptDate || !locationId) return;
+    const ctrl = new AbortController();
+    const params = new URLSearchParams({ date: apptDate, location_id: locationId });
+    if (doctorId) params.set("doctor_id", doctorId);
+    fetch(`/api/appointments/quote?${params.toString()}`, { signal: ctrl.signal })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((j) => setBudgetBlocks(j?.blocks ?? []))
+      .catch(() => {});
+    return () => ctrl.abort();
+  }, [apptDate, locationId, doctorId]);
 
   // CSKH: Tính toán số chỗ trống
   const isSlotBooked = useMemo(() => {
@@ -167,6 +200,9 @@ export default function AppointmentBooking({
         slot_end: end.toISOString(),
         booking_channel: channel,
         queue_number: queueNumber,
+        // Tải/ca — backend tự gợi ý thanh_min/sono_min từ 2 field này (DEC-3).
+        patient_kind: patientKind || undefined,
+        need_sono: needSono,
       }),
     });
     const json = await res.json();
@@ -319,6 +355,23 @@ export default function AppointmentBooking({
                 : "Khung đang chọn còn trống."}
             </p>
           )}
+          {apptDate && locationId && budgetBlocks.length > 0 && (
+            <div className="mt-2 flex flex-wrap gap-1">
+              {budgetBlocks.map((b) => {
+                const ui = CELL_UI[b.state] ?? CELL_UI.free;
+                return (
+                  <span
+                    key={b.hour_start}
+                    title={ui.label}
+                    className="rounded px-1.5 py-0.5 text-[11px]"
+                    style={{ background: ui.bg, color: ui.fg }}
+                  >
+                    {String(b.hour_start).padStart(2, "0")}h · {ui.label}
+                  </span>
+                );
+              })}
+            </div>
+          )}
         </div>
         <div className="space-y-1">
           <label className={LABEL}>Cơ sở *</label>
@@ -348,6 +401,29 @@ export default function AppointmentBooking({
               </option>
             ))}
           </select>
+        </div>
+        <div className="space-y-1">
+          <label className={LABEL}>Loại khám</label>
+          <select
+            value={patientKind}
+            onChange={(e) => setPatientKind(e.target.value)}
+            className={INPUT}
+          >
+            <option value="">— Chọn —</option>
+            <option value="RETURN">Tái khám (nhẹ tải)</option>
+            <option value="NEW">Khám mới (nặng tải)</option>
+          </select>
+        </div>
+        <div className="space-y-1">
+          <label className={LABEL}>Siêu âm</label>
+          <label className="flex h-[38px] items-center gap-2 text-sm">
+            <input
+              type="checkbox"
+              checked={needSono}
+              onChange={(e) => setNeedSono(e.target.checked)}
+            />
+            Có đi siêu âm
+          </label>
         </div>
       </div>
 
