@@ -66,11 +66,11 @@ export default async function HomePage({
   const role = await getClinicRole();
   const staff = await getActiveStaff();
   const staffId = await getClinicStaffId();
-  // P0 fix: Lễ tân + Quản lý đều thấy khu check-in ở đây. Trước đây ẩn cho Lễ tân "vì đã
-  // có trang riêng" — nhưng trang /checkin đã bị xoá nên Lễ tân mất nút check-in khách đặt
-  // trước (chỉ walk-in tự check-in). canCheckin (backend) vốn cho cả RECEPTION+MANAGEMENT.
-  // Bảng "Trạng thái buổi khám" read-only của Lễ tân vẫn GIỮ bên dưới (isReception).
-  const showCheckin = canCheckin(role);
+  // Lễ tân KHÔNG cần ô check-in riêng: bảng "Lịch hẹn khám" (WeeklyAppointmentsTable) ĐÃ có
+  // cột "Thao tác Check-in" (showActions = canCheckin → gồm RECEPTION) — bấm tên BN mở popup
+  // check-in / không-đến ngay trong lịch. Ô HomeCheckin riêng chỉ gây TRÙNG nên ẩn cho Lễ
+  // tân; vẫn để cho Quản lý (giữ hành vi cũ). Bảng trạng thái read-only của Lễ tân giữ ở dưới.
+  const showCheckin = canCheckin(role) && role !== "RECEPTION";
   // CHỈ Bác sĩ + Điều dưỡng ghi lâm sàng; Lễ tân/QL check-in nhưng xem chỉ-đọc.
   const writeClinical = canWriteClinical(role);
   const isReception = role === "RECEPTION"; // bảng trạng thái buổi khám: chỉ Lễ tân
