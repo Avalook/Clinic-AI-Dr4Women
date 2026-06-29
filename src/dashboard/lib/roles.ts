@@ -206,6 +206,8 @@ const NAV_ROLES: Record<string, "all" | ClinicRole[]> = {
   "/sono": ["NURSE_ULTRASOUND", "MANAGEMENT"],
   // Bảng số thứ tự GỌI KHÁM (ưu tiên người có hẹn). Gọi theo tên — xem chung như /tasks.
   "/queue": ["CSKH", "MANAGEMENT", "RECEPTION", "TRUONG_CA", "TKYK", "NURSE_ULTRASOUND", ...DOCTOR_ROLES_LIST],
+  // Đóng "đợt khám" chờ xác nhận (BS khám xong không hẹn lần sau) — việc CSKH/vận hành.
+  "/episodes": ["CSKH", "MANAGEMENT", "TRUONG_CA"],
   // Thu ngân: bảng giá tách 2 trang (thuốc / dịch vụ), gate theo VAI tách (mỗi
   // vai chỉ thấy màn của mình). CASHIER = superset (thấy cả hai), Quản lý xem/sửa cả hai.
   // ("Công việc của tôi" thu ngân nằm ở /tasks, gate bằng entry /tasks bên dưới.)

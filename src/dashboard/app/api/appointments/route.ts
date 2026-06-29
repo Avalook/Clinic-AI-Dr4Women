@@ -110,6 +110,72 @@ async function doctorConflictMessage(
   }
 }
 
+// "Đợt khám" (care_episode, T-20260629-EPI-01) — gắn lượt hẹn vừa tạo vào một đợt theo
+// trạng thái + lựa chọn tải của CSKH. Best-effort: mọi lỗi (kể cả bảng chưa migrate trên
+// DB này) chỉ log, KHÔNG chặn đặt lịch (đợt là proxy tải, không phải khoá pháp lý).
+//   patient_kind === 'NEW'  → đóng đợt sống cũ (nếu có) vì là vấn đề mới, MỞ đợt mới.
+//   patient_kind === 'RETURN' (hoặc null + có đợt sống) → gắn vào đợt sống; PENDING_CLOSE
+//                            được mở lại (BS định đóng nhưng BN quay lại = vẫn tiếp diễn).
+//   null + không có đợt sống → coi như NEW (mở đợt mới).
+async function attachEpisode(
+  db: DbClient,
+  args: {
+    appointmentId: string;
+    clinic_patient_id: string;
+    service_type_id: string;
+    patient_kind: PatientKind | null;
+  },
+): Promise<void> {
+  try {
+    const { data: liveRaw } = await db
+      .from("care_episode")
+      .select("id, status")
+      .eq("clinic_patient_id", args.clinic_patient_id)
+      .eq("service_type_id", args.service_type_id)
+      .neq("status", "CLOSED")
+      .limit(1)
+      .maybeSingle();
+    const live = liveRaw as { id: string; status: string } | null;
+    const nowIso = new Date().toISOString();
+    const effectiveKind: PatientKind =
+      args.patient_kind ?? (live ? "RETURN" : "NEW");
+
+    if (effectiveKind === "RETURN" && live) {
+      // Tiếp tục đợt đang sống. Mở lại nếu BS đã đặt chờ-đóng.
+      const patch: Record<string, unknown> = { last_visit_at: nowIso, updated_at: nowIso };
+      if (live.status === "PENDING_CLOSE") patch.status = "OPEN";
+      await db.from("care_episode").update(patch).eq("id", live.id);
+      await db.from("appointment").update({ episode_id: live.id }).eq("id", args.appointmentId);
+      return;
+    }
+
+    // NEW (hoặc RETURN nhưng không còn đợt sống) → mở đợt mới. Nếu là vấn đề mới mà còn
+    // đợt sống cũ → đóng đợt cũ trước (giữ partial-unique 1 đợt sống / (BN, dịch vụ)).
+    if (live) {
+      await db
+        .from("care_episode")
+        .update({ status: "CLOSED", closed_at: nowIso, close_reason: "new_problem", updated_at: nowIso })
+        .eq("id", live.id);
+    }
+    const { data: created } = await db
+      .from("care_episode")
+      .insert({
+        clinic_patient_id: args.clinic_patient_id,
+        service_type_id: args.service_type_id,
+        status: "OPEN",
+        opened_appointment_id: args.appointmentId,
+        last_visit_at: nowIso,
+      })
+      .select("id")
+      .single();
+    if (created?.id) {
+      await db.from("appointment").update({ episode_id: created.id }).eq("id", args.appointmentId);
+    }
+  } catch (e) {
+    console.error("attachEpisode lỗi (bỏ qua, không chặn đặt lịch):", e);
+  }
+}
+
 export async function GET(request: Request) {
   const caller = await getSupabaseServer();
   const {
@@ -350,6 +416,14 @@ export async function POST(request: Request) {
     }
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
+
+  // Đợt khám (T-20260629-EPI-01) — mở/đóng/gắn đợt theo loại khám. Best-effort.
+  await attachEpisode(db, {
+    appointmentId: data.id,
+    clinic_patient_id,
+    service_type_id,
+    patient_kind,
+  });
 
   // Append-only audit trail for this booking (best-effort, see event-log.ts).
   await logEvent(db, {
@@ -864,6 +938,41 @@ export async function PATCH(request: Request) {
       }
     } catch (e) {
       console.error("visit.exam_completed_at stamp lỗi:", e);
+    }
+
+    // Đợt khám (T-20260629-EPI-01) — BS khám xong mà KHÔNG hẹn lần sau (không còn lịch
+    // tương lai cùng dịch vụ) → đặt đợt sang PENDING_CLOSE chờ CSKH xác nhận đóng. Chỉ
+    // chuyển từ OPEN. Best-effort: lỗi / bảng chưa migrate → bỏ qua, không hỏng khám-xong.
+    try {
+      const { data: ap } = await db
+        .from("appointment")
+        .select("episode_id, service_type_id, clinic_patient_id")
+        .eq("id", id)
+        .maybeSingle();
+      const apx = ap as {
+        episode_id: string | null;
+        service_type_id: string;
+        clinic_patient_id: string;
+      } | null;
+      if (apx?.episode_id) {
+        const nowIso = new Date().toISOString();
+        const { count: future } = await db
+          .from("appointment")
+          .select("id", { count: "exact", head: true })
+          .eq("clinic_patient_id", apx.clinic_patient_id)
+          .eq("service_type_id", apx.service_type_id)
+          .gt("slot_start", nowIso)
+          .not("status", "in", "(CANCELLED,NO_SHOW,DOCTOR_DECLINED)");
+        if (!future || future === 0) {
+          await db
+            .from("care_episode")
+            .update({ status: "PENDING_CLOSE", last_visit_at: nowIso, updated_at: nowIso })
+            .eq("id", apx.episode_id)
+            .eq("status", "OPEN");
+        }
+      }
+    } catch (e) {
+      console.error("episode pending-close lỗi:", e);
     }
   }
 

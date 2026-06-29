@@ -92,6 +92,12 @@ export default function AppointmentBooking({
   // Capacity Phase 1 (T-20260629-CAP-01) — CSKH chọn tay (DEC-3); backend gợi ý tải.
   const [patientKind, setPatientKind] = useState(""); // "" | "RETURN" | "NEW"
   const [needSono, setNeedSono] = useState(false);
+  // Lịch sử dịch vụ của BN này (T-20260629-EPI-01): số lần đã khám DV đang chọn + đợt
+  // còn sống → hiện chú thích cho CSKH + đặt mặc định thông minh NEW/RETURN.
+  const [svcHistory, setSvcHistory] = useState<{
+    serviceVisitCount: number;
+    liveEpisode: { status: string; opened_at: string; last_visit_at: string | null } | null;
+  } | null>(null);
   const [existingAppts, setExistingAppts] = useState<any[]>([]);
   // Capacity Phase 1 — tải/khung-giờ để hiển thị (quote, read-only).
   const [budgetBlocks, setBudgetBlocks] = useState<
@@ -138,6 +144,30 @@ export default function AppointmentBooking({
       .catch(() => {});
     return () => ctrl.abort();
   }, [apptDate, locationId, doctorId]);
+
+  // Khi đổi DỊCH VỤ (hoặc BN) → tra lịch sử để hiện hint + đặt MẶC ĐỊNH NEW/RETURN.
+  // Đợt còn sống ⇒ mặc định Tái khám; không có đợt sống ⇒ mặc định Khám mới (hướng sai
+  // an toàn = đếm thừa tải, không overbook). CSKH vẫn sửa được sau đó.
+  useEffect(() => {
+    if (!serviceId || !clinicPatientId) {
+      setSvcHistory(null);
+      return;
+    }
+    const ctrl = new AbortController();
+    const params = new URLSearchParams({
+      clinic_patient_id: clinicPatientId,
+      service_type_id: serviceId,
+    });
+    fetch(`/api/appointments/service-history?${params.toString()}`, { signal: ctrl.signal })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((j) => {
+        if (!j) return;
+        setSvcHistory(j);
+        setPatientKind(j.liveEpisode ? "RETURN" : "NEW");
+      })
+      .catch(() => {});
+    return () => ctrl.abort();
+  }, [serviceId, clinicPatientId]);
 
   // CSKH: Tính toán số chỗ trống
   const isSlotBooked = useMemo(() => {
@@ -410,9 +440,19 @@ export default function AppointmentBooking({
             className={INPUT}
           >
             <option value="">— Chọn —</option>
-            <option value="RETURN">Tái khám (nhẹ tải)</option>
-            <option value="NEW">Khám mới (nặng tải)</option>
+            <option value="RETURN">Tái khám — khám tiếp đợt đang theo dõi</option>
+            <option value="NEW">Khám mới — đợt trước đã xong, vấn đề mới</option>
           </select>
+          {svcHistory && svcHistory.serviceVisitCount > 0 && (
+            <p className="text-[11px] leading-normal text-[#3730a3]">
+              Đã khám dịch vụ này {svcHistory.serviceVisitCount} lần ·{" "}
+              {svcHistory.liveEpisode
+                ? svcHistory.liveEpisode.status === "PENDING_CLOSE"
+                  ? "đợt đang chờ đóng → gợi ý Tái khám"
+                  : "đợt đang theo dõi → gợi ý Tái khám"
+                : "chưa có đợt mở → gợi ý Khám mới"}
+            </p>
+          )}
         </div>
         <div className="space-y-1">
           <label className={LABEL}>Siêu âm</label>

@@ -18,6 +18,7 @@ import {
   ScanLine,
   ClipboardCheck,
   ListOrdered,
+  CheckCheck,
   type LucideIcon,
 } from "lucide-react";
 import { type ClinicRole } from "../../lib/roles";
@@ -71,6 +72,13 @@ export const NAV: NavItem[] = [
     label: "Số thứ tự gọi khám",
     shortLabel: "Gọi khám",
     icon: ListOrdered,
+  },
+  // CSKH xác nhận đóng "đợt khám" BS đã khám xong không hẹn lần sau (EPI-01).
+  {
+    href: "/episodes",
+    label: "Đóng đợt khám",
+    shortLabel: "Đóng đợt",
+    icon: CheckCheck,
   },
   // Trưởng ca (hành chính): theo dõi buổi (read-only).
   {

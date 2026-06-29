@@ -452,13 +452,22 @@ export async function PATCH(request: Request) {
   const loc = (body.location_id ?? "").trim();
   if (loc) patch.location_id = loc;
 
+  const SEL =
+    "clinic_patient_id, full_name, date_of_birth, phone_primary, phone_secondary, location_id, gender, ethnicity, nationality, occupation, patient_objection, address, guardian_name";
+
+  // Đọc bản TRƯỚC để ghi vết before/after vào event_log (lưu mọi lần sửa hành chính —
+  // yêu cầu Quang 29/6: sửa khi gõ sai nhưng log giữ tất cả). Best-effort.
+  const { data: before } = await db
+    .from("patient")
+    .select(SEL)
+    .eq("clinic_patient_id", id)
+    .maybeSingle();
+
   const { data, error } = await db
     .from("patient")
     .update(patch)
     .eq("clinic_patient_id", id)
-    .select(
-      "clinic_patient_id, full_name, date_of_birth, phone_primary, phone_secondary, location_id, gender, ethnicity, nationality, occupation, patient_objection, address, guardian_name",
-    )
+    .select(SEL)
     .maybeSingle();
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
@@ -466,11 +475,21 @@ export async function PATCH(request: Request) {
     return NextResponse.json({ error: "Không tìm thấy bệnh nhân." }, { status: 404 });
   }
 
+  // Chỉ ghi các TRƯỜNG thực sự đổi (from → to) cho gọn + dễ truy vết.
+  const beforeRec = (before ?? {}) as Record<string, unknown>;
+  const afterRec = data as Record<string, unknown>;
+  const changes: Record<string, { from: unknown; to: unknown }> = {};
+  for (const k of Object.keys(patch)) {
+    if (beforeRec[k] !== afterRec[k]) {
+      changes[k] = { from: beforeRec[k] ?? null, to: afterRec[k] ?? null };
+    }
+  }
+
   await logEvent(db, {
     event_type: "patient.updated",
     aggregate_type: "patient",
     aggregate_id: id,
-    payload: { clinic_patient_id: id },
+    payload: { clinic_patient_id: id, changes },
     metadata: {
       clinic_role: role,
       actor_auth_user_id: user.id,

@@ -222,8 +222,9 @@ export default function NewPatientForm({
   const [duration, setDuration] = useState(15);
   const [existingAppts, setExistingAppts] = useState<any[]>([]);
   // CAP-01: phân loại tải để engine ngân sách (newCap + Thành-min) chặn đúng.
-  // BN nhập-mới mặc định là ca KHÁM MỚI; lễ tân đổi sang Tái khám khi cần.
-  const [patientKind, setPatientKind] = useState<"NEW" | "RETURN">("NEW");
+  // Khách MỚI luôn là ca KHÁM MỚI (EPI-01 DEC-E5) → cố định NEW, không còn nút đổi
+  // (BN cũ/tái khám đổi loại ở AppointmentBooking trên trang chi tiết BN).
+  const [patientKind] = useState<"NEW" | "RETURN">("NEW");
   const [needSono, setNeedSono] = useState(false);
 
   // Fetch appointments for selected date to check availability / walk-in queues
@@ -901,17 +902,7 @@ export default function NewPatientForm({
                 </div>
               </div>
               <div>
-                <label className={LABEL}>Loại khám</label>
-                <select
-                  value={patientKind}
-                  onChange={(e) =>
-                    setPatientKind(e.target.value as "NEW" | "RETURN")
-                  }
-                  className={INPUT}
-                >
-                  <option value="NEW">Khám mới</option>
-                  <option value="RETURN">Tái khám</option>
-                </select>
+                {/* Khách MỚI ⇒ luôn Khám mới (EPI-01 DEC-E5): bỏ nút Loại khám, giữ NEW. */}
                 <label
                   style={{
                     display: "flex",
@@ -1061,17 +1052,7 @@ export default function NewPatientForm({
             )}
           </div>
           <div>
-            <label className={LABEL}>Loại khám</label>
-            <select
-              value={patientKind}
-              onChange={(e) =>
-                setPatientKind(e.target.value as "NEW" | "RETURN")
-              }
-              className={INPUT}
-            >
-              <option value="NEW">Khám mới</option>
-              <option value="RETURN">Tái khám</option>
-            </select>
+            {/* Khách MỚI ⇒ luôn Khám mới (EPI-01 DEC-E5): bỏ nút Loại khám, giữ NEW. */}
             <label
               style={{
                 display: "flex",
