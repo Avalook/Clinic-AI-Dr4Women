@@ -7,12 +7,15 @@
 
 import { useState, useMemo } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { fmtDate } from "../../../lib/datetime";
 import { unaccentVi } from "../../../lib/validation";
 import { TBL_WRAP, TBL_HEAD, TBL_DIV } from "../form-ui";
 import ClinicalRecordForm from "../tasks/ClinicalRecordForm";
 import type { DoctorApptRow } from "../tasks/DoctorWorkBoard";
 import SplitPane from "../SplitPane";
+import QuickBookingModal from "./QuickBookingModal";
+import type { Option } from "../patients/AppointmentBooking";
 
 export interface ExaminedRow {
   clinic_patient_id: string;
@@ -51,6 +54,9 @@ export default function PatientListView({
   showPreVisitBrief = false,
   showRebook = false,
   enableVisitPager = false,
+  services = [],
+  doctors = [],
+  locations = [],
 }: {
   rows: ExaminedRow[];
   /** Lễ tân + Bác sĩ: bấm tên BN mở hồ sơ (chỉ đọc) trượt sang phải (SplitPane)
@@ -65,11 +71,18 @@ export default function PatientListView({
   showRebook?: boolean;
   /** Hiện pager ◀ ▶ lượt khám trong phiếu — BÁC SĨ (server bật theo vai). */
   enableVisitPager?: boolean;
+  /** Dữ liệu cho MODAL đặt lịch nhanh (chỉ cần truyền khi showRebook). */
+  services?: Option[];
+  doctors?: Option[];
+  locations?: Option[];
 }) {
+  const router = useRouter();
   const [term, setTerm] = useState("");
   const [filter, setFilter] = useState<Filter>("all");
   // BN đang mở trong popup hồ sơ lâm sàng (chỉ đọc). null = đóng.
   const [openAppt, setOpenAppt] = useState<DoctorApptRow | null>(null);
+  // BN đang đặt lịch nhanh qua MODAL (bấm "Tái khám"). null = đóng.
+  const [bookingAppt, setBookingAppt] = useState<DoctorApptRow | null>(null);
 
   const shown = useMemo(() => {
     // Tìm KHÔNG phân biệt dấu / hoa-thường + khớp MỘT PHẦN (unaccentVi: "Hoà"/"Hòa"
@@ -211,10 +224,24 @@ export default function PatientListView({
             showPreVisitBrief={showPreVisitBrief}
             showRebook={showRebook}
             enableVisitPager={enableVisitPager}
+            onRebook={() => setBookingAppt(openAppt)}
             onClose={() => setOpenAppt(null)}
           />
         }
       />
+      {bookingAppt?.patient && (
+        <QuickBookingModal
+          patient={bookingAppt.patient}
+          services={services}
+          doctors={doctors}
+          locations={locations}
+          onClose={() => setBookingAppt(null)}
+          onBooked={() => {
+            setBookingAppt(null);
+            router.refresh();
+          }}
+        />
+      )}
     </>
   );
 }

@@ -234,6 +234,7 @@ export default function ClinicalRecordForm({
   showSono = false,
   enableVisitPager = false,
   showRebook = false,
+  onRebook,
 }: {
   appt: DoctorApptRow;
   staffId: string | null;
@@ -261,6 +262,9 @@ export default function ClinicalRecordForm({
   /** showRebook = CSKH / Lễ tân: hiện nút "Tái khám" cạnh "Đóng" → mở trang đặt
    *  lịch của BN (/patients/[id]: hành chính giữ nguyên + form đặt lịch bên dưới). */
   showRebook?: boolean;
+  /** onRebook = nếu truyền, nút "Tái khám" gọi callback (mở MODAL đặt lịch nhanh) thay vì
+   *  điều hướng sang /patients/[id]. Không truyền → giữ hành vi push cũ (vd trang khác). */
+  onRebook?: (clinicPatientId: string) => void;
 }) {
   const router = useRouter();
   const p = appt.patient;
@@ -1260,11 +1264,15 @@ export default function ClinicalRecordForm({
                     : "Lưu hồ sơ"}
             </button>
           )}
-          {/* CSKH / Lễ tân: Tái khám → trang đặt lịch của BN (hành chính giữ
-              nguyên + form đặt lịch bên dưới). Đặt cạnh "Đóng" theo yêu cầu. */}
+          {/* CSKH / Lễ tân: Tái khám. Có onRebook → mở MODAL đặt lịch nhanh (ở Danh sách
+              BN); không có → push sang /patients/[id] như cũ. Đặt cạnh "Đóng". */}
           {showRebook && p?.clinic_patient_id && (
             <button
-              onClick={() => router.push(`/patients/${p.clinic_patient_id}`)}
+              onClick={() =>
+                onRebook
+                  ? onRebook(p.clinic_patient_id)
+                  : router.push(`/patients/${p.clinic_patient_id}`)
+              }
               className="inline-flex min-h-10 items-center gap-1 rounded-lg border border-[#f3cfe0] bg-white px-4 text-sm font-semibold text-[#9d2463] hover:bg-[#fdf2f8]"
             >
               <CalendarPlus size={15} /> Tái khám

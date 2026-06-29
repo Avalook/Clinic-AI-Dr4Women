@@ -11,6 +11,7 @@ import { requireNavAccess, getClinicRole } from "../../../lib/clinic-session";
 import { isDoctorRole, isOpsAdmin } from "../../../lib/roles";
 import PatientListView, { type ExaminedRow } from "./PatientListView";
 import type { DoctorApptRow } from "../tasks/DoctorWorkBoard";
+import type { Option } from "../patients/AppointmentBooking";
 
 export const dynamic = "force-dynamic";
 
@@ -51,6 +52,36 @@ export default async function PatientListPage() {
   // Bác sĩ: pager ◀ ▶ xem lượt khám trước/sau ngay trong phiếu.
   const showPager = isDoctorRole(role);
   const supabase = await getSupabaseServer();
+
+  // Dữ liệu cho MODAL đặt lịch nhanh ("Tái khám" trong popup). Chỉ nạp khi nút hiện
+  // (CSKH/Lễ tân/Quản lý — đều canWriteIntake nên POST /api/appointments cho phép).
+  // Giống cách trang chi tiết BN nạp options; bỏ dịch vụ rác "FREE".
+  let services: Option[] = [];
+  let doctors: Option[] = [];
+  let locations: Option[] = [];
+  if (showRebook) {
+    const [locRes, svcRes, docRes] = await Promise.all([
+      supabase.from("clinic_location").select("id, name").order("name"),
+      supabase.from("service_type").select("id, name").order("name"),
+      supabase
+        .from("staff")
+        .select("id, full_name")
+        .in("primary_department", ["DOCTOR", "ULTRASOUND_DOCTOR"])
+        .eq("is_active", true)
+        .order("full_name"),
+    ]);
+    locations = (locRes.data ?? []).map((r) => ({
+      id: r.id as string,
+      label: r.name as string,
+    }));
+    services = (svcRes.data ?? [])
+      .filter((r) => (r.name as string)?.trim().toUpperCase() !== "FREE")
+      .map((r) => ({ id: r.id as string, label: r.name as string }));
+    doctors = (docRes.data ?? []).map((r) => ({
+      id: r.id as string,
+      label: r.full_name as string,
+    }));
+  }
 
   // COMPLETED = đã khám xong. Sắp xếp mới→cũ để lần xuất hiện ĐẦU của mỗi BN
   // chính là lần khám gần nhất. Cap 2000 lượt khám gần nhất (đủ rộng cho MVP
@@ -126,6 +157,9 @@ export default async function PatientListPage() {
           /* Nút Tái khám: CSKH/Lễ tân. Pager lượt khám: Bác sĩ. */
           showRebook={showRebook}
           enableVisitPager={showPager}
+          services={services}
+          doctors={doctors}
+          locations={locations}
         />
       )}
     </div>
