@@ -12,6 +12,34 @@ export interface HasQueue {
   // — Dữ liệu cho THỨ TỰ GỌI ưu tiên (Model ②). Có thì dùng, thiếu thì fallback. —
   booking_channel?: string | null; // "WALK_IN" = vãng lai; còn lại = đặt hẹn online
   checked_in_at?: string | null; // ISO — mốc giờ ĐẾN thực tế (từ visit.checked_in_at)
+  // ĐÃ có KQ cận lâm sàng, đang chờ bác sĩ ĐỌC (B3) — kéo lên ĐẦU (T-QUEUE-B3).
+  b3_ready?: boolean | null;
+}
+
+/** Lab tối giản để suy "sẵn sàng đọc". triage_group='PENDING' = chưa về; khác = đã về. */
+export interface LabLite {
+  appointment_id?: string | null;
+  triage_group?: string | null;
+}
+
+/**
+ * Tập appointment "Chờ đọc KQ (B3)": có ≥1 KQ ĐÃ về (triage_group ≠ PENDING) VÀ
+ * KHÔNG còn KQ nào treo (PENDING). = mọi chỉ định XN của lượt đã có kết quả → bác sĩ
+ * có thể đọc/kết luận ngay. (Phase 1 chỉ lab — lab_result.appointment_id nối sạch.)
+ */
+export function b3ReadyApptIds(labs: LabLite[]): Set<string> {
+  const agg = new Map<string, { resulted: number; pending: number }>();
+  for (const l of labs) {
+    const id = (l.appointment_id ?? "").trim();
+    if (!id) continue;
+    const e = agg.get(id) ?? { resulted: 0, pending: 0 };
+    if ((l.triage_group ?? "PENDING") === "PENDING") e.pending += 1;
+    else e.resulted += 1;
+    agg.set(id, e);
+  }
+  const ready = new Set<string>();
+  for (const [id, e] of agg) if (e.resulted > 0 && e.pending === 0) ready.add(id);
+  return ready;
 }
 
 /** Cửa sổ trễ: người có hẹn check-in muộn quá ngần này thì MẤT ưu tiên giờ hẹn. */
@@ -39,6 +67,14 @@ export function queueRank(
  * Thiếu cả booking_channel lẫn checked_in_at ⇒ fallback thứ tự cũ (ƯT → số → giờ).
  */
 export function callRank(a: HasQueue): [number, number, string] {
+  // Tầng −2: ĐÃ có KQ, chờ bác sĩ ĐỌC (B3). Lên trên cả ƯT/có-hẹn — đọc nhanh ~5',
+  // giải phóng phòng + BN đã chờ qua B2. Trong làn xếp theo giờ ĐẾN (chờ lâu trước).
+  if (a.b3_ready) {
+    const inMs = a.checked_in_at
+      ? new Date(a.checked_in_at).getTime()
+      : new Date(a.slot_start).getTime();
+    return [-2, inMs, a.checked_in_at ?? a.slot_start];
+  }
   if (a.booking_channel == null && a.checked_in_at == null) {
     return queueRank(a.queue_number, a.slot_start);
   }

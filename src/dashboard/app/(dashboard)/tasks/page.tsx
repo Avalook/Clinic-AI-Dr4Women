@@ -10,6 +10,7 @@ import {
   vnMonthStartUtc,
 } from "../../../lib/datetime";
 import { currentWeekStartVn } from "../../../lib/roster";
+import { b3ReadyApptIds, type LabLite } from "../../../lib/queue";
 import {
   getClinicRole,
   getClinicStaffId,
@@ -287,6 +288,20 @@ async function DoctorTasks(
   const { data, error } = await q;
   const rows = (data as DoctorApptRow[] | null) ?? [];
 
+  // Làn "Chờ đọc KQ (B3)" (T-QUEUE-B3): lượt nào KQ lab đã về hết → callRank (tier −2)
+  // kéo lên ĐẦU board bác sĩ. Match theo appointment_id. Best-effort.
+  const apptIdsB3 = rows
+    .map((r) => (r as { id?: string }).id)
+    .filter((x): x is string => !!x);
+  let b3Ready = new Set<string>();
+  if (apptIdsB3.length) {
+    const { data: labsB3 } = await supabase
+      .from("lab_result")
+      .select("appointment_id, triage_group")
+      .in("appointment_id", apptIdsB3);
+    b3Ready = b3ReadyApptIds((labsB3 as LabLite[] | null) ?? []);
+  }
+
   // "Phân loại khám" (Khám lần đầu / Tái khám) — suy từ lịch sử hẹn của BN: lịch
   // SỚM NHẤT của BN = Khám lần đầu, các lịch sau = Tái khám. DB chưa có cột riêng
   // → suy luận nhất quán (giống bảng "Lịch hẹn khám" ở Trang chủ), KHÔNG bịa số.
@@ -324,7 +339,13 @@ async function DoctorTasks(
     // cho compareQueue dùng THỨ TỰ GỌI ưu tiên (Model ②).
     const visit = (r as { visit?: { checked_in_at: string | null }[] | null })
       .visit;
-    return { ...r, phan_loai, checked_in_at: visit?.[0]?.checked_in_at ?? null };
+    const apptId = (r as { id?: string }).id;
+    return {
+      ...r,
+      phan_loai,
+      checked_in_at: visit?.[0]?.checked_in_at ?? null,
+      b3_ready: apptId ? b3Ready.has(apptId) : false,
+    };
   });
 
   return (

@@ -8,6 +8,7 @@ import { getSupabaseServer } from "../../../lib/supabase-server";
 import { requireNavAccess } from "../../../lib/clinic-session";
 import { vnTodayRangeUtc } from "../../../lib/datetime";
 import QueueBoard, { type QueueRow } from "./QueueBoard";
+import { b3ReadyApptIds, type LabLite } from "../../../lib/queue";
 
 export const dynamic = "force-dynamic";
 
@@ -41,7 +42,20 @@ export default async function QueuePage() {
     .order("slot_start", { ascending: true })
     .limit(300);
 
-  const rows: QueueRow[] = ((data as RawRow[] | null) ?? []).map((r) => {
+  const appts = (data as RawRow[] | null) ?? [];
+  // Làn "Chờ đọc KQ (B3)" (T-QUEUE-B3): lượt nào đã có KQ lab về hết → kéo lên đầu cho
+  // bác sĩ đọc nhanh. Match theo appointment_id (lab-result API set sạch). Best-effort.
+  let readySet = new Set<string>();
+  const apptIds = appts.map((r) => r.id);
+  if (apptIds.length > 0) {
+    const { data: labs } = await supabase
+      .from("lab_result")
+      .select("appointment_id, triage_group")
+      .in("appointment_id", apptIds);
+    readySet = b3ReadyApptIds((labs as LabLite[] | null) ?? []);
+  }
+
+  const rows: QueueRow[] = appts.map((r) => {
     const v = r.visit?.[0] ?? null;
     return {
       id: r.id,
@@ -54,6 +68,7 @@ export default async function QueuePage() {
       service: r.service,
       checked_in_at: v?.checked_in_at ?? null,
       visit_status: v?.status ?? null,
+      b3_ready: readySet.has(r.id),
     };
   });
 

@@ -52,6 +52,8 @@ export interface DoctorApptRow {
   booking_channel?: string | null;
   /** Mốc giờ ĐẾN thật (visit.checked_in_at). Cho THỨ TỰ GỌI ưu tiên người có hẹn đúng giờ. */
   checked_in_at?: string | null;
+  /** ĐÃ có KQ lab về hết → chờ bác sĩ đọc (B3). callRank kéo lên đầu (T-QUEUE-B3). */
+  b3_ready?: boolean | null;
 }
 
 const STATUS_GROUPS: { key: string; label: string; statuses: string[] }[] = [
@@ -250,7 +252,14 @@ export default function DoctorWorkBoard({
                       </button>
                     </td>
                     <td className={CELL}>
-                      <PhanLoai value={a.phan_loai} />
+                      <div className="flex flex-col items-start gap-1">
+                        {a.b3_ready && (
+                          <span className="rounded-full bg-[#fef3c7] px-2 py-0.5 text-[10px] font-medium text-[#b45309]">
+                            🔔 Chờ đọc KQ
+                          </span>
+                        )}
+                        <PhanLoai value={a.phan_loai} />
+                      </div>
                     </td>
                     <td className={CELL}>
                       <StatusBadge status={a.status} />

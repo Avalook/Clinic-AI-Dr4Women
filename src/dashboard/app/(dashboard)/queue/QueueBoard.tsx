@@ -7,7 +7,7 @@
 
 import { useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { ListOrdered, Stethoscope } from "lucide-react";
+import { ListOrdered, Stethoscope, BellRing } from "lucide-react";
 import { fmtTime, isVnMidnight } from "../../../lib/datetime";
 import { callRank } from "../../../lib/queue";
 
@@ -22,6 +22,7 @@ export interface QueueRow {
   service: { name: string | null } | null;
   checked_in_at: string | null;
   visit_status: string | null;
+  b3_ready: boolean; // đã có KQ lab về hết → chờ bác sĩ đọc (làn B3)
 }
 
 // Bỏ tiền tố chức danh trong tên bác sĩ ("BS Thành" → "Thành").
@@ -91,8 +92,15 @@ export default function QueueBoard({
               if (ra[1] !== rb[1]) return ra[1] - rb[1];
               return ra[2].localeCompare(rb[2]);
             });
-            const inExam = ordered.filter((r) => r.visit_status === "IN_PROGRESS");
-            const waiting = ordered.filter((r) => r.visit_status !== "IN_PROGRESS");
+            // Làn "Chờ đọc KQ (B3)" tách RIÊNG khỏi "Đang khám" (vốn gộp lẫn đang-khám /
+            // đang-ở-sono / đã-quay-lại) để bác sĩ thấy ngay ai đọc được luôn.
+            const b3 = ordered.filter((r) => r.b3_ready);
+            const inExam = ordered.filter(
+              (r) => r.visit_status === "IN_PROGRESS" && !r.b3_ready,
+            );
+            const waiting = ordered.filter(
+              (r) => r.visit_status !== "IN_PROGRESS" && !r.b3_ready,
+            );
             return (
               <section
                 key={name}
@@ -106,6 +114,19 @@ export default function QueueBoard({
                     {list.length} chờ
                   </span>
                 </div>
+
+                {b3.length > 0 && (
+                  <div className="border-b border-[#fde68a] bg-[#fffbeb] px-3 py-2">
+                    <p className="mb-1 flex items-center gap-1 text-[10px] font-semibold uppercase tracking-wide text-[#b45309]">
+                      <BellRing size={12} /> Chờ đọc kết quả
+                    </p>
+                    <ul className="space-y-1">
+                      {b3.map((r) => (
+                        <QueueLine key={r.id} r={r} readback />
+                      ))}
+                    </ul>
+                  </div>
+                )}
 
                 {inExam.length > 0 && (
                   <div className="border-b border-[#dcfce7] bg-[#f0fdf4] px-3 py-2">
@@ -143,15 +164,17 @@ function QueueLine({
   r,
   order,
   examining = false,
+  readback = false,
 }: {
   r: QueueRow;
   order?: number;
   examining?: boolean;
+  readback?: boolean;
 }) {
   const booked = isBooked(r);
   return (
     <li className="flex items-center gap-3 px-3 py-2">
-      {!examining && (
+      {!examining && !readback && (
         <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-[#fce7f3] text-xs font-bold text-[#9d2463]">
           {order}
         </span>
@@ -173,12 +196,14 @@ function QueueLine({
       <span
         className={
           "shrink-0 rounded-full px-2 py-0.5 text-[10px] font-medium " +
-          (booked
-            ? "bg-[#fce7f3] text-[#9d2463]"
-            : "bg-[#f4f4f5] text-[#52525b]")
+          (readback
+            ? "bg-[#fef3c7] text-[#b45309]"
+            : booked
+              ? "bg-[#fce7f3] text-[#9d2463]"
+              : "bg-[#f4f4f5] text-[#52525b]")
         }
       >
-        {booked ? "Có hẹn" : "Vãng lai"}
+        {readback ? "🔔 Chờ đọc" : booked ? "Có hẹn" : "Vãng lai"}
       </span>
     </li>
   );
