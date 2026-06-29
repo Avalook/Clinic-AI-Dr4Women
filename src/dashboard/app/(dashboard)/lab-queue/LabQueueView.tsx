@@ -9,6 +9,7 @@ import { useRouter } from "next/navigation";
 import { ExternalLink, FlaskConical } from "lucide-react";
 import { fmtDateTimeOrDate } from "../../../lib/datetime";
 import { INPUT, LABEL } from "../form-ui";
+import { toHref } from "../../../lib/url";
 
 export interface LabRow {
   lab_result_id: string;
@@ -160,9 +161,9 @@ export default function LabQueueView({
                   <span className="truncate text-sm font-medium text-[#171717]">
                     {r.test_name}
                   </span>
-                  {r.external_ref && (
+                  {toHref(r.external_ref) && (
                     <a
-                      href={r.external_ref}
+                      href={toHref(r.external_ref)!}
                       target="_blank"
                       rel="noopener noreferrer"
                       className="inline-flex shrink-0 items-center gap-1 text-xs font-medium text-[#2563eb] hover:underline"

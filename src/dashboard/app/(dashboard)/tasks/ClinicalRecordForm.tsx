@@ -11,6 +11,7 @@ import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { X, Plus, ChevronLeft, ChevronRight, CalendarPlus } from "lucide-react";
 import { fmtDate, fmtDateTimeOrDate } from "../../../lib/datetime";
+import { toHref } from "../../../lib/url";
 import { INPUT, LABEL } from "../form-ui";
 import PatientAdminEditor from "../PatientAdminEditor";
 import SonoBiometry from "./SonoBiometry";
@@ -1041,9 +1042,9 @@ export default function ClinicalRecordForm({
                       {l.result_value ?? l.result_numeric ?? (l.external_ref ? "có phiếu" : "chờ KQ")}
                       {l.result_unit ? ` ${l.result_unit}` : ""}
                     </span>
-                    {l.external_ref && (
+                    {toHref(l.external_ref) && (
                       <a
-                        href={l.external_ref}
+                        href={toHref(l.external_ref)!}
                         target="_blank"
                         rel="noopener noreferrer"
                         className="text-xs font-medium text-[#2563eb] hover:underline"

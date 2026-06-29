@@ -12,6 +12,7 @@ import { getSupabaseService } from "../../../lib/supabase-service";
 import { getClinicRole, getClinicStaffId } from "../../../lib/clinic-session";
 import { isDoctorRole, canWriteClinical } from "../../../lib/roles";
 import { logEvent } from "../../../lib/event-log";
+import { toHref } from "../../../lib/url";
 
 interface PostBody {
   clinicPatientId?: string;
@@ -123,7 +124,8 @@ export async function PATCH(request: Request) {
   if (!id) return NextResponse.json({ error: "Thiếu id kết quả." }, { status: 400 });
 
   const resultValue = (body.result_value ?? "").trim() || null;
-  const resultLink = (body.result_link ?? "").trim() || null;
+  // Chuẩn hoá link: thêm https:// nếu thiếu scheme (tránh 404 do mở như đường dẫn nội bộ).
+  const resultLink = toHref(body.result_link);
   const labProvider = (body.lab_provider ?? "").trim() || null;
   if (!resultValue && !resultLink) {
     return NextResponse.json(
