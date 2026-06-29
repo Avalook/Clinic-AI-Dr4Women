@@ -61,26 +61,28 @@ export function queueRank(
 
 /**
  * Khóa THỨ TỰ GỌI KHÁM (Model ②) cho người ĐÃ check-in:
- *   tầng −1: ƯT (người quen nhà bác sĩ) — gõ tay, luôn lên đầu, theo số ƯT.
+ *   tầng −2: ƯT (người quen nhà bác sĩ) — gõ tay, luôn lên đầu, theo số ƯT.
+ *   tầng −1: ĐÃ có KQ chờ đọc (B3) — đọc nhanh, dưới ƯT nhưng trên có-hẹn.
  *   tầng  0: CÓ HẸN & đến ĐÚNG GIỜ (checked_in_at ≤ giờ hẹn + 10') — sắp theo GIỜ HẸN.
  *   tầng  1: walk-in HOẶC có hẹn đến TRỄ — sắp theo GIỜ ĐẾN (vé tự nhường người tới trước).
  * Thiếu cả booking_channel lẫn checked_in_at ⇒ fallback thứ tự cũ (ƯT → số → giờ).
  */
 export function callRank(a: HasQueue): [number, number, string] {
-  // Tầng −2: ĐÃ có KQ, chờ bác sĩ ĐỌC (B3). Lên trên cả ƯT/có-hẹn — đọc nhanh ~5',
-  // giải phóng phòng + BN đã chờ qua B2. Trong làn xếp theo giờ ĐẾN (chờ lâu trước).
+  // Tầng −1: ĐÃ có KQ, chờ bác sĩ ĐỌC (B3) — TRÊN có-hẹn/vãng lai (đọc nhanh ~5', giải
+  // phóng phòng, BN đã chờ qua B2) nhưng DƯỚI ƯT (−2): ƯT là override người gõ tay có chủ
+  // đích, tín hiệu B3 tự suy KHÔNG vượt mặt. Trong làn xếp theo giờ ĐẾN (chờ lâu trước).
   if (a.b3_ready) {
     const inMs = a.checked_in_at
       ? new Date(a.checked_in_at).getTime()
       : new Date(a.slot_start).getTime();
-    return [-2, inMs, a.checked_in_at ?? a.slot_start];
+    return [-1, inMs, a.checked_in_at ?? a.slot_start];
   }
   if (a.booking_channel == null && a.checked_in_at == null) {
     return queueRank(a.queue_number, a.slot_start);
   }
   const s = (a.queue_number ?? "").trim();
   const ut = /^(?:Ư|U)\s*T\s*0*(\d*)/i.exec(s);
-  if (ut) return [-1, ut[1] ? Number(ut[1]) : 0, a.slot_start];
+  if (ut) return [-2, ut[1] ? Number(ut[1]) : 0, a.slot_start];
 
   const slotMs = new Date(a.slot_start).getTime();
   const isBooked = !!a.booking_channel && a.booking_channel !== "WALK_IN";
