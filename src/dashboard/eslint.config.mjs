@@ -12,6 +12,9 @@ const eslintConfig = defineConfig([
     "out/**",
     "build/**",
     "next-env.d.ts",
+    // E2E bot là script Node độc lập (Playwright), không thuộc app Next — bỏ qua lint.
+    "e2e/**",
+    "e2e-report/**",
   ]),
 ]);
 
