@@ -919,20 +919,16 @@ export default function NewPatientForm({
                   Có siêu âm
                 </label>
               </div>
-              <div>
-                <label className={LABEL}>Số khám</label>
-                <input
-                  value={queueNumber}
-                  onChange={(e) => setQueueNumber(e.target.value)}
-                  className={INPUT}
-                  placeholder="Tự động cấp theo thời gian (số chung toàn phòng khám)"
-                />
-              </div>
+              {/* Số khám: KHÔNG nhập tay — hệ tự cấp khi check-in / walk-in auto-checkin. */}
               <div className="sm:col-span-2">
                 <DoctorLoadBoard
                   appts={existingAppts}
                   doctors={doctors}
                   selectedDoctorId={doctorId}
+                  onPick={(id, label) => {
+                    setDoctorId(id);
+                    setDoctorQ(label);
+                  }}
                 />
               </div>
             </>
@@ -1069,15 +1065,7 @@ export default function NewPatientForm({
               Có siêu âm
             </label>
           </div>
-          <div>
-            <label className={LABEL}>Số khám</label>
-            <input
-              value={queueNumber}
-              onChange={(e) => setQueueNumber(e.target.value)}
-              className={INPUT}
-              placeholder="Để trống — gõ ƯT cho người quen nhà bác sĩ"
-            />
-          </div>
+          {/* Số khám: KHÔNG nhập tay — hệ tự cấp khi check-in. */}
           <div className="sm:col-span-2">
             <label className={LABEL}>Chọn chỗ (sơ đồ trống)</label>
             <CinemaSlotPicker

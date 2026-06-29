@@ -1,10 +1,9 @@
 "use client";
 
-// Bảng CHỈ-ĐỌC "Tải hôm nay theo bác sĩ" cho LỄ TÂN ở màn Tạo bệnh nhân (walk-in).
-// Mục đích: lễ tân NHÌN tải từng bác sĩ hôm nay để ĐỊNH TUYẾN ca walk-in tránh
-// nghẽn (vd BS Thành đông → đẩy sang bác sĩ phụ). KHÔNG chọn slot, KHÔNG check-in
-// — đó là việc của CSKH (đặt lịch) và bảng "Lịch hẹn khám" ở /home (check-in).
-// Số khám vẫn do hệ thống cấp tự động = số chung theo thời gian (không đụng ở đây).
+// Bảng "Tải hôm nay theo bác sĩ" — Lễ tân ở màn Tạo bệnh nhân (walk-in) NHÌN tải từng bác
+// sĩ hôm nay để ĐỊNH TUYẾN ca walk-in tránh nghẽn (BS Thành = trạm chính, đông thì đẩy sang
+// bác sĩ phụ). BẤM tên hoặc ô của bác sĩ nào → CHỌN bác sĩ đó cho ca (onPick). Giờ walk-in =
+// hiện tại nên chỉ điền bác sĩ. Số khám hệ tự cấp khi check-in — không nhập ở đây.
 
 import type { Option } from "./AppointmentBooking";
 
@@ -38,25 +37,31 @@ function vnHHmm(iso: string): string {
   });
 }
 
+// BS Thành = trạm nghẽn chính → ưu tiên đưa lên gần đầu (sau bác sĩ đang chọn).
+function isMainDoctor(label: string): boolean {
+  return /thành/i.test(label);
+}
+
 export default function DoctorLoadBoard({
   appts,
   doctors,
   selectedDoctorId,
+  onPick,
 }: {
   appts: LoadAppt[];
   doctors: Option[];
   selectedDoctorId: string;
+  // Bấm chọn 1 bác sĩ trong bảng → điền vào form (id + nhãn hiển thị).
+  onPick?: (doctorId: string, doctorLabel: string) => void;
 }) {
   const labelOf = (id: string | null): string =>
     (id && doctors.find((d) => d.id === id)?.label) || NO_DOCTOR;
 
-  // Hàng = các bác sĩ có lịch hôm nay, LUÔN gồm bác sĩ đang chọn (để thấy "0 ca").
-  const idSet = new Set<string>();
-  for (const a of appts) idSet.add(a.doctor_id ?? "");
-  if (selectedDoctorId) idSet.add(selectedDoctorId);
-  const doctorIds = [...idSet].filter((id) => id !== "" || appts.some((a) => !a.doctor_id));
+  // Hàng = TẤT CẢ bác sĩ ở cơ sở (kể cả 0 ca) + "Chưa phân" nếu có lịch chưa gán bác sĩ.
+  const doctorIds: string[] = doctors.map((d) => d.id);
+  if (appts.some((a) => !a.doctor_id)) doctorIds.push("");
 
-  // Cột = các khung giờ có lịch, sắp tăng dần.
+  // Cột = các khung giờ CÓ lịch, tăng dần.
   const timeSet = new Set<string>();
   for (const a of appts) timeSet.add(vnHHmm(a.slot_start));
   const times = [...timeSet].sort();
@@ -70,26 +75,34 @@ export default function DoctorLoadBoard({
     cellMap.set(key, arr);
   }
 
-  // Sắp hàng: bác sĩ đang chọn lên đầu, "Chưa phân" xuống cuối, còn lại theo tên.
+  // Sắp hàng: đang chọn → BS chính (Thành) → theo tên → "Chưa phân" cuối.
   doctorIds.sort((a, b) => {
     if (a === selectedDoctorId) return -1;
     if (b === selectedDoctorId) return 1;
     if (a === "") return 1;
     if (b === "") return -1;
+    const ma = isMainDoctor(labelOf(a));
+    const mb = isMainDoctor(labelOf(b));
+    if (ma !== mb) return ma ? -1 : 1;
     return labelOf(a).localeCompare(labelOf(b), "vi");
   });
 
-  const countFor = (id: string) => appts.filter((a) => (a.doctor_id ?? "") === id).length;
+  const countFor = (id: string) =>
+    appts.filter((a) => (a.doctor_id ?? "") === id).length;
   const arrivedFor = (id: string) =>
     appts.filter((a) => (a.doctor_id ?? "") === id && ARRIVED.has(a.status)).length;
 
-  if (doctorIds.length === 0 || times.length === 0) {
+  if (doctorIds.length === 0) {
     return (
       <p className="rounded-lg border border-[#e4e4e7] bg-gray-50 px-3 py-2 text-xs text-[#71717a]">
-        Hôm nay chưa có lịch hẹn nào — chọn bác sĩ ở trên để cấp khám.
+        Chọn cơ sở để xem danh sách bác sĩ.
       </p>
     );
   }
+
+  const pick = (id: string) => {
+    if (id) onPick?.(id, labelOf(id));
+  };
 
   return (
     <div className="space-y-1.5">
@@ -104,7 +117,9 @@ export default function DoctorLoadBoard({
         <span className="inline-flex items-center gap-1">
           <span className="inline-block h-3 w-3 rounded bg-[#e5e7eb]" /> Đã xong
         </span>
-        <span className="text-[#a1a1aa]">— nhìn để chọn bác sĩ đỡ nghẽn cho khách</span>
+        {onPick && (
+          <span className="font-medium text-[#9d2463]">— Bấm tên/ô để chọn bác sĩ đỡ nghẽn</span>
+        )}
       </div>
       <div className="overflow-x-auto rounded-xl border border-[#f3cfe0]">
         <table className="border-separate border-spacing-1 p-2">
@@ -124,49 +139,66 @@ export default function DoctorLoadBoard({
           <tbody>
             {doctorIds.map((id) => {
               const isSel = id === selectedDoctorId;
+              const pickable = id !== "" && !!onPick;
               return (
                 <tr key={id || NO_DOCTOR} className={isSel ? "bg-[#fdf2f8]" : undefined}>
                   <td
                     className={
-                      "sticky left-0 z-10 whitespace-nowrap px-2 text-xs " +
-                      (isSel
-                        ? "bg-[#fdf2f8] font-semibold text-[#9d2463]"
-                        : "bg-white font-medium text-[#171717]")
+                      "sticky left-0 z-10 p-0 " + (isSel ? "bg-[#fdf2f8]" : "bg-white")
                     }
                   >
-                    {labelOf(id)}
+                    <button
+                      type="button"
+                      disabled={!pickable}
+                      onClick={() => pick(id)}
+                      className={
+                        "w-full whitespace-nowrap px-2 py-1 text-left text-xs " +
+                        (isSel
+                          ? "font-semibold text-[#9d2463]"
+                          : "font-medium text-[#171717]") +
+                        (pickable ? " cursor-pointer hover:bg-[#fce7f3]" : " cursor-default")
+                      }
+                    >
+                      {labelOf(id)}
+                    </button>
                   </td>
                   {times.map((t) => {
                     const cell = cellMap.get(`${id}|${t}`) ?? [];
                     return (
                       <td key={t} className="p-0 align-top">
-                        {cell.length === 0 ? (
-                          <div className="h-7 w-9" />
-                        ) : (
-                          <div className="flex flex-col gap-0.5">
-                            {cell.map((a, i) => {
-                              const arrived = ARRIVED.has(a.status);
-                              const done = a.status === "COMPLETED";
-                              const label = a.queue_number?.trim() || (arrived ? "✓" : "•");
-                              return (
-                                <span
-                                  key={`${t}-${i}`}
-                                  title={`${t} · ${STATUS_VN[a.status] ?? a.status}${a.queue_number ? ` · số ${a.queue_number}` : ""}`}
-                                  className={
-                                    "flex h-7 min-w-9 items-center justify-center rounded px-1 text-[10px] font-semibold " +
-                                    (arrived
-                                      ? "bg-[#15803d] text-white"
-                                      : done
-                                        ? "bg-[#e5e7eb] text-[#a1a1aa]"
-                                        : "border border-[#f3cfe0] bg-white text-[#9d2463]")
-                                  }
-                                >
-                                  {label}
-                                </span>
-                              );
-                            })}
-                          </div>
-                        )}
+                        <button
+                          type="button"
+                          disabled={!pickable}
+                          onClick={() => pick(id)}
+                          title={pickable ? `Chọn ${labelOf(id)} cho ca này` : undefined}
+                          className={
+                            "flex min-h-7 w-full flex-col items-center gap-0.5 rounded px-0.5 " +
+                            (pickable ? "cursor-pointer hover:bg-[#fce7f3]" : "cursor-default")
+                          }
+                        >
+                          {cell.map((a, i) => {
+                            const arrived = ARRIVED.has(a.status);
+                            const done = a.status === "COMPLETED";
+                            const label =
+                              a.queue_number?.trim() || (arrived ? "✓" : "•");
+                            return (
+                              <span
+                                key={`${t}-${i}`}
+                                title={`${t} · ${STATUS_VN[a.status] ?? a.status}${a.queue_number ? ` · số ${a.queue_number}` : ""}`}
+                                className={
+                                  "flex h-6 min-w-8 items-center justify-center rounded px-1 text-[10px] font-semibold " +
+                                  (arrived
+                                    ? "bg-[#15803d] text-white"
+                                    : done
+                                      ? "bg-[#e5e7eb] text-[#a1a1aa]"
+                                      : "border border-[#f3cfe0] bg-white text-[#9d2463]")
+                                }
+                              >
+                                {label}
+                              </span>
+                            );
+                          })}
+                        </button>
                       </td>
                     );
                   })}
