@@ -297,7 +297,7 @@ async function DoctorTasks(
   if (apptIdsB3.length) {
     const { data: labsB3 } = await supabase
       .from("lab_result")
-      .select("appointment_id, triage_group")
+      .select("appointment_id, result_value, external_ref")
       .in("appointment_id", apptIdsB3);
     b3Ready = b3ReadyApptIds((labsB3 as LabLite[] | null) ?? []);
   }

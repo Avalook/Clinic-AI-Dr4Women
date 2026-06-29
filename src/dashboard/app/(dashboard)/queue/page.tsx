@@ -50,7 +50,7 @@ export default async function QueuePage() {
   if (apptIds.length > 0) {
     const { data: labs } = await supabase
       .from("lab_result")
-      .select("appointment_id, triage_group")
+      .select("appointment_id, result_value, external_ref")
       .in("appointment_id", apptIds);
     readySet = b3ReadyApptIds((labs as LabLite[] | null) ?? []);
   }

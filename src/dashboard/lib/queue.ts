@@ -16,15 +16,19 @@ export interface HasQueue {
   b3_ready?: boolean | null;
 }
 
-/** Lab tối giản để suy "sẵn sàng đọc". triage_group='PENDING' = chưa về; khác = đã về. */
+/** Lab tối giản để suy "sẵn sàng đọc". KQ ĐÃ về = result_value HOẶC external_ref khác
+ *  rỗng (đồng nhất định nghĩa "Đã trả" của /lab-queue). KHÔNG dùng triage_group: API nhập
+ *  KQ (lab-result PATCH) không bao giờ đổi cột này (bộ phân loại GROUP_A/B/C chưa wire)
+ *  nên nó luôn = 'PENDING' → nếu xét theo nó thì làn B3 không bao giờ sáng. */
 export interface LabLite {
   appointment_id?: string | null;
-  triage_group?: string | null;
+  result_value?: string | null;
+  external_ref?: string | null;
 }
 
 /**
- * Tập appointment "Chờ đọc KQ (B3)": có ≥1 KQ ĐÃ về (triage_group ≠ PENDING) VÀ
- * KHÔNG còn KQ nào treo (PENDING). = mọi chỉ định XN của lượt đã có kết quả → bác sĩ
+ * Tập appointment "Chờ đọc KQ (B3)": có ≥1 KQ ĐÃ về (result_value/external_ref khác rỗng)
+ * VÀ KHÔNG còn KQ nào treo (cả hai rỗng). = mọi chỉ định XN của lượt đã có kết quả → bác sĩ
  * có thể đọc/kết luận ngay. (Phase 1 chỉ lab — lab_result.appointment_id nối sạch.)
  */
 export function b3ReadyApptIds(labs: LabLite[]): Set<string> {
@@ -33,8 +37,10 @@ export function b3ReadyApptIds(labs: LabLite[]): Set<string> {
     const id = (l.appointment_id ?? "").trim();
     if (!id) continue;
     const e = agg.get(id) ?? { resulted: 0, pending: 0 };
-    if ((l.triage_group ?? "PENDING") === "PENDING") e.pending += 1;
-    else e.resulted += 1;
+    const hasResult =
+      !!(l.result_value ?? "").trim() || !!(l.external_ref ?? "").trim();
+    if (hasResult) e.resulted += 1;
+    else e.pending += 1;
     agg.set(id, e);
   }
   const ready = new Set<string>();
