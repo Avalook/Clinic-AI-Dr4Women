@@ -446,9 +446,16 @@ export default function NewPatientForm({
   // Land on the patient profile (the "nice profile" the user sees right after).
   // Kèm mã BN để banner hiện "Mã BN: …" ngay sau khi tạo (feedback B5#2).
   function goToProfile(id: string, code?: string) {
-    // Khách thường (CSKH/Lễ tân/QL): nhảy sang "Thông tin khách hàng" với khách
-    // vừa nhập được CHỌN sẵn + bôi hồng (đúng yêu cầu "thông tin sau nhập trả
-    // về"). Khách vãng lai (điều dưỡng): về hồ sơ để thấy luôn lượt khám hôm nay.
+    // LỄ TÂN: tạo BN xong → về BẢNG bệnh nhân (Danh sách bệnh nhân), không đứng
+    // lại ở hồ sơ (Quang 2026-07-02). Khách vãng lai vừa nhận auto CHECKED_IN
+    // hôm nay nên hiện ngay trên bảng đó.
+    if (role === "RECEPTION") {
+      router.push("/patient-list");
+      return;
+    }
+    // Khách thường (CSKH/QL): nhảy sang "Thông tin khách hàng" với khách vừa nhập
+    // được CHỌN sẵn + bôi hồng (đúng yêu cầu "thông tin sau nhập trả về"). Khách
+    // vãng lai (điều dưỡng): về hồ sơ để thấy luôn lượt khám hôm nay.
     if (walkin) {
       const qs = code ? `?new=1&code=${encodeURIComponent(code)}` : "?new=1";
       router.push(`/patients/${id}${qs}`);
