@@ -176,7 +176,9 @@ export default function AppointmentBooking({
       const targetUtcStr = vnLocalToUtcISO(apptDate, apptTime);
       return existingAppts.some((appt) => {
         const matchDoc = !doctorId || appt.doctor_id === doctorId;
-        return matchDoc && appt.slot_start === targetUtcStr;
+        // So theo epoch ms: PostgREST trả "+00:00" không mili-giây, còn
+        // toISOString() ra ".000Z" — so chuỗi tuyệt đối sẽ trượt 100%.
+        return matchDoc && Date.parse(appt.slot_start) === Date.parse(targetUtcStr);
       });
     } catch {
       return false;
@@ -240,6 +242,19 @@ export default function AppointmentBooking({
     if (!res.ok) {
       setError(json.error ?? "Có lỗi xảy ra.");
       return;
+    }
+    // Nạp lại sơ đồ chỗ để lịch VỪA đặt hiện "đã kín" ngay, không phải đổi ngày
+    // mới thấy — quan trọng khi đặt liên tiếp nhiều lịch trong cùng form.
+    try {
+      const r = await fetch(
+        `/api/appointments?date=${encodeURIComponent(apptDate)}`,
+      );
+      if (r.ok) {
+        const data = await r.json();
+        setExistingAppts(data.appointments ?? []);
+      }
+    } catch {
+      // im lặng: lỗi nạp lại không được chặn xác nhận đặt lịch đã thành công
     }
     onBooked(json.appointment_id as string);
   }

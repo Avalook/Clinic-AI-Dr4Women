@@ -282,7 +282,9 @@ export default function NewPatientForm({
       const targetUtcStr = vnLocalToUtcISO(apptDate, apptTime);
       return existingAppts.some((appt) => {
         const matchDoc = !doctorId || appt.doctor_id === doctorId;
-        return matchDoc && appt.slot_start === targetUtcStr;
+        // So theo epoch ms: PostgREST trả "+00:00" không mili-giây, còn
+        // toISOString() ra ".000Z" — so chuỗi tuyệt đối sẽ trượt 100%.
+        return matchDoc && Date.parse(appt.slot_start) === Date.parse(targetUtcStr);
       });
     } catch {
       return false;

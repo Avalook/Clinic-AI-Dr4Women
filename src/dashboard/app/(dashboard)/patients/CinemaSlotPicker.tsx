@@ -50,12 +50,16 @@ export default function CinemaSlotPicker({
     return out;
   }, [date]);
 
-  // Tập khung ĐÃ CÓ lịch: key = `${doctor_id}|${slot_start ISO}` (API đã lọc bỏ
-  // CANCELLED/NO_SHOW nên còn ở đây nghĩa là chỗ thật sự bận).
+  // Tập khung ĐÃ CÓ lịch: key = `${doctor_id}|${epoch ms của slot_start}` (API đã
+  // lọc bỏ CANCELLED/NO_SHOW nên còn ở đây nghĩa là chỗ thật sự bận).
   const bookedSet = useMemo(() => {
     const s = new Set<string>();
     for (const a of existingAppts) {
-      if (a.doctor_id) s.add(`${a.doctor_id}|${a.slot_start}`);
+      // Gồm CẢ lịch chưa phân bác sĩ (doctor_id null) → key bác sĩ rỗng "" để
+      // hàng "Chưa phân bác sĩ" bên dưới cũng khoá được ô đã đặt.
+      // Key giờ = epoch ms (KHÔNG dùng chuỗi ISO thô): PostgREST trả
+      // "+00:00" không mili-giây, còn toISOString() ra ".000Z" — so chuỗi sẽ trượt.
+      s.add(`${a.doctor_id ?? ""}|${Date.parse(a.slot_start)}`);
     }
     return s;
   }, [existingAppts]);
@@ -76,8 +80,9 @@ export default function CinemaSlotPicker({
   }
 
   // Không có bác sĩ nào để xếp hàng → vẫn cho chọn giờ ở hàng "Chưa phân bác sĩ".
-  const rows: Option[] =
-    doctors.length > 0 ? doctors : [{ id: "", label: "Chưa phân bác sĩ" }];
+  // LUÔN có thêm hàng "Chưa phân bác sĩ": lịch đặt online chưa phân BS vẫn hiện
+  // "đã kín" — nếu thiếu hàng này, đặt cho khách sau sẽ không thấy lịch khách trước.
+  const rows: Option[] = [...doctors, { id: "", label: "Chưa phân bác sĩ" }];
   const now = nowMs();
 
   return (
@@ -125,7 +130,10 @@ export default function CinemaSlotPicker({
                     iso = "";
                   }
                   const isPast = iso ? new Date(iso).getTime() < now : false;
-                  const isBooked = d.id ? bookedSet.has(`${d.id}|${iso}`) : false;
+                  // Kể cả hàng "Chưa phân bác sĩ" (d.id="") cũng đọc bookedSet.
+                  const isBooked = iso
+                    ? bookedSet.has(`${d.id}|${Date.parse(iso)}`)
+                    : false;
                   const isSelected =
                     d.id === selectedDoctorId && t === selectedTime;
                   const disabled = isPast || isBooked;
