@@ -9,6 +9,7 @@
 import { getSupabaseServer } from "../../../lib/supabase-server";
 import { requireNavAccess, getClinicRole } from "../../../lib/clinic-session";
 import { isDoctorRole, isOpsAdmin } from "../../../lib/roles";
+import { vnTodayRangeUtc } from "../../../lib/datetime";
 import PatientListView, { type ExaminedRow } from "./PatientListView";
 import type { DoctorApptRow } from "../tasks/DoctorWorkBoard";
 import type { Option } from "../patients/AppointmentBooking";
@@ -83,13 +84,19 @@ export default async function PatientListPage() {
     }));
   }
 
-  // COMPLETED = đã khám xong. Sắp xếp mới→cũ để lần xuất hiện ĐẦU của mỗi BN
-  // chính là lần khám gần nhất. Cap 2000 lượt khám gần nhất (đủ rộng cho MVP
-  // nhập tay; vượt thì BN khám rất lâu trước có thể sót — chấp nhận được).
+  // BN xuất hiện ở "Danh sách bệnh nhân" khi: (a) đã khám xong (COMPLETED) — lịch
+  // sử; HOẶC (b) ĐANG khám HÔM NAY (CHECKED_IN/IN_PROGRESS) — walk-in vừa tiếp
+  // nhận hiện ngay, không phải chờ đóng lượt khám. Trước đây chỉ lọc COMPLETED nên
+  // khách đến trực tiếp (auto CHECKED_IN) nằm ở "khách hàng" mà không lọt danh sách
+  // này. Active giới hạn TRONG NGÀY để không kéo về mọi lượt CHECKED_IN cũ bị bỏ dở.
+  // Sắp xếp mới→cũ để lần xuất hiện ĐẦU của mỗi BN chính là lượt gần nhất. Cap 2000.
+  const { startUtc: todayStartUtc, endUtc: todayEndUtc } = vnTodayRangeUtc();
   const { data, error } = await supabase
     .from("appointment")
     .select(SELECT)
-    .eq("status", "COMPLETED")
+    .or(
+      `status.eq.COMPLETED,and(status.in.(CHECKED_IN,IN_PROGRESS),slot_start.gte.${todayStartUtc},slot_start.lt.${todayEndUtc})`,
+    )
     .order("slot_start", { ascending: false })
     .limit(2000);
 
