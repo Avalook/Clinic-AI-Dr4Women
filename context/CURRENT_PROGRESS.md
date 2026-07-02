@@ -1,6 +1,36 @@
 <!-- ════════════════════════════════════════════════════════════════════
-     📍 BÀN GIAO PHIÊN (đọc khối này TRƯỚC) — cập nhật 2026-06-29
+     📍 BÀN GIAO PHIÊN (đọc khối này TRƯỚC) — cập nhật 2026-07-02
      ════════════════════════════════════════════════════════════════════ -->
+
+## 📍 SLOT-21 — Đặt lịch "2+1 mỗi khung 15'" (BN1/BN2 + chỗ vãng lai) — ĐÃ CODE, COMMIT LOCAL, CHƯA PUSH
+
+**Yêu cầu (3 ảnh PK gửi 2026-07-02):** mỗi BÁC SĨ × KHUNG 15' có đúng 3 chỗ — BN1+BN2 cho lịch hẹn (CSKH/Lễ tân đặt trước), chỗ thứ 3 DÀNH RIÊNG khách vãng lai; sơ đồ chỉ hiện BÁC SĨ TRỰC CA hôm đó; trang chủ bảng Lịch hẹn khám gom khung giờ → bác sĩ → BN1/BN2/ô xanh "đặt vào đây"; Lịch làm việc GIỮ NGUYÊN.
+
+**Quyết định (Quang chốt qua hỏi-đáp):**
+- Chỗ 3 nhận diện THEO KÊNH `booking_channel = WALK_IN` — KHÔNG thêm cột DB → KHÔNG cần migration/atf. (Hệ quả: kênh đặt thành BẮT BUỘC ở AppointmentBooking, vì kênh rỗng bị server mặc định WALK_IN sẽ chiếm nhầm chỗ vãng lai.)
+- Chặn CỨNG server + UI (mọi corner case): POST + PATCH reschedule/reassign đều kiểm; trần 6-overlap DB + engine CAP-01 giữ nguyên làm lưới an toàn.
+- Ngày chưa có lịch trực → fallback hiện TẤT CẢ bác sĩ + dòng cảnh báo, không chặn đặt.
+- Ô xanh trang chủ BẤM ĐƯỢC → `/patients/new?date&time&doctor` điền sẵn (chỉ hôm nay; ngày sau chỉ hiển thị).
+
+**Đã làm (KHÔNG đổi DB):**
+- **`lib/slot-capacity.ts` (MỚI, thuần):** REGULAR_CAP=2, WALKIN_CAP=1, bucket 15' (`slotBucketMs/Range`), `buildSlotUsage/usageAt`, DEAD_STATUSES=CANCELLED/NO_SHOW/DOCTOR_DECLINED (không giữ chỗ). Dùng chung UI + server để không lệch luật.
+- **API `/api/appointments`:** GET thêm `booking_channel`; POST thêm `slotCapMessage()` (chặn 409 sau check trùng-BS, trước CAP-01; hàng "Chưa phân bác sĩ" doctor_id null cũng bị cap); PATCH `reassign`+`reschedule` kiểm cap ở đích (loại trừ chính lịch, đúng loại chỗ theo kênh của lịch). Best-effort fail-open như CAP-01 (race 2 người đặt cùng lúc vẫn có thể lách — chờ Phase 1.5 advisory lock).
+- **API `/api/roster`:** thêm GET `?date=` → bác sĩ trực (`work_roster` station LICH_KHAM, APPROVED, khử trùng SANG/CHIEU, bỏ dòng thiếu staff_id). Đọc bằng phiên caller (RLS SELECT).
+- **`CinemaSlotPicker` v2:** mỗi bác sĩ 3 hàng con BN1/BN2/Vãng-lai(xanh); prop `mode`: "regular" (CSKH/Lễ tân đặt hẹn — chỉ BN1/BN2 bấm được, hàng xanh khoá "chỉ đặt khi được chỉ định — làm sau") vs "walkin" (chỉ hàng xanh bấm được); prop `dutyDoctorIds` lọc bác sĩ trực (null=chưa nạp→tất cả; []=chưa phân trực→tất cả+cảnh báo); giữ hàng "Chưa phân bác sĩ".
+- **`AppointmentBooking`:** fetch duty theo ngày; mode regular; `isSlotBooked` theo cap-2; Kênh đặt * bắt buộc. (QuickBookingModal + PatientBooking dùng chung → tự lan.)
+- **`NewPatientForm`:** full-variant như trên; **walkin-variant (Lễ tân/ĐD)**: thay DoctorLoadBoard bằng sơ đồ mode walkin (HÔM NAY) — bấm ô xanh chọn bác sĩ+khung, `bookFor` dùng khung đã chọn (không chọn = khám ngay giờ hiện tại như cũ); prop mới `initialAppt` nhận prefill từ query của trang `/patients/new` (page.tsx đọc searchParams).
+- **Trang chủ:** `WeeklyAppointmentsTable` viết lại — gom NGÀY → KHUNG 15' (chỉ khung có lịch) → BÁC SĨ (trực trước, khác sau, "Chưa phân BS" cuối; rowSpan 2 cột đầu); mỗi nhóm: các dòng lịch (giữ nguyên cột Số/Thông tin/Phân loại/Thao tác check-in/sinh hiệu/in phiếu + popup ClinicalRecordForm) + Ô XANH khi chỗ vãng lai trống & khung chưa qua (hôm nay = Link prefill, ngày sau = chỉ nhìn; lịch vãng lai có nhãn "· vãng lai"). `home/page.tsx`: select thêm `doctor_id, booking_channel`, đọc duty theo `work_date IN tuần lịch hẹn` (KHÔNG lọc week_start — weekAppt ≠ weekRoster). Lịch làm việc (WorkRosterTable) KHÔNG ĐỤNG.
+
+**Test:** `tsc --noEmit` 0 lỗi; `next build` ✓ (route /api/roster GET, /patients/new, /home compile). Lint 9 file sửa: chỉ còn lỗi CÓ SẴN TỪ TRƯỚC (AppointmentBooking DURATIONS/setDuration unused + set-state-in-effect; NewPatientForm 2 pattern cũ y hệt; `selAppt as any` giữ nguyên từ bản cũ). Lỗi mới duy nhất (Date.now trong render) đã sửa bằng `nowMs()`.
+
+**CÒN TREO:**
+- **Chưa push** (chờ Quang "OK"). Không có migration nào phải chạy trên atf cho task này (CAP-01 061+062 vẫn treo như cũ).
+- Race 2 request cùng khung vẫn lách được cap 2+1 (best-effort) — gộp vào Phase 1.5 advisory lock của CAP-01.
+- "Chỗ 3 theo chỉ định" cho CSKH: PK nói LÀM SAU — hiện hàng xanh khoá ở mode regular.
+- Data cũ: lịch CSKH từng lưu kênh rỗng→WALK_IN sẽ hiện ở hàng vãng lai (chấp nhận, đã chốt nhận diện theo kênh).
+- DoctorLoadBoard.tsx không còn nơi dùng (giữ file, chưa xoá).
+
+---
 
 ## 📍 CAP-01 — Capacity Phase 1 (engine ngân sách + newCap) — ĐÃ CODE, COMMIT LOCAL, CHƯA PUSH
 

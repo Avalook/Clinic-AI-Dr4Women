@@ -1,37 +1,53 @@
 "use client";
 
-// Lưới đặt chỗ kiểu "rạp chiếu phim" dùng chung cho CSKH: mỗi bác sĩ 1 hàng,
-// mỗi ô = 1 khung 15 phút trong giờ mở cửa PK. Ô đã có lịch → khoá (xám); ô quá
-// khứ (hôm nay) → khoá; ô đang chọn → hồng đậm; ô trống → bấm để chọn (set giờ +
-// bác sĩ qua onPick). KHÔNG tự fetch/POST — parent truyền data + nhận callback,
-// nên dùng chung được cho cả AppointmentBooking (tái khám) và NewPatientForm (BN mới).
+// Lưới đặt chỗ kiểu "rạp chiếu phim" dùng chung cho CSKH + Lễ tân: mỗi bác sĩ
+// TRỰC CA hôm đó là 1 nhóm 3 HÀNG — BN1 + BN2 (chỗ đặt hẹn kênh thường) và
+// hàng thứ 3 màu XANH "đặt vào đây" dành riêng khách vãng lai (WALK_IN); mỗi
+// cột = 1 khung 15 phút trong giờ mở cửa PK. Luật 2+1 nằm ở lib/slot-capacity
+// (server chặn cứng, đây là hiển thị đồng bộ).
+//   mode="regular" (CSKH/Lễ tân đặt hẹn): chỉ bấm được BN1/BN2; hàng vãng lai
+//     hiện trạng thái nhưng KHOÁ (chỗ 3 chỉ đặt khi được chỉ định — làm sau).
+//   mode="walkin"  (Lễ tân xếp khách vãng lai): chỉ bấm được hàng xanh.
+// dutyDoctorIds lọc bác sĩ trực (từ Lịch làm việc); ngày chưa phân trực →
+// fallback hiện tất cả + dòng ghi chú. KHÔNG tự fetch/POST — parent truyền
+// data + nhận callback như trước.
 
 import { useMemo } from "react";
 import { vnLocalToUtcISO, nowMs } from "../../../lib/datetime";
 import { clinicHoursForDate } from "../../../lib/roster";
+import {
+  buildSlotUsage,
+  usageAt,
+  REGULAR_CAP,
+  type SlotApptLite,
+} from "../../../lib/slot-capacity";
 import type { Option } from "./AppointmentBooking";
 
-interface ApptLite {
-  slot_start: string;
-  doctor_id: string | null;
-}
-
-// Cùng bộ phút với Time24Input của màn đặt lịch (ƯT1–ƯT4).
+// Cùng bộ phút với Time24Input của màn đặt lịch.
 const MINUTES = ["00", "15", "30", "45"];
+
+export type PickerMode = "regular" | "walkin";
 
 export default function CinemaSlotPicker({
   date,
   doctors,
+  dutyDoctorIds,
   existingAppts,
   selectedDoctorId,
   selectedTime,
+  mode = "regular",
   onPick,
 }: {
   date: string;
   doctors: Option[];
-  existingAppts: ApptLite[];
+  /** Bác sĩ trực ca ngày này (từ work_roster LICH_KHAM). null/undefined = chưa
+   *  nạp xong (hiện tất cả, không ghi chú); mảng RỖNG = ngày chưa phân trực
+   *  (fallback tất cả + ghi chú). */
+  dutyDoctorIds?: string[] | null;
+  existingAppts: SlotApptLite[];
   selectedDoctorId: string;
   selectedTime: string;
+  mode?: PickerMode;
   onPick: (doctorId: string, hhmm: string) => void;
 }) {
   // Các cột giờ (HH:mm) nằm trong giờ mở cửa của NGÀY đã chọn.
@@ -50,19 +66,18 @@ export default function CinemaSlotPicker({
     return out;
   }, [date]);
 
-  // Tập khung ĐÃ CÓ lịch: key = `${doctor_id}|${epoch ms của slot_start}` (API đã
-  // lọc bỏ CANCELLED/NO_SHOW nên còn ở đây nghĩa là chỗ thật sự bận).
-  const bookedSet = useMemo(() => {
-    const s = new Set<string>();
-    for (const a of existingAppts) {
-      // Gồm CẢ lịch chưa phân bác sĩ (doctor_id null) → key bác sĩ rỗng "" để
-      // hàng "Chưa phân bác sĩ" bên dưới cũng khoá được ô đã đặt.
-      // Key giờ = epoch ms (KHÔNG dùng chuỗi ISO thô): PostgREST trả
-      // "+00:00" không mili-giây, còn toISOString() ra ".000Z" — so chuỗi sẽ trượt.
-      s.add(`${a.doctor_id ?? ""}|${Date.parse(a.slot_start)}`);
-    }
-    return s;
-  }, [existingAppts]);
+  // Bảng chiếm chỗ (bác sĩ × khung 15'): đếm riêng kênh thường vs vãng lai.
+  const usage = useMemo(() => buildSlotUsage(existingAppts), [existingAppts]);
+
+  // Lọc bác sĩ theo ca trực; ngày chưa phân trực → hiện tất cả + ghi chú.
+  const noDuty = Array.isArray(dutyDoctorIds) && dutyDoctorIds.length === 0;
+  const dutyDoctors = useMemo(() => {
+    if (!dutyDoctorIds || dutyDoctorIds.length === 0) return doctors;
+    const set = new Set(dutyDoctorIds);
+    const filtered = doctors.filter((d) => set.has(d.id));
+    // Lịch trực trỏ tới staff không còn trong combobox → đừng để bảng rỗng.
+    return filtered.length > 0 ? filtered : doctors;
+  }, [doctors, dutyDoctorIds]);
 
   if (!date) {
     return (
@@ -79,18 +94,29 @@ export default function CinemaSlotPicker({
     );
   }
 
-  // Không có bác sĩ nào để xếp hàng → vẫn cho chọn giờ ở hàng "Chưa phân bác sĩ".
-  // LUÔN có thêm hàng "Chưa phân bác sĩ": lịch đặt online chưa phân BS vẫn hiện
-  // "đã kín" — nếu thiếu hàng này, đặt cho khách sau sẽ không thấy lịch khách trước.
-  const rows: Option[] = [...doctors, { id: "", label: "Chưa phân bác sĩ" }];
+  // LUÔN thêm hàng "Chưa phân bác sĩ": lịch online chưa phân BS vẫn phải hiện
+  // "đã kín", và vẫn bị luật 2+1 giới hạn như một hàng riêng.
+  const rows: Option[] = [...dutyDoctors, { id: "", label: "Chưa phân bác sĩ" }];
   const now = nowMs();
+  const walkinMode = mode === "walkin";
+
+  // 3 hàng con của mỗi bác sĩ: BN1, BN2 (kênh thường) + VL (vãng lai, xanh).
+  const SUBROWS: { kind: "regular" | "walkin"; label: string; seatIdx: number }[] = [
+    { kind: "regular", label: "BN1", seatIdx: 0 },
+    { kind: "regular", label: "BN2", seatIdx: 1 },
+    { kind: "walkin", label: "Vãng lai", seatIdx: 0 },
+  ];
 
   return (
     <div className="space-y-2">
       <div className="flex flex-wrap items-center gap-3 text-[11px] text-[#71717a]">
         <span className="inline-flex items-center gap-1">
           <span className="inline-block h-3 w-3 rounded border border-[#f3cfe0] bg-white" />{" "}
-          Trống
+          Chỗ hẹn trống (BN1/BN2)
+        </span>
+        <span className="inline-flex items-center gap-1">
+          <span className="inline-block h-3 w-3 rounded border border-[#bbf7d0] bg-[#dcfce7]" />{" "}
+          Chỗ vãng lai trống
         </span>
         <span className="inline-flex items-center gap-1">
           <span className="inline-block h-3 w-3 rounded bg-[#9d2463]" /> Đang chọn
@@ -99,12 +125,20 @@ export default function CinemaSlotPicker({
           <span className="inline-block h-3 w-3 rounded bg-[#e5e7eb]" /> Đã kín / quá giờ
         </span>
       </div>
+      {noDuty && (
+        <p className="rounded-lg border border-[#fde68a] bg-[#fffbeb] px-3 py-1.5 text-[11px] text-[#a16207]">
+          Ngày này chưa có lịch trực bác sĩ (Lịch làm việc) — đang hiện tất cả bác sĩ.
+        </p>
+      )}
       <div className="overflow-x-auto rounded-xl border border-[#f3cfe0]">
-        <table className="border-separate border-spacing-1 p-2">
+        <table className="border-separate border-spacing-x-1 border-spacing-y-0.5 p-2">
           <thead>
             <tr>
               <th className="sticky left-0 z-10 bg-white px-2 text-left text-[11px] font-medium text-[#71717a]">
-                Bác sĩ \ Giờ
+                Bác sĩ
+              </th>
+              <th className="sticky left-[110px] z-10 bg-white px-1 text-left text-[10px] font-normal text-[#a1a1aa]">
+                Chỗ
               </th>
               {slots.map((t) => (
                 <th
@@ -117,51 +151,100 @@ export default function CinemaSlotPicker({
             </tr>
           </thead>
           <tbody>
-            {rows.map((d) => (
-              <tr key={d.id || "none"}>
-                <td className="sticky left-0 z-10 whitespace-nowrap bg-white px-2 text-xs font-medium text-[#171717]">
-                  {d.label}
-                </td>
-                {slots.map((t) => {
-                  let iso = "";
-                  try {
-                    iso = vnLocalToUtcISO(date, t);
-                  } catch {
-                    iso = "";
-                  }
-                  const isPast = iso ? new Date(iso).getTime() < now : false;
-                  // Kể cả hàng "Chưa phân bác sĩ" (d.id="") cũng đọc bookedSet.
-                  const isBooked = iso
-                    ? bookedSet.has(`${d.id}|${Date.parse(iso)}`)
-                    : false;
-                  const isSelected =
-                    d.id === selectedDoctorId && t === selectedTime;
-                  const disabled = isPast || isBooked;
-                  return (
-                    <td key={t} className="p-0">
-                      <button
-                        type="button"
-                        disabled={disabled}
-                        onClick={() => onPick(d.id, t)}
-                        title={`${d.label} · ${t}${
-                          isBooked ? " · đã kín" : isPast ? " · đã qua" : ""
-                        }`}
-                        className={
-                          "h-7 w-7 rounded text-[10px] font-medium transition " +
-                          (isSelected
-                            ? "bg-[#9d2463] text-white"
-                            : disabled
-                              ? "cursor-not-allowed bg-[#e5e7eb] text-[#a1a1aa]"
-                              : "border border-[#f3cfe0] bg-white text-[#9d2463] hover:bg-[#fce7f3]")
-                        }
-                      >
-                        {isSelected ? "✓" : isBooked ? "×" : ""}
-                      </button>
+            {rows.map((d) =>
+              SUBROWS.map((sub, si) => (
+                <tr key={`${d.id || "none"}-${sub.kind}-${sub.seatIdx}`}>
+                  {si === 0 && (
+                    <td
+                      rowSpan={SUBROWS.length}
+                      className="sticky left-0 z-10 whitespace-nowrap bg-white px-2 align-middle text-xs font-medium text-[#171717]"
+                    >
+                      {d.label}
                     </td>
-                  );
-                })}
-              </tr>
-            ))}
+                  )}
+                  <td
+                    className={
+                      "sticky left-[110px] z-10 whitespace-nowrap bg-white px-1 text-[10px] " +
+                      (sub.kind === "walkin" ? "text-[#15803d]" : "text-[#a1a1aa]")
+                    }
+                  >
+                    {sub.label}
+                  </td>
+                  {slots.map((t) => {
+                    let iso = "";
+                    try {
+                      iso = vnLocalToUtcISO(date, t);
+                    } catch {
+                      iso = "";
+                    }
+                    const bucketMs = iso ? Date.parse(iso) : 0;
+                    const isPast = iso ? bucketMs < now : false;
+                    const u = iso
+                      ? usageAt(usage, d.id || null, bucketMs)
+                      : { regular: 0, walkin: 0 };
+                    // Ghế này đã có người? BN1 kín khi regular ≥ 1, BN2 khi ≥ 2…
+                    const isTaken =
+                      sub.kind === "regular"
+                        ? u.regular > sub.seatIdx
+                        : u.walkin > sub.seatIdx;
+                    // Hàng được phép bấm theo vai: regular-mode → BN1/BN2;
+                    // walkin-mode → hàng vãng lai. Hàng còn lại chỉ để nhìn.
+                    const pickable = walkinMode
+                      ? sub.kind === "walkin"
+                      : sub.kind === "regular";
+                    // Ô "đang chọn" vẽ trên ghế TRỐNG ĐẦU TIÊN của hàng đúng loại.
+                    const firstFreeSeat =
+                      sub.kind === "regular" ? u.regular : u.walkin;
+                    const isSelected =
+                      pickable &&
+                      d.id === selectedDoctorId &&
+                      t === selectedTime &&
+                      !isTaken &&
+                      sub.seatIdx === Math.min(firstFreeSeat, REGULAR_CAP - 1);
+                    const disabled = isPast || isTaken || !pickable;
+                    const title = `${d.label} · ${t} · ${
+                      sub.kind === "walkin" ? "chỗ vãng lai" : sub.label
+                    }${
+                      isTaken
+                        ? " · đã kín"
+                        : isPast
+                          ? " · đã qua"
+                          : !pickable
+                            ? walkinMode
+                              ? " · chỗ đặt hẹn (CSKH đặt)"
+                              : " · chỉ dành cho khách vãng lai"
+                            : " · đặt vào đây"
+                    }`;
+                    const cls =
+                      "h-6 w-7 rounded text-[10px] font-medium transition " +
+                      (isSelected
+                        ? "bg-[#9d2463] text-white"
+                        : isPast || isTaken
+                          ? "cursor-not-allowed bg-[#e5e7eb] text-[#a1a1aa]"
+                          : sub.kind === "walkin"
+                            ? pickable
+                              ? "border border-[#86efac] bg-[#dcfce7] text-[#15803d] hover:bg-[#bbf7d0]"
+                              : "cursor-not-allowed border border-[#d1fae5] bg-[#f0fdf4] text-[#86efac]"
+                            : pickable
+                              ? "border border-[#f3cfe0] bg-white text-[#9d2463] hover:bg-[#fce7f3]"
+                              : "cursor-not-allowed border border-[#f4e4ee] bg-[#fdf7fb] text-[#e3c1d6]");
+                    return (
+                      <td key={t} className="p-0">
+                        <button
+                          type="button"
+                          disabled={disabled}
+                          onClick={() => onPick(d.id, t)}
+                          title={title}
+                          className={cls}
+                        >
+                          {isSelected ? "✓" : isTaken ? "×" : ""}
+                        </button>
+                      </td>
+                    );
+                  })}
+                </tr>
+              )),
+            )}
           </tbody>
         </table>
       </div>

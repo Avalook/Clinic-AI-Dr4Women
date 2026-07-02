@@ -22,6 +22,7 @@ import WeekNav from "../WeekNav";
 import WeeklyAppointmentsTable, {
   type ApptDay,
   type WeekApptRow,
+  type DutyByDate,
 } from "./WeeklyAppointmentsTable";
 import WorkRosterTable, { type RosterRow } from "./WorkRosterTable";
 import VisitStatusBoard, { type VisitStatusRow } from "./VisitStatusBoard";
@@ -90,7 +91,7 @@ export default async function HomePage({
     new Date(apptStartUtc).getTime() + 7 * DAY_MS,
   ).toISOString();
   const WEEK_APPT_SELECT = `
-    id, slot_start, status, queue_number,
+    id, slot_start, status, queue_number, doctor_id, booking_channel,
     patient:patient!clinic_patient_id (
       clinic_patient_id, patient_code, full_name, date_of_birth,
       phone_primary, phone_secondary, gender, ethnicity, nationality, occupation,
@@ -311,6 +312,29 @@ export default async function HomePage({
       : "Khám lần đầu";
   };
 
+  // Bác sĩ TRỰC CA từng ngày của TUẦN LỊCH HẸN (weekAppt ≠ weekRoster!) — nuôi
+  // các nhóm bác sĩ + ô xanh "đặt vào đây" trong bảng Lịch hẹn khám. Đọc thẳng
+  // work_roster theo work_date (không lọc week_start vì 2 bảng tuần độc lập).
+  const dutyByDate: DutyByDate = {};
+  {
+    const { data: duty } = await supabase
+      .from("work_roster")
+      .select("work_date, staff_id, staff_name")
+      .in("work_date", apptDates)
+      .eq("station", "LICH_KHAM")
+      .eq("status", "APPROVED")
+      .not("staff_id", "is", null);
+    for (const r of (duty as
+      | { work_date: string; staff_id: string; staff_name: string | null }[]
+      | null) ?? []) {
+      const list = dutyByDate[r.work_date] ?? [];
+      if (!list.some((d) => d.id === r.staff_id)) {
+        list.push({ id: r.staff_id, name: r.staff_name ?? "" });
+      }
+      dutyByDate[r.work_date] = list;
+    }
+  }
+
   const t0 = new Date(apptStartUtc).getTime();
   const apptDays: ApptDay[] = apptDates.map((date, i) => {
     const s = t0 + i * DAY_MS;
@@ -382,6 +406,7 @@ export default async function HomePage({
           role={role}
           staffId={staffId}
           canWriteClinical={writeClinical}
+          dutyByDate={dutyByDate}
         />
       </section>
 

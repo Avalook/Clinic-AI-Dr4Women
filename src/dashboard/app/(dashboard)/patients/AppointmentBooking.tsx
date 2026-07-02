@@ -15,6 +15,11 @@ import Time24Input from "../Time24Input";
 import DateField from "../DateField";
 import { LINH_VUC_OPTIONS } from "../../../lib/linh-vuc";
 import CinemaSlotPicker from "./CinemaSlotPicker";
+import {
+  buildSlotUsage,
+  usageAt,
+  REGULAR_CAP,
+} from "../../../lib/slot-capacity";
 
 // Capacity Phase 1 — màu/nhãn 6 trạng thái ô khung-giờ (khớp CellState ở lib/capacity.ts).
 const CELL_UI: Record<string, { label: string; bg: string; fg: string }> = {
@@ -99,6 +104,9 @@ export default function AppointmentBooking({
     liveEpisode: { status: string; opened_at: string; last_visit_at: string | null } | null;
   } | null>(null);
   const [existingAppts, setExistingAppts] = useState<any[]>([]);
+  // Bác sĩ TRỰC CA của ngày đã chọn (work_roster LICH_KHAM) — sơ đồ chỉ hiện
+  // các bác sĩ này. null = chưa nạp; [] = ngày chưa phân trực (fallback tất cả).
+  const [dutyDoctorIds, setDutyDoctorIds] = useState<string[] | null>(null);
   // Capacity Phase 1 — tải/khung-giờ để hiển thị (quote, read-only).
   const [budgetBlocks, setBudgetBlocks] = useState<
     { hour_start: number; state: string }[]
@@ -127,6 +135,21 @@ export default function AppointmentBooking({
     return () => {
       active = false;
     };
+  }, [apptDate]);
+
+  // Bác sĩ trực ca của ngày đã chọn — sơ đồ chỉ vẽ hàng các bác sĩ này.
+  useEffect(() => {
+    if (!apptDate) return;
+    const ctrl = new AbortController();
+    fetch(`/api/roster?date=${encodeURIComponent(apptDate)}`, { signal: ctrl.signal })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((j) =>
+        setDutyDoctorIds(
+          j ? (j.doctors as { id: string }[]).map((d) => d.id) : null,
+        ),
+      )
+      .catch(() => {});
+    return () => ctrl.abort();
   }, [apptDate]);
 
   // Capacity Phase 1 — nạp tải/khung-giờ cho cơ sở+ngày+BS đã chọn (chỉ để hiển thị).
@@ -169,17 +192,15 @@ export default function AppointmentBooking({
     return () => ctrl.abort();
   }, [serviceId, clinicPatientId]);
 
-  // CSKH: Tính toán số chỗ trống
+  // CSKH: khung đang chọn còn chỗ đặt hẹn không? Luật 2+1 (slot-capacity):
+  // mỗi bác sĩ mỗi khung 15' có 2 chỗ kênh thường; chỗ 3 dành vãng lai nên
+  // KHÔNG tính vào đây.
   const isSlotBooked = useMemo(() => {
     if (!apptDate || !apptTime) return false;
     try {
-      const targetUtcStr = vnLocalToUtcISO(apptDate, apptTime);
-      return existingAppts.some((appt) => {
-        const matchDoc = !doctorId || appt.doctor_id === doctorId;
-        // So theo epoch ms: PostgREST trả "+00:00" không mili-giây, còn
-        // toISOString() ra ".000Z" — so chuỗi tuyệt đối sẽ trượt 100%.
-        return matchDoc && Date.parse(appt.slot_start) === Date.parse(targetUtcStr);
-      });
+      const bucketMs = Date.parse(vnLocalToUtcISO(apptDate, apptTime));
+      const usage = buildSlotUsage(existingAppts);
+      return usageAt(usage, doctorId || null, bucketMs).regular >= REGULAR_CAP;
     } catch {
       return false;
     }
@@ -197,7 +218,9 @@ export default function AppointmentBooking({
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
-  const canBook = serviceId && locationId && apptDate && apptTime;
+  // Kênh đặt BẮT BUỘC: kênh rỗng bị server mặc định thành WALK_IN → lịch CSKH
+  // sẽ chiếm nhầm chỗ vãng lai (chỗ 3). Bắt chọn rõ để phân loại chỗ đúng.
+  const canBook = serviceId && locationId && apptDate && apptTime && channel;
   // Giới hạn giờ theo ngày đã chọn (giờ mở cửa PK).
   const ch = apptDate ? clinicHoursForDate(apptDate) : null;
   const minHour = ch ? Number(ch.open.slice(0, 2)) : 0;
@@ -380,9 +403,11 @@ export default function AppointmentBooking({
           <CinemaSlotPicker
             date={apptDate}
             doctors={doctors}
+            dutyDoctorIds={dutyDoctorIds}
             existingAppts={existingAppts}
             selectedDoctorId={doctorId}
             selectedTime={apptTime}
+            mode="regular"
             onPick={(docId, t) => {
               setApptTime(t);
               setDoctorId(docId);
@@ -433,7 +458,7 @@ export default function AppointmentBooking({
           </select>
         </div>
         <div className="space-y-1">
-          <label className={LABEL}>Kênh đặt</label>
+          <label className={LABEL}>Kênh đặt *</label>
           <select
             value={channel}
             onChange={(e) => setChannel(e.target.value)}

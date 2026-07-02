@@ -11,7 +11,14 @@ import NewPatientForm, { type Option, type ProvinceOpt } from "./NewPatientForm"
 
 export const dynamic = "force-dynamic";
 
-export default async function NewPatientPage() {
+export default async function NewPatientPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ date?: string; time?: string; doctor?: string }>;
+}) {
+  // Ô xanh "đặt vào đây" (bảng Lịch hẹn khám trang chủ) dẫn sang đây kèm
+  // ?date&time&doctor để điền sẵn khung + bác sĩ cho khách vãng lai.
+  const { date: qDate, time: qTime, doctor: qDoctor } = await searchParams;
   const role = await getClinicRole();
   if (!canWriteIntake(role)) redirect("/home");
   const nurse = isNurseRole(role);
@@ -71,6 +78,11 @@ export default async function NewPatientPage() {
         doctors={doctors}
         provinces={provinces}
         variant={(nurse || role === "RECEPTION") ? "walkin" : "full"}
+        initialAppt={
+          qDate || qTime || qDoctor
+            ? { date: qDate, time: qTime, doctorId: qDoctor }
+            : undefined
+        }
       />
     </div>
   );

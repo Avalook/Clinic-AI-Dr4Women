@@ -39,6 +39,13 @@ import {
   type ApptLite,
   type PatientKind,
 } from "../../../lib/capacity";
+import {
+  slotBucketRange,
+  isWalkinChannel,
+  isDeadStatus,
+  REGULAR_CAP,
+  WALKIN_CAP,
+} from "../../../lib/slot-capacity";
 
 interface Body {
   clinic_patient_id?: string;
@@ -105,6 +112,63 @@ async function doctorConflictMessage(
       month: "2-digit",
     });
     return `Bác sĩ${name ? ` ${name}` : ""} đã đạt giới hạn 6 lịch hẹn trong khung giờ ${hhmm(slotStart)}–${hhmm(slotEnd)} ngày ${day}. Vui lòng chọn khung giờ khác.`;
+  } catch {
+    return null;
+  }
+}
+
+// Luật "2 + 1" mỗi khung 15' (sơ đồ rạp chiếu phim, 2026-07-02): mỗi BÁC SĨ ×
+// KHUNG 15' chỉ có 2 chỗ kênh thường (BN1/BN2) + 1 chỗ vãng lai (WALK_IN).
+// Đếm theo slot_start rơi TRONG khung chứa ứng viên (khớp cách UI vẽ lưới);
+// hàng "Chưa phân bác sĩ" (doctor_id null) giới hạn y hệt. excludeId để dùng
+// cho reschedule/reassign (không tự đếm chính mình). Trả câu lỗi tiếng Việt
+// khi hết chỗ; null = còn chỗ. Best-effort: lỗi truy vấn → null (fail-open,
+// đã còn net 6-overlap ở DB + engine ngân sách CAP-01).
+async function slotCapMessage(
+  db: DbClient,
+  doctorId: string | null,
+  slotStart: string,
+  bookingChannel: string,
+  excludeId?: string,
+): Promise<string | null> {
+  try {
+    const { startUtc, endUtc } = slotBucketRange(slotStart);
+    let q = db
+      .from("appointment")
+      .select("id, booking_channel, status")
+      .gte("slot_start", startUtc)
+      .lt("slot_start", endUtc);
+    q = doctorId ? q.eq("doctor_id", doctorId) : q.is("doctor_id", null);
+    if (excludeId) q = q.neq("id", excludeId);
+    const { data, error } = await q;
+    if (error) return null;
+    let regular = 0;
+    let walkin = 0;
+    for (const r of (data as
+      | { booking_channel: string | null; status: string }[]
+      | null) ?? []) {
+      if (isDeadStatus(r.status)) continue;
+      if (isWalkinChannel(r.booking_channel)) walkin += 1;
+      else regular += 1;
+    }
+    const hhmm = (iso: string) =>
+      new Date(iso).toLocaleTimeString("vi-VN", {
+        timeZone: "Asia/Ho_Chi_Minh",
+        hour: "2-digit",
+        minute: "2-digit",
+        hour12: false,
+      });
+    const window = `${hhmm(startUtc)}–${hhmm(endUtc)}`;
+    if (isWalkinChannel(bookingChannel)) {
+      if (walkin >= WALKIN_CAP) {
+        return `Khung ${window} đã có khách vãng lai — chuyển khách sang khung 15 phút kế tiếp.`;
+      }
+      return null;
+    }
+    if (regular >= REGULAR_CAP) {
+      return `Khung ${window} đã đủ ${REGULAR_CAP} chỗ đặt hẹn (BN1, BN2) — chọn khung khác. Chỗ thứ 3 chỉ dành cho khách vãng lai.`;
+    }
+    return null;
   } catch {
     return null;
   }
@@ -205,7 +269,7 @@ export async function GET(request: Request) {
 
   let query = db
     .from("appointment")
-    .select("slot_start, queue_number, status, doctor_id")
+    .select("slot_start, queue_number, status, doctor_id, booking_channel")
     .gte("slot_start", startOfDay)
     .lte("slot_start", endOfDay)
     .not("status", "eq", "CANCELLED")
@@ -322,6 +386,12 @@ export async function POST(request: Request) {
   if (doctor_id) {
     const busy = await doctorConflictMessage(db, doctor_id, slot_start, slot_end);
     if (busy) return NextResponse.json({ error: busy }, { status: 409 });
+  }
+
+  // Luật 2+1 mỗi khung 15' — chặn TRƯỚC insert (kể cả khung "Chưa phân bác sĩ").
+  {
+    const full = await slotCapMessage(db, doctor_id, slot_start, booking_channel);
+    if (full) return NextResponse.json({ error: full }, { status: 409 });
   }
 
   // Capacity Phase 1 (T-20260629-CAP-01) — chặn theo NGÂN SÁCH tải/khung-giờ.
@@ -600,7 +670,7 @@ export async function PATCH(request: Request) {
 
   const { data: appt, error: loadErr } = await db
     .from("appointment")
-    .select("id, doctor_id, status, clinic_patient_id, slot_start, slot_end, queue_number")
+    .select("id, doctor_id, status, clinic_patient_id, slot_start, slot_end, queue_number, booking_channel")
     .eq("id", id)
     .maybeSingle();
   if (loadErr) {
@@ -690,6 +760,15 @@ export async function PATCH(request: Request) {
       const busy = await doctorConflictMessage(db, newDoctor, appt.slot_start, appt.slot_end, id);
       if (busy) return NextResponse.json({ error: busy }, { status: 409 });
     }
+    // Luật 2+1: hàng đích (bác sĩ mới / "Chưa phân bác sĩ") phải còn chỗ đúng loại.
+    const full = await slotCapMessage(
+      db,
+      newDoctor,
+      appt.slot_start as string,
+      (appt.booking_channel as string | null) ?? "",
+      id,
+    );
+    if (full) return NextResponse.json({ error: full }, { status: 409 });
   } else if (action === "reschedule") {
     const ss = (body.slot_start ?? "").trim();
     const se = (body.slot_end ?? "").trim();
@@ -716,6 +795,15 @@ export async function PATCH(request: Request) {
       const busy = await doctorConflictMessage(db, newDoctor, ss, se, id);
       if (busy) return NextResponse.json({ error: busy }, { status: 409 });
     }
+    // Luật 2+1: khung giờ mới phải còn chỗ đúng loại (kể cả hàng chưa phân BS).
+    const full = await slotCapMessage(
+      db,
+      newDoctor,
+      ss,
+      (appt.booking_channel as string | null) ?? "",
+      id,
+    );
+    if (full) return NextResponse.json({ error: full }, { status: 409 });
   }
 
   // Lễ tân check-in → TỰ CẤP SỐ THỨ TỰ trong ngày nếu lịch chưa có số (giữ số

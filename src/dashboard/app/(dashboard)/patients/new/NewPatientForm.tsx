@@ -12,7 +12,12 @@ import { UserRound, CalendarClock } from "lucide-react";
 import { type ClinicRole } from "../../../../lib/roles";
 import type { Option } from "../AppointmentBooking";
 import CinemaSlotPicker from "../CinemaSlotPicker";
-import DoctorLoadBoard from "../DoctorLoadBoard";
+import {
+  buildSlotUsage,
+  usageAt,
+  REGULAR_CAP,
+  WALKIN_CAP,
+} from "../../../../lib/slot-capacity";
 import { vnLocalToUtcISO, nowMs } from "../../../../lib/datetime";
 import {
   todayVn,
@@ -125,6 +130,7 @@ export default function NewPatientForm({
   doctors,
   provinces,
   variant = "full",
+  initialAppt,
 }: {
   role?: ClinicRole | null;
   locations: Option[];
@@ -134,6 +140,9 @@ export default function NewPatientForm({
   /** "walkin" = điều dưỡng ghi khách vãng lai: bỏ lịch hẹn, gộp dịch vụ/bác sĩ
    *  vào ô thông tin, lưu xong tạo luôn lượt khám HÔM NAY (giờ hiện tại). */
   variant?: "full" | "walkin";
+  /** Điền sẵn ngày/giờ/bác sĩ — ô xanh "đặt vào đây" ở bảng Lịch hẹn khám
+   *  (trang chủ) dẫn sang đây kèm query để Lễ tân xếp khách đúng khung. */
+  initialAppt?: { date?: string; time?: string; doctorId?: string };
 }) {
   const walkin = variant === "walkin";
   const router = useRouter();
@@ -209,18 +218,39 @@ export default function NewPatientForm({
 
   // Appointment (optional)
   const [serviceId, setServiceId] = useState("");
-  const [doctorId, setDoctorId] = useState("");
-  const [doctorQ, setDoctorQ] = useState(""); // text hiện trong ô
+  const [doctorId, setDoctorId] = useState(initialAppt?.doctorId ?? "");
+  const [doctorQ, setDoctorQ] = useState(
+    initialAppt?.doctorId
+      ? (doctors.find((d) => d.id === initialAppt.doctorId)?.label ?? "")
+      : "",
+  ); // text hiện trong ô
   const [doctorOpen, setDoctorOpen] = useState(false);
   const filteredDoctors = useMemo(() => {
     const t = unaccentVi(doctorQ.trim());
     if (!t) return doctors;
     return doctors.filter((d) => unaccentVi(d.label).includes(t));
   }, [doctorQ, doctors]);
-  const [apptDate, setApptDate] = useState("");
-  const [apptTime, setApptTime] = useState("");
+  const [apptDate, setApptDate] = useState(initialAppt?.date ?? "");
+  const [apptTime, setApptTime] = useState(initialAppt?.time ?? "");
   const [duration, setDuration] = useState(15);
   const [existingAppts, setExistingAppts] = useState<any[]>([]);
+  // Bác sĩ TRỰC CA (work_roster LICH_KHAM) của ngày đang đặt — sơ đồ chỉ hiện
+  // các bác sĩ này. null = chưa nạp; [] = ngày chưa phân trực (fallback tất cả).
+  const [dutyDoctorIds, setDutyDoctorIds] = useState<string[] | null>(null);
+  const dutyDate = walkin ? TODAY : apptDate;
+  useEffect(() => {
+    if (!dutyDate) return;
+    const ctrl = new AbortController();
+    fetch(`/api/roster?date=${encodeURIComponent(dutyDate)}`, { signal: ctrl.signal })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((j) =>
+        setDutyDoctorIds(
+          j ? (j.doctors as { id: string }[]).map((d) => d.id) : null,
+        ),
+      )
+      .catch(() => {});
+    return () => ctrl.abort();
+  }, [dutyDate]);
   // CAP-01: phân loại tải để engine ngân sách (newCap + Thành-min) chặn đúng.
   // Khách MỚI luôn là ca KHÁM MỚI (EPI-01 DEC-E5) → cố định NEW, không còn nút đổi
   // (BN cũ/tái khám đổi loại ở AppointmentBooking trên trang chi tiết BN).
@@ -275,21 +305,19 @@ export default function NewPatientForm({
     }
   }, [apptDate, walkin, TODAY]);
 
-  // CSKH: Tính toán số chỗ trống
+  // Khung đang chọn còn chỗ ĐÚNG LOẠI không? Luật 2+1 (slot-capacity): kênh
+  // thường xét 2 chỗ BN1/BN2; walk-in xét chỗ thứ 3 (1 khách vãng lai/khung).
   const isSlotBooked = useMemo(() => {
-    if (!apptDate || !apptTime) return false;
+    const day = walkin ? TODAY : apptDate;
+    if (!day || !apptTime) return false;
     try {
-      const targetUtcStr = vnLocalToUtcISO(apptDate, apptTime);
-      return existingAppts.some((appt) => {
-        const matchDoc = !doctorId || appt.doctor_id === doctorId;
-        // So theo epoch ms: PostgREST trả "+00:00" không mili-giây, còn
-        // toISOString() ra ".000Z" — so chuỗi tuyệt đối sẽ trượt 100%.
-        return matchDoc && Date.parse(appt.slot_start) === Date.parse(targetUtcStr);
-      });
+      const bucketMs = Date.parse(vnLocalToUtcISO(day, apptTime));
+      const u = usageAt(buildSlotUsage(existingAppts), doctorId || null, bucketMs);
+      return walkin ? u.walkin >= WALKIN_CAP : u.regular >= REGULAR_CAP;
     } catch {
       return false;
     }
-  }, [apptDate, apptTime, doctorId, existingAppts]);
+  }, [walkin, TODAY, apptDate, apptTime, doctorId, existingAppts]);
 
   // CSKH: số khám ĐỂ TRỐNG — hệ thống cấp SỐ CHUNG THEO THỜI GIAN lúc check-in.
   // KHÔNG tự dập "ƯT" theo phút (sai nghĩa): ƯT chỉ dành cho NGƯỜI QUEN nhà bác sĩ,
@@ -381,8 +409,12 @@ export default function NewPatientForm({
 
   async function bookFor(clinicPatientId: string): Promise<boolean> {
     if (!wantsAppointment) return true;
+    // Walk-in: Lễ tân đã bấm ô xanh trên sơ đồ → dùng đúng khung đó; chưa bấm
+    // (khám ngay) → giờ hiện tại. Server vẫn chặn nếu khung đã có khách vãng lai.
     const start = walkin
-      ? new Date()
+      ? apptTime
+        ? new Date(vnLocalToUtcISO(TODAY, apptTime))
+        : new Date()
       : new Date(vnLocalToUtcISO(apptDate, apptTime));
     const end = new Date(start.getTime() + duration * 60_000);
     const res = await fetch("/api/appointments", {
@@ -922,16 +954,42 @@ export default function NewPatientForm({
                 </label>
               </div>
               {/* Số khám: KHÔNG nhập tay — hệ tự cấp khi check-in / walk-in auto-checkin. */}
+              {/* Sơ đồ chỗ HÔM NAY: Lễ tân xếp khách vãng lai vào Ô XANH (chỗ thứ 3)
+                  của khung còn trống; khung đã có khách vãng lai → ô kín, chọn khung
+                  kế tiếp. BN1/BN2 hiện để đối chiếu, không bấm được ở chế độ này. */}
               <div className="sm:col-span-2">
-                <DoctorLoadBoard
-                  appts={existingAppts}
+                <label className={LABEL}>
+                  Xếp chỗ vãng lai (ô xanh &quot;đặt vào đây&quot;) — bỏ trống nếu khám ngay
+                </label>
+                <CinemaSlotPicker
+                  date={TODAY}
                   doctors={doctors}
+                  dutyDoctorIds={dutyDoctorIds}
+                  existingAppts={existingAppts}
                   selectedDoctorId={doctorId}
-                  onPick={(id, label) => {
-                    setDoctorId(id);
-                    setDoctorQ(label);
+                  selectedTime={apptTime}
+                  mode="walkin"
+                  onPick={(docId, t) => {
+                    setApptTime(t);
+                    setDoctorId(docId);
+                    setDoctorQ(
+                      docId
+                        ? (doctors.find((d) => d.id === docId)?.label ?? "")
+                        : "",
+                    );
                   }}
                 />
+                {apptTime && (
+                  <p
+                    className={`mt-1 text-[11px] font-medium ${
+                      isSlotBooked ? "text-[#dc2626]" : "text-[#15803d]"
+                    }`}
+                  >
+                    {isSlotBooked
+                      ? "Khung đang chọn đã có khách vãng lai — chuyển sang khung kế tiếp."
+                      : `Xếp khách vào chỗ vãng lai khung ${apptTime}.`}
+                  </p>
+                )}
               </div>
             </>
           )}
@@ -1073,9 +1131,11 @@ export default function NewPatientForm({
             <CinemaSlotPicker
               date={apptDate}
               doctors={doctors}
+              dutyDoctorIds={dutyDoctorIds}
               existingAppts={existingAppts}
               selectedDoctorId={doctorId}
               selectedTime={apptTime}
+              mode="regular"
               onPick={(docId, t) => {
                 setApptTime(t);
                 setDoctorId(docId);

@@ -64,6 +64,43 @@ async function authorize(): Promise<Auth> {
   return { ok: true, admin, isAdmin, staffId, staffName };
 }
 
+// Bác sĩ TRỰC CA của một ngày — nuôi sơ đồ đặt chỗ (chỉ hiện bác sĩ trực hôm đó).
+//   GET ?date=YYYY-MM-DD → { doctors: [{ id, name }] }
+// Lấy từ work_roster station LICH_KHAM đã DUYỆT; bỏ dòng thiếu staff_id (tên gõ
+// tay không nối được với combobox bác sĩ). Đọc bằng phiên người gọi (work_roster
+// có RLS SELECT) — không cần service-role.
+export async function GET(request: Request) {
+  const caller = await getSupabaseServer();
+  const {
+    data: { user },
+  } = await caller.auth.getUser();
+  if (!user) return NextResponse.json({ error: "Unauthorised" }, { status: 401 });
+
+  const date = (new URL(request.url).searchParams.get("date") ?? "").trim();
+  if (!date) {
+    return NextResponse.json({ error: "Missing date parameter" }, { status: 400 });
+  }
+
+  const { data, error } = await caller
+    .from("work_roster")
+    .select("staff_id, staff_name")
+    .eq("work_date", date)
+    .eq("station", "LICH_KHAM")
+    .eq("status", "APPROVED")
+    .not("staff_id", "is", null);
+  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+
+  // 1 bác sĩ có thể có nhiều dòng (SANG + CHIEU) → khử trùng theo staff_id.
+  const seen = new Set<string>();
+  const doctors: { id: string; name: string }[] = [];
+  for (const r of (data as { staff_id: string; staff_name: string | null }[] | null) ?? []) {
+    if (seen.has(r.staff_id)) continue;
+    seen.add(r.staff_id);
+    doctors.push({ id: r.staff_id, name: r.staff_name ?? "" });
+  }
+  return NextResponse.json({ doctors });
+}
+
 interface PostBody {
   week_start?: string;
   work_date?: string;
