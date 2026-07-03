@@ -44,6 +44,8 @@ export interface ApptInfo {
   status: string;
   upcoming: boolean;
   count: number;
+  /** Đã khám xong (có ≥1 lịch COMPLETED) → mới hiện nút "Hồ sơ & lịch sử khám". */
+  examined: boolean;
 }
 export interface Opt {
   id: string;
@@ -390,14 +392,20 @@ export default function CustomersView({
                 </dl>
               )}
 
-              <div className="mt-4 flex flex-wrap gap-2">
-                <Link
-                  href={`/patients/${selected.clinic_patient_id}`}
-                  className="inline-flex min-h-10 items-center gap-1 rounded-lg bg-[#ec4899] px-4 text-sm font-semibold text-white hover:bg-[#db2777]"
-                >
-                  <ExternalLink size={14} /> Hồ sơ & lịch sử khám
-                </Link>
-              </div>
+              {/* Nút hồ sơ CHỈ hiện khi khách ĐÃ KHÁM (lịch COMPLETED) — lúc đó mới
+                  là "bệnh nhân" có hồ sơ/lịch sử để xem. Người mới đặt lịch /
+                  check-in mà chưa khám (kể cả đang khám, hồ sơ chưa lưu) thì trang
+                  này chỉ để Lễ tân/CSKH sửa thông tin hành chính, chưa có hồ sơ. */}
+              {selectedAppt?.examined && (
+                <div className="mt-4 flex flex-wrap gap-2">
+                  <Link
+                    href={`/patients/${selected.clinic_patient_id}`}
+                    className="inline-flex min-h-10 items-center gap-1 rounded-lg bg-[#ec4899] px-4 text-sm font-semibold text-white hover:bg-[#db2777]"
+                  >
+                    <ExternalLink size={14} /> Hồ sơ & lịch sử khám
+                  </Link>
+                </div>
+              )}
           </aside>
         )}
       </div>

@@ -16,6 +16,11 @@
 
 **Test:** `tsc --noEmit` 0 lỗi; `next build` 0 lỗi. KHÔNG cần migration. Đã push `avalook chinh`.
 
+### Bổ sung cùng ngày — "Thông tin khách hàng": ẩn nút hồ sơ khi CHƯA khám
+- **Yêu cầu (Quang):** panel chi tiết ở `/customers` chỉ để Lễ tân/CSKH sửa thông tin hành chính. Người mới đặt lịch/check-in mà CHƯA khám (kể cả đang khám nhưng hồ sơ chưa lưu) thì KHÔNG hiện nút "Hồ sơ & lịch sử khám" — đã khám đâu mà xem. Khám xong họ thành "bệnh nhân" (hiện ở `/patient-list`).
+- **Đã làm:** `customers/page.tsx` thêm `examined` vào `apptByPatient` = `list.some(status==='COMPLETED')` (KHÔNG thêm query — tái dùng query lịch sẵn có; cùng định nghĩa "bệnh nhân" với `/patient-list`). `CustomersView.tsx` chỉ render nút khi `selectedAppt?.examined`. CHECKED_IN/IN_PROGRESS/mới đặt → ẩn.
+- **Test:** `tsc` + `next build` 0 lỗi. Không cần migration.
+
 ---
 
 ## 📍 SLOT-21 — Đặt lịch "2+1 mỗi khung 15'" (BN1/BN2 + chỗ vãng lai) — ĐÃ CODE, COMMIT LOCAL, CHƯA PUSH

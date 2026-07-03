@@ -180,6 +180,10 @@ export default async function CustomersPage({
         status: repr.status,
         upcoming: Boolean(upcoming),
         count: list.length,
+        // "Đã khám" = có ≥1 lịch COMPLETED (cùng định nghĩa "bệnh nhân" ở
+        // /patient-list). Đang khám (CHECKED_IN/IN_PROGRESS) hay mới đặt/check-in
+        // thì CHƯA tính — nút "Hồ sơ & lịch sử khám" sẽ ẩn.
+        examined: list.some((a) => a.status === "COMPLETED"),
       };
     }
   }
