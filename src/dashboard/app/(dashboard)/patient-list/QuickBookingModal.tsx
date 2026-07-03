@@ -21,6 +21,7 @@ export default function QuickBookingModal({
   locations,
   onClose,
   onBooked,
+  walkin = false,
 }: {
   patient: ModalPatient;
   services: Option[];
@@ -28,6 +29,8 @@ export default function QuickBookingModal({
   locations: Option[];
   onClose: () => void;
   onBooked: (appointmentId: string) => void;
+  /** Lễ tân: xếp BN tái khám vãng lai vào chỗ Ưu tiên (ô xanh) thay vì ô hồng. */
+  walkin?: boolean;
 }) {
   // Esc để đóng.
   useEffect(() => {
@@ -72,6 +75,7 @@ export default function QuickBookingModal({
           doctors={doctors}
           locations={locations}
           onBooked={onBooked}
+          walkin={walkin}
         />
       </div>
     </div>

@@ -53,6 +53,7 @@ export default function PatientListView({
   canEditAdmin = false,
   showPreVisitBrief = false,
   showRebook = false,
+  walkinRebook = false,
   enableVisitPager = false,
   services = [],
   doctors = [],
@@ -69,6 +70,8 @@ export default function PatientListView({
   showPreVisitBrief?: boolean;
   /** Hiện nút "Tái khám" trong popup hồ sơ — CSKH + Lễ tân (server bật theo vai). */
   showRebook?: boolean;
+  /** Lễ tân: đặt tái khám vào chỗ Ưu tiên (ô xanh, vãng lai) thay vì ô hồng. */
+  walkinRebook?: boolean;
   /** Hiện pager ◀ ▶ lượt khám trong phiếu — BÁC SĨ (server bật theo vai). */
   enableVisitPager?: boolean;
   /** Dữ liệu cho MODAL đặt lịch nhanh (chỉ cần truyền khi showRebook). */
@@ -235,6 +238,7 @@ export default function PatientListView({
           services={services}
           doctors={doctors}
           locations={locations}
+          walkin={walkinRebook}
           onClose={() => setBookingAppt(null)}
           onBooked={() => {
             setBookingAppt(null);

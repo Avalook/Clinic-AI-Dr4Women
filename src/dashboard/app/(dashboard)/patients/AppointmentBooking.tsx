@@ -19,6 +19,7 @@ import {
   buildSlotUsage,
   usageAt,
   REGULAR_CAP,
+  WALKIN_CAP,
 } from "../../../lib/slot-capacity";
 
 // Capacity Phase 1 — màu/nhãn 6 trạng thái ô khung-giờ (khớp CellState ở lib/capacity.ts).
@@ -65,6 +66,7 @@ export default function AppointmentBooking({
   defaultLocationId,
   onBooked,
   secondary,
+  walkin = false,
 }: {
   clinicPatientId: string;
   services: Option[];
@@ -76,6 +78,9 @@ export default function AppointmentBooking({
   onBooked: (appointmentId: string) => void;
   /** Optional extra control rendered next to the submit button (e.g. "skip"). */
   secondary?: ReactNode;
+  /** Lễ tân xếp BN tái khám VÃNG LAI: chỉ bấm ô xanh (chỗ Ưu tiên, chỗ thứ 3),
+   *  đặt như WALK_IN, không cần Kênh đặt. Mặc định false = đặt hẹn thường (ô hồng). */
+  walkin?: boolean;
 }) {
   const [serviceId, setServiceId] = useState("");
   // Bác sĩ: combobox tìm kiếm bỏ dấu thay native <select>
@@ -199,12 +204,13 @@ export default function AppointmentBooking({
     if (!apptDate || !apptTime) return false;
     try {
       const bucketMs = Date.parse(vnLocalToUtcISO(apptDate, apptTime));
-      const usage = buildSlotUsage(existingAppts);
-      return usageAt(usage, doctorId || null, bucketMs).regular >= REGULAR_CAP;
+      const u = usageAt(buildSlotUsage(existingAppts), doctorId || null, bucketMs);
+      // Vãng lai (Lễ tân) xét chỗ Ưu tiên (ghế 3); đặt hẹn thường xét BN1/BN2.
+      return walkin ? u.walkin >= WALKIN_CAP : u.regular >= REGULAR_CAP;
     } catch {
       return false;
     }
-  }, [apptDate, apptTime, doctorId, existingAppts]);
+  }, [walkin, apptDate, apptTime, doctorId, existingAppts]);
 
   // CSKH: số khám ĐỂ TRỐNG — hệ thống cấp SỐ CHUNG THEO THỜI GIAN lúc check-in.
   // KHÔNG tự dập "ƯT" theo phút (sai nghĩa): ƯT chỉ dành cho NGƯỜI QUEN nhà bác sĩ,
@@ -218,9 +224,11 @@ export default function AppointmentBooking({
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
-  // Kênh đặt BẮT BUỘC: kênh rỗng bị server mặc định thành WALK_IN → lịch CSKH
-  // sẽ chiếm nhầm chỗ vãng lai (chỗ 3). Bắt chọn rõ để phân loại chỗ đúng.
-  const canBook = serviceId && locationId && apptDate && apptTime && channel;
+  // Kênh đặt BẮT BUỘC cho đặt hẹn thường: kênh rỗng bị server mặc định WALK_IN →
+  // chiếm nhầm chỗ vãng lai (chỗ 3). Vãng lai (Lễ tân) thì cố định WALK_IN nên
+  // KHÔNG cần chọn kênh.
+  const canBook =
+    serviceId && locationId && apptDate && apptTime && (walkin || channel);
   // Giới hạn giờ theo ngày đã chọn (giờ mở cửa PK).
   const ch = apptDate ? clinicHoursForDate(apptDate) : null;
   const minHour = ch ? Number(ch.open.slice(0, 2)) : 0;
@@ -253,7 +261,8 @@ export default function AppointmentBooking({
         location_id: locationId,
         slot_start: start.toISOString(),
         slot_end: end.toISOString(),
-        booking_channel: channel,
+        // Vãng lai (Lễ tân) → WALK_IN để vào đúng ghế Ưu tiên (chỗ 3).
+        booking_channel: walkin ? "WALK_IN" : channel,
         queue_number: queueNumber,
         // Tải/ca — backend tự gợi ý thanh_min/sono_min từ 2 field này (DEC-3).
         patient_kind: patientKind || undefined,
@@ -407,7 +416,7 @@ export default function AppointmentBooking({
             existingAppts={existingAppts}
             selectedDoctorId={doctorId}
             selectedTime={apptTime}
-            mode="regular"
+            mode={walkin ? "walkin" : "regular"}
             onPick={(docId, t) => {
               setApptTime(t);
               setDoctorId(docId);
@@ -458,19 +467,25 @@ export default function AppointmentBooking({
           </select>
         </div>
         <div className="space-y-1">
-          <label className={LABEL}>Kênh đặt *</label>
-          <select
-            value={channel}
-            onChange={(e) => setChannel(e.target.value)}
-            className={INPUT}
-          >
-            <option value="">— Chọn kênh —</option>
-            {CHANNELS.filter((c) => c.id !== "WALK_IN").map((c) => (
-              <option key={c.id} value={c.id}>
-                {c.label}
-              </option>
-            ))}
-          </select>
+          <label className={LABEL}>{walkin ? "Kênh đặt" : "Kênh đặt *"}</label>
+          {walkin ? (
+            <div className={INPUT + " flex items-center bg-[#f0fdf4] text-[#15803d]"}>
+              Ưu tiên — khách tới trực tiếp
+            </div>
+          ) : (
+            <select
+              value={channel}
+              onChange={(e) => setChannel(e.target.value)}
+              className={INPUT}
+            >
+              <option value="">— Chọn kênh —</option>
+              {CHANNELS.filter((c) => c.id !== "WALK_IN").map((c) => (
+                <option key={c.id} value={c.id}>
+                  {c.label}
+                </option>
+              ))}
+            </select>
+          )}
         </div>
         <div className="space-y-1">
           <label className={LABEL}>Loại khám</label>
