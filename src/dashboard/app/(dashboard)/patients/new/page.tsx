@@ -29,10 +29,10 @@ export default async function NewPatientPage({
   const role = await getClinicRole();
   if (!canWriteIntake(role)) redirect("/home");
   const nurse = isNurseRole(role);
-  // Trưởng ca làm được CẢ hai luồng: online (full — như CSKH, chọn ô đỏ BN1/BN2)
-  // và vãng lai (walkin — như Lễ tân, chọn ô xanh). Chuyển bằng ?mode=walkin.
-  // Các vai khác giữ luồng CỐ ĐỊNH: CSKH/QL → full; Lễ tân/điều dưỡng → walkin.
-  const canBothFlows = role === "TRUONG_CA";
+  // Trưởng ca + Quản lý làm được CẢ hai luồng: online (full — như CSKH, chọn ô đỏ
+  // BN1/BN2) và vãng lai (walkin — như Lễ tân, chọn ô xanh). Chuyển bằng ?mode=walkin.
+  // Các vai khác giữ luồng CỐ ĐỊNH: CSKH → full; Lễ tân/điều dưỡng → walkin.
+  const canBothFlows = role === "TRUONG_CA" || role === "MANAGEMENT";
   const forcedWalkin = nurse || role === "RECEPTION";
   const walkinMode = forcedWalkin || (canBothFlows && qMode === "walkin");
   const variant = walkinMode ? "walkin" : "full";
