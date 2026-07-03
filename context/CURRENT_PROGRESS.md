@@ -2,18 +2,18 @@
      📍 BÀN GIAO PHIÊN (đọc khối này TRƯỚC) — cập nhật 2026-07-03
      ════════════════════════════════════════════════════════════════════ -->
 
-## 📍 2026-07-03 — BACKEND CHẠY 24/7 TRÊN MAC MINI M4 (LIVE) 🟢
+## 📍 2026-07-03 — APP ĐẦY ĐỦ CHẠY 24/7 TRÊN MAC MINI M4 (LIVE) 🟢
 
-**Link backend (server-to-server, KHÔNG phải cho khách):**
-`https://mac-mini-ca-quang.tailc94236.ts.net` · health: `.../health` → `{"status":"ok","service":"clinicai"}`
+**Link app (WEB + backend) — mở trình duyệt ra trang Dr4Women Dashboard:**
+`https://mac-mini-ca-quang.tailc94236.ts.net` (→ `/enter`). API nội bộ `api:8000`.
 
-**Kiến trúc hiện tại:** Vercel (Next.js, khách xem) + Supabase (DB) + **Mac mini = backend FastAPI/LangGraph** (`src/clinicai`). Backend phơi ra internet qua **Tailscale Funnel**, khóa bằng `BACKEND_API_KEY`.
+**Kiến trúc hiện tại:** Mac mini chạy **BẢN ĐẦY ĐỦ RIÊNG** = `dashboard` (Next.js :3000, phơi qua Tailscale Funnel) + `api` (FastAPI/LangGraph :8000 nội bộ, dashboard gọi qua `http://api:8000`). **Vercel là bản SONG SONG cho khách**; Mac là bản độc lập của mình. **Cả hai chung 1 Supabase.** (Quang chốt: Mac = full app riêng, Vercel giữ cho khách vì Vercel không sợ mất điện/mạng nhà.)
 
 **Setup đã làm (tất cả trên Mac mini, KHÔNG đụng Vercel):**
 - **Clone RIÊNG** `~/clinic-server/Clinic-AI-Dr4Women` (nhánh `chinh`), tách hẳn folder dev. `.env` copy từ dev → **cùng Supabase DB**, `CHECKPOINTER_BACKEND=postgres`.
 - **Docker = Colima** (headless, thay Docker Desktop — chạy không cần đăng nhập GUI). Đã fix `~/.docker/config.json` bỏ `credsStore:desktop` (backup `.bak-*`).
-- **Compose prod** `docker-compose.prod.yml` (project `clinicai_prod`, container `clinicai_prod-api-1`, KHÔNG đụng project dev). Chạy: `docker compose -f docker-compose.prod.yml up -d api`.
-- **Tailscale Funnel** `:8000` — tài khoản là **`nguyencongtuyenlp@github`** (tailnet `nguyencongtuyenlp.github`, suffix `tailc94236.ts.net`), MagicDNS+HTTPS+Funnel đã bật. ⚠️ Tài khoản Tailscale/máy là của Tuyền (GitHub login) — sau nên chuyển sang tài khoản công ty.
+- **Compose prod** `docker-compose.prod.yml` (project `clinicai_prod`: `clinicai_prod-api-1` + `clinicai_prod-dashboard-1`, KHÔNG đụng project dev). Chạy: `docker compose -f docker-compose.prod.yml up -d`. Dashboard build cần lock synced (đã fix playwright) + `PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1`.
+- **Tailscale Funnel** phơi `:3000` (DASHBOARD/web; api :8000 chỉ nội bộ) — tài khoản là **`nguyencongtuyenlp@github`** (tailnet `nguyencongtuyenlp.github`, suffix `tailc94236.ts.net`), MagicDNS+HTTPS+Funnel đã bật. ⚠️ Tài khoản Tailscale/máy là của Tuyền (GitHub login) — sau nên chuyển sang tài khoản công ty.
 - **24/7**: LaunchDAEMON `/Library/LaunchDaemons/com.dr4women.clinic-backend.plist` (boot + self-heal 5', chạy `scripts/clinic-backend-boot.sh`: colima start → compose prod up → assert funnel). `sudo pmset -a sleep 0 disablesleep 1 autorestart 1`. Đã GỠ LaunchAgent CŨ (user, trỏ dev folder) để hết xung đột.
 - **Deploy sau này**: `cd ~/clinic-server/... && ./scripts/deploy-backend.sh` (pull→build→migrate→NOTIFY pgrst→up→health). Backend deploy THỦ CÔNG → push `chinh` cho Vercel KHÔNG ảnh hưởng backend đang chạy.
 
