@@ -239,6 +239,11 @@ export default function NewPatientForm({
   }, [doctorQ, doctors]);
   const [apptDate, setApptDate] = useState(initialAppt?.date ?? "");
   const [apptTime, setApptTime] = useState(initialAppt?.time ?? "");
+  // Loại ghế đang chọn ở sơ đồ (luồng full): "regular" = BN1/BN2 (kênh thường);
+  // "walkin" = chỗ Ưu tiên (chỗ thứ 3) — đặt như WALK_IN để vào đúng ghế, không
+  // cần Kênh đặt. onPick của sơ đồ luôn set lại theo ô bấm.
+  const [seatKind, setSeatKind] = useState<"regular" | "walkin">("regular");
+  const priority = !walkin && seatKind === "walkin";
   const [duration, setDuration] = useState(15);
   const [existingAppts, setExistingAppts] = useState<any[]>([]);
   // Bác sĩ TRỰC CA (work_roster LICH_KHAM) của ngày đang đặt — sơ đồ chỉ hiện
@@ -320,11 +325,14 @@ export default function NewPatientForm({
     try {
       const bucketMs = Date.parse(vnLocalToUtcISO(day, apptTime));
       const u = usageAt(buildSlotUsage(existingAppts), doctorId || null, bucketMs);
-      return walkin ? u.walkin >= WALKIN_CAP : u.regular >= REGULAR_CAP;
+      // Chỗ Ưu tiên (walk-in flow HOẶC full flow chọn ô xanh) xét ghế thứ 3.
+      return walkin || priority
+        ? u.walkin >= WALKIN_CAP
+        : u.regular >= REGULAR_CAP;
     } catch {
       return false;
     }
-  }, [walkin, TODAY, apptDate, apptTime, doctorId, existingAppts]);
+  }, [walkin, priority, TODAY, apptDate, apptTime, doctorId, existingAppts]);
 
   // CSKH: số khám ĐỂ TRỐNG — hệ thống cấp SỐ CHUNG THEO THỜI GIAN lúc check-in.
   // KHÔNG tự dập "ƯT" theo phút (sai nghĩa): ƯT chỉ dành cho NGƯỜI QUEN nhà bác sĩ,
@@ -388,10 +396,12 @@ export default function NewPatientForm({
   // + Ngày + Giờ khám + Kênh đặt (mới đủ điều kiện tạo lượt khám). Walk-in giữ nguyên.
   // Địa chỉ đủ khi không yêu cầu, hoặc đã có cả Tỉnh + Phường/Xã.
   const addressOk = !requireAddress || !!(provinceCode && wardCode);
+  // Ghế Ưu tiên (ô xanh) đặt như WALK_IN → KHÔNG cần Kênh đặt; ghế thường vẫn cần.
+  const channelOk = priority || !!channel;
   const requiredForCustomer =
     addressOk &&
     (walkin ||
-      !!(serviceId && doctorId && apptDate && apptTime && channel));
+      !!(serviceId && doctorId && apptDate && apptTime) && channelOk);
   const canSubmit =
     fullName.trim() &&
     locationId &&
@@ -429,7 +439,9 @@ export default function NewPatientForm({
         location_id: locationId,
         slot_start: start.toISOString(),
         slot_end: end.toISOString(),
-        booking_channel: walkin ? "WALK_IN" : channel,
+        // Ghế Ưu tiên (ô xanh) = chỗ thứ 3 → phải là WALK_IN để server xếp đúng
+        // ghế (nếu không sẽ đội lên BN1/BN2 và bị chặn cứng cap 2).
+        booking_channel: walkin || priority ? "WALK_IN" : channel,
         queue_number: queueNumber,
         patient_kind: patientKind,
         need_sono: needSono,
@@ -548,7 +560,7 @@ export default function NewPatientForm({
         setError("Chọn giờ khám.");
         return;
       }
-      if (!channel) {
+      if (!priority && !channel) {
         setError("Chọn kênh đặt.");
         return;
       }
@@ -1160,9 +1172,12 @@ export default function NewPatientForm({
               selectedDoctorId={doctorId}
               selectedTime={apptTime}
               mode="regular"
-              onPick={(docId, t) => {
+              allowPriority
+              selectedKind={seatKind}
+              onPick={(docId, t, kind) => {
                 setApptTime(t);
                 setDoctorId(docId);
+                setSeatKind(kind);
                 setDoctorQ(docId ? (doctors.find((d) => d.id === docId)?.label ?? "") : "");
               }}
             />
@@ -1177,10 +1192,15 @@ export default function NewPatientForm({
                   : "Khung đang chọn còn trống."}
               </p>
             )}
+            {priority && (
+              <p className="mt-1 text-[11px] font-medium text-[#15803d]">
+                Đang xếp chỗ Ưu tiên (chỗ thứ 3) — không cần chọn Kênh đặt.
+              </p>
+            )}
           </div>
           <div>
             <label className={LABEL}>
-              Kênh đặt <Req />
+              Kênh đặt {!priority && <Req />}
             </label>
             <select
               value={channel}
