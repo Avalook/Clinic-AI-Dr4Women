@@ -1,6 +1,22 @@
 <!-- ════════════════════════════════════════════════════════════════════
-     📍 BÀN GIAO PHIÊN (đọc khối này TRƯỚC) — cập nhật 2026-07-02
+     📍 BÀN GIAO PHIÊN (đọc khối này TRƯỚC) — cập nhật 2026-07-03
      ════════════════════════════════════════════════════════════════════ -->
+
+## 📍 2026-07-03 — Fix "người thứ 2 không đặt được slot" + nhãn khung 15' dạng dải
+
+**Triệu chứng (Quang báo, có ảnh):** lưới 2+1 hiện BN2 còn trống, bấm đặt → lỗi "Khung giờ đã đầy tải: Khung đã đầy quota đặt trước (online)". BN1 đã kín, BN2 lẽ ra đặt được.
+
+**Nguyên nhân:** POST `/api/appointments` chạy 2 cửa tải ĐỘC LẬP. Cửa 2+1 (`slotCapMessage`, đúng lưới) CHO QUA; nhưng cửa CAP-01 (`evaluateBudget`, ngân sách PHÚT/GIỜ) chặt hơn → chặn oan (`full_online`: 2 khách mới ×15' = 30' > `online_quota_min`=28' khung 17h). Hai hệ đo khác đơn vị (ghế/15' vs phút/giờ), mâu thuẫn.
+
+**Quyết định (Quang chốt):** luật đặt chỗ chính thức = **2+1 mỗi khung 15'** (CSKH 2 chỗ BN1/BN2, chỗ 3 vãng lai). CAP-01 KHÔNG còn chặn đặt lịch.
+
+**Đã làm:**
+- **`app/api/appointments/route.ts`:** gỡ khối CAP-01 chặn 409 khỏi POST (giữ engine `capacity.ts` + `block_budget` cho Phase 1.5 làm cảnh báo mềm/advisory-lock). Net cứng còn lại: luật 2+1 (`slotCapMessage`) + 6-overlap DB. Gỡ import thừa (`vnBlockOf`/`resolveBudget`/`evaluateBudget`/`isBlocking`/`BudgetRow`/`ApptLite`/`vnLocalToUtcISO`/`VN_TZ`); giữ `suggestLoad`/`patient_kind`/`thanh_min`/`sono_min` (vẫn ghi DB). PATCH reschedule/reassign KHÔNG đụng (vốn chỉ dùng 2+1).
+- **Nhãn cột lưới 15' → dạng dải "17:00-17:15":** helper chung `slotRange()` trong `lib/datetime.ts`; dùng ở `CinemaSlotPicker` (header + tooltip, nới ô `min-w-[3.75rem]`) + `NewPatientForm` (dòng xác nhận vãng lai).
+
+**Test:** `tsc --noEmit` 0 lỗi; `next build` 0 lỗi. KHÔNG cần migration. Đã push `avalook chinh`.
+
+---
 
 ## 📍 SLOT-21 — Đặt lịch "2+1 mỗi khung 15'" (BN1/BN2 + chỗ vãng lai) — ĐÃ CODE, COMMIT LOCAL, CHƯA PUSH
 

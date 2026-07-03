@@ -19,7 +19,7 @@
 import { NextResponse } from "next/server";
 import { getSupabaseServer } from "../../../lib/supabase-server";
 import { getSupabaseService } from "../../../lib/supabase-service";
-import { vnTodayRangeUtc, vnLocalToUtcISO, VN_TZ } from "../../../lib/datetime";
+import { vnTodayRangeUtc } from "../../../lib/datetime";
 import { getClinicRole, getClinicStaffId } from "../../../lib/clinic-session";
 import {
   canWriteIntake,
@@ -30,13 +30,7 @@ import {
 import { logEvent } from "../../../lib/event-log";
 import { weekStartOf } from "../../../lib/roster";
 import {
-  vnBlockOf,
-  resolveBudget,
-  evaluateBudget,
   suggestLoad,
-  isBlocking,
-  type BudgetRow,
-  type ApptLite,
   type PatientKind,
 } from "../../../lib/capacity";
 import {
@@ -394,64 +388,13 @@ export async function POST(request: Request) {
     if (full) return NextResponse.json({ error: full }, { status: 409 });
   }
 
-  // Capacity Phase 1 (T-20260629-CAP-01) — chặn theo NGÂN SÁCH tải/khung-giờ.
-  // Best-effort (DEC-7): không khoá; ràng buộc 6-overlap ở DB vẫn là net cuối (DEC-1).
-  // TODO[D017]: Phase sau dời logic này vào Scheduling sub-graph.
-  {
-    const { weekday, hour_start } = vnBlockOf(slot_start);
-    const vnYmd = new Date(slot_start).toLocaleDateString("en-CA", { timeZone: VN_TZ });
-    const blockStartUtc = vnLocalToUtcISO(
-      vnYmd,
-      `${String(hour_start).padStart(2, "0")}:00`,
-    );
-    const blockEndUtc = new Date(Date.parse(blockStartUtc) + 3600_000).toISOString();
-
-    const { data: budgetRows } = await db
-      .from("block_budget")
-      .select(
-        "location_id, doctor_id, weekday, hour_start, thanh_budget_min, sono_budget_min, online_quota_min, walkin_quota_min, buffer_min, new_cap, max_total",
-      )
-      .eq("location_id", location_id)
-      .eq("hour_start", hour_start);
-
-    const budget = resolveBudget((budgetRows as BudgetRow[] | null) ?? [], {
-      location_id,
-      doctor_id,
-      weekday,
-      hour_start,
-    });
-
-    // DEC-8 — thiếu dòng config ⇒ fail-open (vẫn còn net 6-overlap + max ở DB).
-    if (budget) {
-      let q = db
-        .from("appointment")
-        .select("patient_kind, thanh_min, booking_channel")
-        .eq("location_id", location_id)
-        .gte("slot_start", blockStartUtc)
-        .lt("slot_start", blockEndUtc)
-        .neq("status", "CANCELLED");
-      if (doctor_id) q = q.eq("doctor_id", doctor_id);
-      const { data: inBlock } = await q;
-      const existing = (inBlock as ApptLite[] | null) ?? [];
-
-      // Ứng viên thiếu patient_kind ⇒ coi như RETURN (nhẹ, KHÔNG ăn new_cap) để
-      // tương thích ngược client cũ chưa gửi field; CSKH nên chọn rõ ở UI.
-      const candKind: PatientKind = patient_kind ?? "RETURN";
-      const candThanh =
-        thanh_min ?? suggestLoad(candKind, need_sono ?? false).thanh_min;
-      const verdict = evaluateBudget(budget, existing, {
-        patient_kind: candKind,
-        thanh_min: candThanh,
-        booking_channel,
-      });
-      if (isBlocking(verdict.status)) {
-        return NextResponse.json(
-          { error: `Khung giờ đã đầy tải: ${verdict.reason}`, capacity: verdict },
-          { status: 409 },
-        );
-      }
-    }
-  }
+  // Capacity Phase 1 (T-20260629-CAP-01) — engine ngân sách phút/khung-GIỜ KHÔNG
+  // còn chặn đặt lịch: luật đặt chỗ chính thức là "2+1 mỗi khung 15'"
+  // (slotCapMessage ở trên) — CSKH đặt 2 chỗ BN1/BN2, chỗ 3 để khách vãng lai.
+  // Ngân sách/giờ của CAP-01 (online_quota_min ~28' cho BS Thành khung 17h) CHẶT
+  // HƠN luật ghế 2+1 nên từng chặn oan người thứ 2 (full_online) dù lưới còn chỗ.
+  // Giữ engine capacity.ts + block_budget để Phase 1.5 dùng làm CẢNH BÁO MỀM /
+  // advisory-lock; net cứng cuối vẫn là ràng buộc 6-overlap ở DB (DEC-1).
 
   const { data, error } = await db
     .from("appointment")
