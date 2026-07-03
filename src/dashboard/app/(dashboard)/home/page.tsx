@@ -241,6 +241,15 @@ export default async function HomePage({
     visitStatusRows = rows;
   }
 
+  // Lịch bị HỦY / KHÔNG ĐẾN sau khi đã check-in vẫn còn visit (OPEN/IN_PROGRESS)
+  // → bảng "Trạng thái BN buổi khám" hiển thị "Đang khám" mãi + đếm sai. Lọc bỏ
+  // các lượt mà appointment đã CANCELLED/NO_SHOW (KHÔNG xóa visit — giữ data lâm
+  // sàng nếu đã nhập; chỉ ẩn khỏi bảng theo dõi buổi khám).
+  visitStatusRows = visitStatusRows.filter((v) => {
+    const s = v.appointment?.status ?? null;
+    return s !== "CANCELLED" && s !== "NO_SHOW";
+  });
+
   // Mốc "Đã thanh toán" của thanh tiến trình: đã thu ĐỦ mọi khâu PHẢI thu của lượt
   // khám = DỊCH VỤ (luôn có, vì có dịch vụ khám) + THUỐC nếu lượt có đơn thuốc.
   // Đọc bảng payment (đã thu) + prescription (có đơn?) cho các lượt hôm nay.

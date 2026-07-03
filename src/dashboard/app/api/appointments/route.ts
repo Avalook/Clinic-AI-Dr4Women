@@ -863,6 +863,24 @@ export async function PATCH(request: Request) {
     }
   }
 
+  // reassign / reschedule ĐỔI bác sĩ → ĐỒNG BỘ attending_doctor_id của lượt khám
+  // đang mở (OPEN/IN_PROGRESS) sang bác sĩ mới. Visit tạo lúc check-in copy
+  // doctor_id CŨ; nếu không đồng bộ, hồ sơ + bảng "buổi khám hôm nay" ghi nhầm
+  // bác sĩ cũ. Chỉ đụng visit CHƯA chốt. Best-effort (appointment đã cập nhật).
+  if ((action === "reassign" || action === "reschedule") && "doctor_id" in patch) {
+    const newDoctor = (patch.doctor_id as string | null) ?? null;
+    const { error: vErr } = await db
+      .from("visit")
+      .update({ attending_doctor_id: newDoctor })
+      .eq("appointment_id", id)
+      .in("status", ["OPEN", "IN_PROGRESS"]);
+    if (vErr)
+      console.error(
+        "Đồng bộ attending_doctor_id lúc reassign/reschedule lỗi:",
+        vErr.message,
+      );
+  }
+
   // Hoàn tác check-in → gỡ lượt khám CHƯA bắt đầu (visit còn OPEN, chưa ghi gì)
   // để bảng trạng thái không còn BN ảo. CHỈ xoá khi status='OPEN' — đã sang
   // IN_PROGRESS/FINALIZED nghĩa là đã có dữ liệu lâm sàng → KHÔNG đụng. Best-effort.

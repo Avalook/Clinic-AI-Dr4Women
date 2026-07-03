@@ -41,6 +41,13 @@
   - **Bảng lịch hẹn:** `WeeklyAppointmentsTable` — trước check-in hiện chữ "Chờ lễ tân check-in" thay cho nút "Điền sinh hiệu" (COMPLETED vẫn cho sửa). "!" vốn đã chỉ hiện khi CHECKED_IN && !has_vitals.
 - **Test:** `tsc` + `next build` 0 lỗi. Không cần migration.
 
+### Bổ sung cùng ngày — AUDIT luồng ngách (4 subagent) + sửa Tier 1 & Tier 3
+Quang yêu cầu rà toàn bộ luồng ngách tìm corner-case/lỗi thiết kế. Chạy 4 subagent (appointments/booking, visit/clinical/episode, payment/cashier/queue, roles/access). **2 pattern gốc:** (A) API kiểm VAI nhưng KHÔNG kiểm sở hữu record; (B) guard toàn app-level fail-open, không có net DB (mig 057 đã DROP ràng buộc overlap; queue_number không unique). **Lỗi thiết kế lớn:** visit.FINALIZED KHÔNG bao giờ được set → mô hình bất biến/khóa hồ sơ chỉ là 48h age-lock. Báo cáo đầy đủ đã trình Quang; chọn sửa **Tier 1 (bảo mật)** + **Tier 3 (nhất quán trạng thái)**.
+- **Tier 1 (đã push):** (1.1) `requireClinicRole()` mới trong clinic-session → gọi ở 2 trang `/print/*` (trước đây ngoài (dashboard) layout, KHÔNG gác quyền, ai gõ URL cũng xem PII/hồ sơ). (1.2) `POST /api/clinical-record` thêm ownership: bác sĩ chỉ ghi hồ sơ đầy đủ cho lịch của mình/chưa phân; chặn lịch của BS khác (miễn trừ TKYK/ĐD/vitalsOnly).
+- **Tier 3 (đã push):** (3.1) `home/page.tsx` lọc bảng "Trạng thái BN buổi khám" bỏ lượt appointment CANCELLED/NO_SHOW (visit treo OPEN/IN_PROGRESS không còn hiện "đang khám" mãi; KHÔNG xóa data). (3.2) appointments PATCH reassign/reschedule → đồng bộ `visit.attending_doctor_id` sang BS mới (visit chưa chốt) để không ghi nhầm bác sĩ cũ.
+- **CÒN TREO (cần Quang quyết):** (3.3) `undo_checkin` hardcode về CONFIRMED (bịa trạng thái BS đã duyệt) + giữ queue_number — sửa đúng cần LƯU trạng thái trước check-in (migration cột `checkin_prev_status`). (3.4) ghi đè đơn thuốc khi 2 người mở form cùng lúc (delete-then-insert mù) — cần cờ "đã sửa đơn"/optimistic-lock. Tier 2 (đúng tiền) + Tier 4 (net DB 2+1, cấp số nguyên tử) chưa làm.
+- **Test:** `tsc` + `next build` 0 lỗi. Không cần migration cho phần đã push.
+
 ---
 
 ## 📍 SLOT-21 — Đặt lịch "2+1 mỗi khung 15'" (BN1/BN2 + chỗ vãng lai) — ĐÃ CODE, COMMIT LOCAL, CHƯA PUSH
