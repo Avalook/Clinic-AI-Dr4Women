@@ -145,9 +145,10 @@ export default function NewPatientForm({
   initialAppt?: { date?: string; time?: string; doctorId?: string };
 }) {
   const walkin = variant === "walkin";
-  // Địa chỉ (Tỉnh/TP + Phường/Xã) BẮT BUỘC cho CSKH (full) và Lễ tân (RECEPTION).
-  // Điều dưỡng walk-in (nurse) giữ TUỲ CHỌN — khám nhanh khách vãng lai.
-  const requireAddress = !walkin || role === "RECEPTION";
+  // Địa chỉ (Tỉnh/TP + Phường/Xã) BẮT BUỘC cho CSKH (full), Lễ tân (RECEPTION) và
+  // Trưởng ca (làm thay Lễ tân). Điều dưỡng walk-in (nurse) giữ TUỲ CHỌN — khám nhanh.
+  const requireAddress =
+    !walkin || role === "RECEPTION" || role === "TRUONG_CA";
   const router = useRouter();
   // Logic thời gian thực: năm sinh ≤ hôm nay; ngày khám ≥ hôm nay (giờ VN).
   const TODAY = todayVn();
@@ -1254,10 +1255,10 @@ export default function NewPatientForm({
                 ? "Tạo bệnh nhân & lượt khám"
                 : "Tạo bệnh nhân"
               : wantsAppointment
-                ? role === "CSKH"
+                ? role === "CSKH" || role === "TRUONG_CA"
                   ? "Nhập thông tin khách hàng & đặt lịch"
                   : "Tạo bệnh nhân & đặt lịch"
-                : role === "CSKH"
+                : role === "CSKH" || role === "TRUONG_CA"
                   ? "Nhập thông tin khách hàng"
                   : "Tạo bệnh nhân"}
         </button>

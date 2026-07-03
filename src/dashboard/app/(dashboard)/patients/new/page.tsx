@@ -3,6 +3,7 @@
 // (service-role); this page only loads the dropdown options.
 
 import { redirect } from "next/navigation";
+import Link from "next/link";
 import { getSupabaseServer } from "../../../../lib/supabase-server";
 import { getSupabaseService } from "../../../../lib/supabase-service";
 import { getClinicRole } from "../../../../lib/clinic-session";
@@ -14,14 +15,32 @@ export const dynamic = "force-dynamic";
 export default async function NewPatientPage({
   searchParams,
 }: {
-  searchParams: Promise<{ date?: string; time?: string; doctor?: string }>;
+  searchParams: Promise<{
+    date?: string;
+    time?: string;
+    doctor?: string;
+    mode?: string;
+  }>;
 }) {
   // Ô xanh "đặt vào đây" (bảng Lịch hẹn khám trang chủ) dẫn sang đây kèm
   // ?date&time&doctor để điền sẵn khung + bác sĩ cho khách vãng lai.
-  const { date: qDate, time: qTime, doctor: qDoctor } = await searchParams;
+  const { date: qDate, time: qTime, doctor: qDoctor, mode: qMode } =
+    await searchParams;
   const role = await getClinicRole();
   if (!canWriteIntake(role)) redirect("/home");
   const nurse = isNurseRole(role);
+  // Trưởng ca làm được CẢ hai luồng: online (full — như CSKH, chọn ô đỏ BN1/BN2)
+  // và vãng lai (walkin — như Lễ tân, chọn ô xanh). Chuyển bằng ?mode=walkin.
+  // Các vai khác giữ luồng CỐ ĐỊNH: CSKH/QL → full; Lễ tân/điều dưỡng → walkin.
+  const canBothFlows = role === "TRUONG_CA";
+  const forcedWalkin = nurse || role === "RECEPTION";
+  const walkinMode = forcedWalkin || (canBothFlows && qMode === "walkin");
+  const variant = walkinMode ? "walkin" : "full";
+  const h1 = walkinMode
+    ? "Tạo bệnh nhân"
+    : role === "CSKH" || canBothFlows
+      ? "Nhập thông tin khách hàng mới"
+      : "Tạo bệnh nhân";
 
   const supabase = await getSupabaseServer();
   // province/ward có RLS bật nhưng KHÔNG có policy SELECT → client authenticated đọc
@@ -66,10 +85,35 @@ export default async function NewPatientPage({
 
   return (
     <div className="mx-auto max-w-3xl space-y-4">
-      <header>
-        <h1 className="text-xl font-semibold text-[#171717]">
-          {role === "CSKH" ? "Nhập thông tin khách hàng mới" : "Tạo bệnh nhân"}
-        </h1>
+      <header className="space-y-3">
+        <h1 className="text-xl font-semibold text-[#171717]">{h1}</h1>
+        {/* Trưởng ca: 2 nút chọn luồng — CSKH (online) hoặc Lễ tân (vãng lai). */}
+        {canBothFlows && (
+          <div className="inline-flex rounded-lg border border-[#e4e4e7] bg-[#fafafa] p-1 text-sm">
+            <Link
+              href="/patients/new"
+              className={
+                "rounded-md px-3 py-1.5 font-medium transition-colors " +
+                (!walkinMode
+                  ? "bg-white text-[#db2777] shadow-sm"
+                  : "text-[#71717a] hover:text-[#171717]")
+              }
+            >
+              Nhập thông tin khách hàng mới
+            </Link>
+            <Link
+              href="/patients/new?mode=walkin"
+              className={
+                "rounded-md px-3 py-1.5 font-medium transition-colors " +
+                (walkinMode
+                  ? "bg-white text-[#db2777] shadow-sm"
+                  : "text-[#71717a] hover:text-[#171717]")
+              }
+            >
+              Tạo bệnh nhân mới
+            </Link>
+          </div>
+        )}
       </header>
       <NewPatientForm
         role={role}
@@ -77,7 +121,7 @@ export default async function NewPatientPage({
         services={services}
         doctors={doctors}
         provinces={provinces}
-        variant={(nurse || role === "RECEPTION") ? "walkin" : "full"}
+        variant={variant}
         initialAppt={
           qDate || qTime || qDoctor
             ? { date: qDate, time: qTime, doctorId: qDoctor }
