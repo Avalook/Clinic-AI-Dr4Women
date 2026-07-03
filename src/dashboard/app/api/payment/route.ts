@@ -59,6 +59,31 @@ export async function POST(request: Request) {
 
   const visitId = (body.visitId ?? "").trim();
   if (!visitId) return NextResponse.json({ error: "Thiếu visitId." }, { status: 400 });
+
+  // Chốt an toàn tiền: CHỈ được thu khi BÁC SĨ ĐÃ KHÁM XONG lượt này
+  // (appointment.status = COMPLETED). Chặn tại server để dù board có lỡ hiện
+  // (cache/đua) hay gọi API trực tiếp cũng không thu được lúc bác sĩ chưa xong.
+  // Không tìm thấy visit/appointment → chặn (không thu "mù"). DELETE (hoàn tác)
+  // KHÔNG gán điều kiện này.
+  {
+    const { data: vrow } = await db
+      .from("visit")
+      .select("appointment:appointment!appointment_id ( status )")
+      .eq("visit_id", visitId)
+      .maybeSingle();
+    const apptRaw = (vrow as { appointment?: unknown } | null)?.appointment;
+    const appt = (Array.isArray(apptRaw) ? apptRaw[0] : apptRaw) as
+      | { status?: string | null }
+      | null
+      | undefined;
+    if (appt?.status !== "COMPLETED") {
+      return NextResponse.json(
+        { error: "Bác sĩ chưa khám xong lượt này — chưa thể thu tiền." },
+        { status: 409 },
+      );
+    }
+  }
+
   const staffId = await getClinicStaffId();
   const amount =
     typeof body.amount === "number" && Number.isFinite(body.amount) && body.amount >= 0

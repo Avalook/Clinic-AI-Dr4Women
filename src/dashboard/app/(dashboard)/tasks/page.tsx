@@ -98,7 +98,14 @@ async function CashierTasks(modes: CashierMode[]) {
     .order("created_at", { ascending: false })
     .limit(300);
 
-  const visits = (visitsRaw as VisitRaw[] | null) ?? [];
+  // CHỈ hiện BN cho thu ngân khi BÁC SĨ ĐÃ KHÁM XONG (appointment.status =
+  // COMPLETED). Trước đây lấy MỌI visit tạo hôm nay (kể cả CHECKED_IN/IN_PROGRESS
+  // = đang khám) → thu ngân thu tiền được khi bác sĩ chưa khám xong. "Khám xong"
+  // = COMPLETED (khớp /patient-list + VisitStatusBoard; dashboard KHÔNG tự set
+  // visit.FINALIZED nên lọc theo appointment.status, không theo visit.status).
+  const visits = ((visitsRaw as VisitRaw[] | null) ?? []).filter(
+    (v) => oneOf(v.appointment)?.status === "COMPLETED",
+  );
   const patientIds = [
     ...new Set(visits.map((v) => v.clinic_patient_id).filter((x): x is string => !!x)),
   ];

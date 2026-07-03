@@ -26,6 +26,13 @@
 - **Fix "!" nhắc điền sinh hiệu (điều dưỡng) không mất sau khi lưu:** trước đây badge "!" ở `WeeklyAppointmentsTable` dựa THUẦN `isNurse && status==='CHECKED_IN'` — mà lưu sinh hiệu KHÔNG đổi appointment.status nên "!" còn mãi + vẫn điền lại được. **Đã xác nhận save THẬT lưu** (`saveVitals`→`/api/clinical-record` POST: tạo/tìm visit IN_PROGRESS + merge `clinical_record.soap_objective.vitals`, đã có `router.refresh()`). Fix: `home/page.tsx` đọc visit→clinical_record của các lịch CHECKED_IN, coi ĐÃ GHI khi đủ 3 vital bắt buộc (huyết áp/cân nặng/chiều cao = REQUIRED_VITALS), truyền `has_vitals` xuống bảng; badge chỉ hiện khi `CHECKED_IN && !has_vitals`. Điền lại để sửa vẫn được (visit IN_PROGRESS ghi đè, khóa 48h + FINALIZED giữ nguyên). Query đọc qua RLS caller (đã xác nhận nurse SELECT được visit/clinical_record — cùng client với form).
 - **Test:** `tsc` + `next build` 0 lỗi (lint chỉ còn `selAppt as any` CÓ SẴN). Không cần migration.
 
+### Bổ sung cùng ngày — thu ngân CHỈ thấy BN khi bác sĩ ĐÃ khám xong
+- **Bug (Quang check):** màn thu ngân (`CashierWorkBoard` qua `tasks/page.tsx` → `CashierTasks`) lấy MỌI `visit` tạo hôm nay, KHÔNG lọc trạng thái → BN mới CHECKED_IN / đang khám (IN_PROGRESS) đã hiện cho thu ngân thu tiền dù bác sĩ CHƯA khám xong. `appt_status` có nhưng không dùng để lọc/khoá.
+- **Fix (2 lớp):**
+  - **List:** `tasks/page.tsx` lọc `visits` chỉ giữ `oneOf(v.appointment)?.status === "COMPLETED"` (khám xong). "Khám xong" = appointment.status COMPLETED (khớp `/patient-list` + VisitStatusBoard; dashboard KHÔNG set visit.FINALIZED).
+  - **API (chốt tiền):** `POST /api/payment` thêm guard đọc `visit → appointment.status`, `!== COMPLETED` → 409 "Bác sĩ chưa khám xong lượt này — chưa thể thu tiền." (chặn cả khi board lỡ hiện do cache/đua hoặc gọi API trực tiếp). DELETE (hoàn tác) KHÔNG gán điều kiện.
+- **Test:** `tsc` + `next build` 0 lỗi. Không cần migration.
+
 ---
 
 ## 📍 SLOT-21 — Đặt lịch "2+1 mỗi khung 15'" (BN1/BN2 + chỗ vãng lai) — ĐÃ CODE, COMMIT LOCAL, CHƯA PUSH
