@@ -99,6 +99,8 @@ export default async function CustomersPage({
   const supabase = await getSupabaseServer();
 
   // Lọc THEO NGÀY HẸN: tìm khách có lịch trong cửa sổ trước → lấy danh sách id.
+  // BỎ lịch đã hủy/không đến/BS từ chối — hủy lịch xong khách không còn "có hẹn".
+  const DEAD_STATUSES = "(CANCELLED,NO_SHOW,DOCTOR_DECLINED)";
   let apptFilterIds: string[] | null = null;
   if (by === "appt" && win) {
     const { data: inWin } = await supabase
@@ -107,6 +109,7 @@ export default async function CustomersPage({
       .gte("slot_start", win.start)
       .lt("slot_start", win.end)
       .not("clinic_patient_id", "is", null)
+      .not("status", "in", DEAD_STATUSES)
       .limit(3000);
     apptFilterIds = [
       ...new Set((inWin ?? []).map((a) => a.clinic_patient_id as string)),
@@ -218,10 +221,14 @@ export default async function CustomersPage({
     for (const a of (appts as unknown as Raw[] | null) ?? []) {
       (grouped[a.clinic_patient_id] ??= []).push(a);
     }
+    const DEAD = ["CANCELLED", "NO_SHOW", "DOCTOR_DECLINED"];
     for (const [pid, list] of Object.entries(grouped)) {
-      const upcoming = list.find((a) => a.slot_start >= nowUtc); // list sort tăng dần
-      const repr = upcoming ?? list[list.length - 1];
-      if (!repr) continue;
+      // Lịch "sống" (bỏ đã hủy/không đến/BS từ chối) để chọn LỊCH ĐẠI DIỆN + đếm:
+      // hủy lịch xong thì KHÔNG còn hiện là "Lịch hẹn sắp tới".
+      const live = list.filter((a) => !DEAD.includes(a.status));
+      const upcoming = live.find((a) => a.slot_start >= nowUtc); // sort tăng dần
+      const repr = upcoming ?? live[live.length - 1];
+      if (!repr) continue; // chỉ còn lịch đã hủy → coi như chưa có lịch hẹn
       // Chỉ cho ĐỔI/HỦY lịch còn "sống" & SẮP TỚI (repr là lịch upcoming).
       let appt: EditableAppt | undefined;
       const EDITABLE = ["SCHEDULED", "CSKH_CONFIRMED", "CONFIRMED", "CHECKED_IN"];
@@ -241,7 +248,7 @@ export default async function CustomersPage({
         slot_start: repr.slot_start,
         status: repr.status,
         upcoming: Boolean(upcoming),
-        count: list.length,
+        count: live.length,
         // "Đã khám" = có ≥1 lịch COMPLETED (cùng định nghĩa "bệnh nhân" ở
         // /patient-list). Đang khám (CHECKED_IN/IN_PROGRESS) hay mới đặt/check-in
         // thì CHƯA tính — nút "Hồ sơ & lịch sử khám" sẽ ẩn.
