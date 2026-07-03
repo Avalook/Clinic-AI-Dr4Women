@@ -480,7 +480,7 @@ export default function WeeklyAppointmentsTable({
                                     href={r.free.href}
                                     className="inline-block rounded bg-[#dcfce7] px-2 py-1 text-[11px] font-semibold text-[#15803d] hover:bg-[#bbf7d0]"
                                   >
-                                    ＋ đặt vào đây (khách vãng lai)
+                                    ＋ Đặt lịch vào đây
                                   </Link>
                                 ) : (
                                   <span className="inline-block rounded bg-[#dcfce7] px-2 py-1 text-[11px] font-medium text-[#15803d]/70">
