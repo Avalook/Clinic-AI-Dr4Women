@@ -20,6 +20,7 @@ import PatientAdminEditor from "../PatientAdminEditor";
 import AppointmentEditModal, {
   type EditableAppt,
 } from "./AppointmentEditModal";
+import QuickBookingModal from "../patient-list/QuickBookingModal";
 
 export interface CustomerRow {
   clinic_patient_id: string;
@@ -105,6 +106,7 @@ export default function CustomersView({
   const [sel, setSel] = useState<string | null>(initialSelected ?? null);
   const [term, setTerm] = useState(q);
   const [editOpen, setEditOpen] = useState(false);
+  const [bookOpen, setBookOpen] = useState(false);
   const [isPending, startTransition] = useTransition();
 
   const selected = rows.find((r) => r.clinic_patient_id === sel) ?? null;
@@ -382,6 +384,16 @@ export default function CustomersView({
                 </div>
               )}
 
+              {/* Chưa có lịch sắp tới (vd vừa hủy) → cho ĐẶT LỊCH lại ngay. */}
+              {canEdit && !selectedAppt?.upcoming && (
+                <button
+                  onClick={() => setBookOpen(true)}
+                  className="mb-3 inline-flex min-h-10 items-center gap-1 rounded-lg bg-[#ec4899] px-4 text-sm font-semibold text-white hover:bg-[#db2777]"
+                >
+                  + Đặt lịch
+                </button>
+              )}
+
               {canEdit ? (
                 <>
                   {/* key = remount editor khi đổi khách (state cur theo từng BN). */}
@@ -459,6 +471,25 @@ export default function CustomersView({
           doctors={doctors}
           locations={locations}
           onClose={() => setEditOpen(false)}
+        />
+      )}
+
+      {/* Modal ĐẶT LỊCH mới — mở từ nút "+ Đặt lịch" khi khách chưa có lịch. */}
+      {bookOpen && selected && (
+        <QuickBookingModal
+          patient={{
+            clinic_patient_id: selected.clinic_patient_id,
+            full_name: selected.full_name,
+            patient_code: selected.patient_code,
+          }}
+          services={services}
+          doctors={doctors}
+          locations={locations}
+          onClose={() => setBookOpen(false)}
+          onBooked={() => {
+            setBookOpen(false);
+            router.refresh();
+          }}
         />
       )}
     </div>

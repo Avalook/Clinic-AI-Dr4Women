@@ -153,11 +153,12 @@ export default async function CustomersPage({
   const [patRes, locRes, svcRes, docRes] = await Promise.all([
     buildPatientQuery(true),
     supabase.from("clinic_location").select("id, name").order("name"),
-    // Chỉ nạp dịch vụ + bác sĩ khi vai được đổi/hủy lịch (dùng cho modal sửa).
-    canManage
+    // Nạp dịch vụ + bác sĩ khi vai INTAKE (đặt/đổi/hủy lịch) — cho cả modal đổi
+    // lịch (canManage) lẫn nút "Đặt lịch" (canEdit gồm Lễ tân).
+    canEdit
       ? supabase.from("service_type").select("id, name").order("name")
       : Promise.resolve({ data: [] as { id: string; name: string }[] }),
-    canManage
+    canEdit
       ? supabase
           .from("staff")
           .select("id, full_name")

@@ -159,6 +159,9 @@ export default async function HomePage({
       .select(WEEK_APPT_SELECT)
       .gte("slot_start", apptStartUtc)
       .lt("slot_start", apptEndUtc)
+      // Bỏ lịch ĐÃ HỦY / không đến / BS từ chối khỏi bảng "Lịch hẹn khám" — hủy
+      // xong thì ẩn khỏi lưới + trả chỗ về ô trống "+ Đặt lịch vào đây".
+      .not("status", "in", "(CANCELLED,NO_SHOW,DOCTOR_DECLINED)")
       .order("slot_start", { ascending: true })
       .limit(500),
     showCheckin
