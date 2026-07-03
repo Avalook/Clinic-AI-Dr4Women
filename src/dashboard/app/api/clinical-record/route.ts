@@ -304,6 +304,26 @@ export async function POST(request: Request) {
     }
   }
 
+  // OWNERSHIP hồ sơ ĐẦY ĐỦ: bác sĩ (DOCTOR/ULTRASOUND_DOCTOR) chỉ ghi hồ sơ khám
+  // cho lịch của CHÍNH MÌNH hoặc lịch CHƯA PHÂN bác sĩ (walk-in). CHẶN khi lịch đã
+  // gán cho BÁC SĨ KHÁC (tránh ghi nhầm/đè hồ sơ BN của người khác). Miễn trừ:
+  // TKYK (nhập hộ mọi BS — rủi ro đã chấp nhận), điều dưỡng (float, ghi hộ),
+  // vitalsOnly (đón khám, ai cũng ghi sinh hiệu được). Khớp guard appointments PATCH.
+  if (!vitalsOnly && isDoctorRole(role) && role !== "TKYK") {
+    const { data: apOwn } = await db
+      .from("appointment")
+      .select("doctor_id")
+      .eq("id", appointmentId)
+      .maybeSingle();
+    const ownerId = (apOwn as { doctor_id: string | null } | null)?.doctor_id ?? null;
+    if (ownerId && ownerId !== staffId) {
+      return NextResponse.json(
+        { error: "Lịch hẹn này thuộc bác sĩ khác — không thể ghi hồ sơ khám." },
+        { status: 403 },
+      );
+    }
+  }
+
   // Tìm lượt khám gắn với lịch hẹn này.
   const { data: existing, error: findErr } = await db
     .from("visit")

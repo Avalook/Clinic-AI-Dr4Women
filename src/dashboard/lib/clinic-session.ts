@@ -24,6 +24,22 @@ export async function requireNavAccess(href: string): Promise<void> {
   if (!canSeeNav(role, href)) redirect("/home");
 }
 
+/** Guard cho trang NGOÀI nhóm (dashboard) (vd /print/*) — nơi layout gác quyền
+ *  KHÔNG chạy. Bắt buộc: (1) có phiên Supabase thật (auth.getUser), (2) đã chọn
+ *  vai lâm sàng. Thiếu phiên → /login; thiếu vai → /role-picker. Trước đây các
+ *  trang in đọc PII + hồ sơ khám mà KHÔNG kiểm tra gì (chỉ dựa RLS) — gõ URL là
+ *  xem được. Trả về role để caller dùng tiếp nếu cần. */
+export async function requireClinicRole(): Promise<ClinicRole> {
+  const supabase = await getSupabaseServer();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) redirect("/login");
+  const role = await getClinicRole();
+  if (!role) redirect("/role-picker");
+  return role;
+}
+
 /** Selected doctor's staff.id (only set when a doctor role was picked). */
 export async function getClinicStaffId(): Promise<string | null> {
   return (await cookies()).get(STAFF_COOKIE)?.value ?? null;

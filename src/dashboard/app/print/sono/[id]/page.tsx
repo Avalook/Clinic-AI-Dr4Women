@@ -4,6 +4,7 @@
 
 import { notFound } from "next/navigation";
 import { getSupabaseServer } from "../../../../lib/supabase-server";
+import { requireClinicRole } from "../../../../lib/clinic-session";
 import SonoResultPrint, { type SonoPrintData } from "./SonoResultPrint";
 
 export const dynamic = "force-dynamic";
@@ -16,6 +17,7 @@ export default async function SonoPrintPage({
 }: {
   params: Promise<{ id: string }>;
 }) {
+  await requireClinicRole(); // chặn xem kết quả XN/SA qua URL khi chưa đăng nhập/chọn vai
   const { id } = await params;
   const supabase = await getSupabaseServer();
 
