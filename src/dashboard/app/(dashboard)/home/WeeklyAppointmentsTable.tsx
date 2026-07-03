@@ -390,6 +390,13 @@ export default function WeeklyAppointmentsTable({
                                       <span className="rounded-full bg-[#f4f4f5] px-2 py-0.5 text-[10px] font-medium text-[#52525b]">
                                         {STATUS_VN[a.status] ?? a.status}
                                       </span>
+                                    ) : a.status !== "CHECKED_IN" &&
+                                      a.status !== "COMPLETED" ? (
+                                      // Chưa check-in → điều dưỡng CHƯA điền sinh hiệu
+                                      // được (lễ tân phải check-in trước).
+                                      <span className="text-[10px] text-[#a1a1aa]">
+                                        Chờ lễ tân check-in
+                                      </span>
                                     ) : (
                                       <div className="flex items-center gap-1.5">
                                         <button

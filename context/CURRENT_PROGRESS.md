@@ -33,6 +33,14 @@
   - **API (chốt tiền):** `POST /api/payment` thêm guard đọc `visit → appointment.status`, `!== COMPLETED` → 409 "Bác sĩ chưa khám xong lượt này — chưa thể thu tiền." (chặn cả khi board lỡ hiện do cache/đua hoặc gọi API trực tiếp). DELETE (hoàn tác) KHÔNG gán điều kiện.
 - **Test:** `tsc` + `next build` 0 lỗi. Không cần migration.
 
+### Bổ sung cùng ngày — điều dưỡng CHỈ điền sinh hiệu SAU khi lễ tân check-in
+- **Yêu cầu (Quang):** lễ tân check-in cho khách RỒI điều dưỡng mới được điền sinh hiệu (trước đây gộp check-in + sinh hiệu = "đón-khám", điền được cả khi chưa check-in).
+- **Đã làm (3 lớp):**
+  - **Form gate:** `ClinicalRecordForm` — `arrivalPending` bỏ điều kiện `!vitalsOnly` → áp cho CẢ luồng sinh hiệu. Trước CHECKED_IN/COMPLETED: ô sinh hiệu read-only, nút "Lưu sinh hiệu" disabled, banner "🕓 Chờ lễ tân check-in — chưa điền được sinh hiệu". `saveVitals()` thêm guard early-return.
+  - **Server:** `POST /api/clinical-record` khi `vitalsOnly` đọc appointment.status, `!== CHECKED_IN && !== COMPLETED` → 409 "Chờ lễ tân check-in… trước khi điền sinh hiệu." (chặn cả khi gọi API trực tiếp / UI lỡ hiện).
+  - **Bảng lịch hẹn:** `WeeklyAppointmentsTable` — trước check-in hiện chữ "Chờ lễ tân check-in" thay cho nút "Điền sinh hiệu" (COMPLETED vẫn cho sửa). "!" vốn đã chỉ hiện khi CHECKED_IN && !has_vitals.
+- **Test:** `tsc` + `next build` 0 lỗi. Không cần migration.
+
 ---
 
 ## 📍 SLOT-21 — Đặt lịch "2+1 mỗi khung 15'" (BN1/BN2 + chỗ vãng lai) — ĐÃ CODE, COMMIT LOCAL, CHƯA PUSH

@@ -285,6 +285,25 @@ export async function POST(request: Request) {
     );
   }
 
+  // GATE lễ tân check-in TRƯỚC khi điền sinh hiệu (vitalsOnly): điều dưỡng/lễ tân
+  // chỉ ghi sinh hiệu SAU khi lễ tân đã check-in (BN đã đến). CHECKED_IN = đang
+  // khám; COMPLETED = cho sửa lại khi visit chưa FINALIZED. Trước đó (SCHEDULED/
+  // CSKH_CONFIRMED/CONFIRMED) → chặn tại server (khớp arrivalPending ở form).
+  if (vitalsOnly) {
+    const { data: ap } = await db
+      .from("appointment")
+      .select("status")
+      .eq("id", appointmentId)
+      .maybeSingle();
+    const st = (ap as { status: string | null } | null)?.status ?? null;
+    if (st !== "CHECKED_IN" && st !== "COMPLETED") {
+      return NextResponse.json(
+        { error: "Chờ lễ tân check-in bệnh nhân (đã đến) trước khi điền sinh hiệu." },
+        { status: 409 },
+      );
+    }
+  }
+
   // Tìm lượt khám gắn với lịch hẹn này.
   const { data: existing, error: findErr } = await db
     .from("visit")

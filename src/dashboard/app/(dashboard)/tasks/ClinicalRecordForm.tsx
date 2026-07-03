@@ -397,11 +397,13 @@ export default function ClinicalRecordForm({
 
   const locked = data?.visit?.status === "FINALIZED";
 
-  // GATE LỄ TÂN: bác sĩ CHỈ điền được khi lễ tân đã check-in (bệnh nhân đã đến).
-  // Không áp cho luồng đón-khám (vitalsOnly) — đó CHÍNH là lúc lễ tân check-in
-  // + ghi sinh hiệu. (COMPLETED vẫn cho xem/sửa nháp khi visit chưa FINALIZED.)
+  // GATE LỄ TÂN: CHỈ ghi được (bác sĩ khám / điều dưỡng điền sinh hiệu) khi lễ tân
+  // đã check-in (bệnh nhân đã đến). ÁP CHO CẢ luồng đón-khám (vitalsOnly) — quy
+  // trình: LỄ TÂN check-in TRƯỚC → điều dưỡng MỚI điền sinh hiệu (đổi 2026-07-03,
+  // trước đây gộp check-in + sinh hiệu làm một). COMPLETED vẫn cho xem/sửa nháp
+  // khi visit chưa FINALIZED (điền lại để sửa nếu sai).
   const arrivalPending =
-    !vitalsOnly && appt.status !== "CHECKED_IN" && appt.status !== "COMPLETED";
+    appt.status !== "CHECKED_IN" && appt.status !== "COMPLETED";
 
   // Đủ điều kiện TỰ ĐỘNG "Khám xong": đang đã-đến + đã điền Chuẩn đoán + Lời dặn.
   const willComplete =
@@ -425,6 +427,10 @@ export default function ClinicalRecordForm({
   // Điều dưỡng (đón-khám): ghi Sinh hiệu + (D25) "Lý do khám bệnh" mà BS đưa ra.
   // KHÔNG đụng mục khác. D26: 3 sinh hiệu BẮT BUỘC (Huyết áp/Cân nặng/Chiều cao).
   async function saveVitals() {
+    if (arrivalPending) {
+      setMsg("Chờ lễ tân check-in bệnh nhân (đã đến) trước khi điền sinh hiệu.");
+      return;
+    }
     const missingReq = [...REQUIRED_VITALS].filter((k) => f[k].trim() === "");
     if (missingReq.length) {
       setVitalsTried(true);
@@ -685,7 +691,8 @@ export default function ClinicalRecordForm({
           )}
           {arrivalPending && !readOnly && (
             <p className="rounded-md bg-[#fef9c3] px-3 py-1.5 text-xs text-[#a16207]">
-              🕓 Chờ lễ tân xác nhận bệnh nhân đã đến (check-in) — chưa khám được.
+              🕓 Chờ lễ tân check-in (bệnh nhân đã đến) —{" "}
+              {vitalsOnly ? "chưa điền được sinh hiệu." : "chưa khám được."}
             </p>
           )}
         </div>
