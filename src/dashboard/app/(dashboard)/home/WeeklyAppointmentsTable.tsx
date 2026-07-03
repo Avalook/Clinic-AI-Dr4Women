@@ -13,7 +13,12 @@ import { useState, Fragment } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { Printer, X } from "lucide-react";
-import { canCheckin, isNurseRole, type ClinicRole } from "../../../lib/roles";
+import {
+  canCheckin,
+  canWriteIntake,
+  isNurseRole,
+  type ClinicRole,
+} from "../../../lib/roles";
 import ClinicalRecordForm from "../tasks/ClinicalRecordForm";
 import { dayLabel, fmtDayMonth, todayVn } from "../../../lib/roster";
 import { nowMs } from "../../../lib/datetime";
@@ -135,6 +140,7 @@ function buildDayRows(
   day: ApptDay,
   duty: { id: string; name: string }[],
   now: number,
+  canBook: boolean,
 ): RowDesc[] {
   const isToday = day.date === todayVn();
   // Khung giờ có ít nhất 1 lịch (mọi trạng thái — lịch huỷ vẫn hiện để check).
@@ -188,7 +194,9 @@ function buildDayRows(
       // Ô XANH "đặt vào đây": chỗ vãng lai còn trống + khung chưa qua. Chỉ ngày
       // HÔM NAY mới bấm được (walk-in là khách đến trực tiếp trong ngày); ngày
       // sau chỉ hiện trạng thái. Nhóm "Chưa phân bác sĩ" không có ô này.
-      if (g.id && bucketNotPast && walkinAlive < WALKIN_CAP) {
+      // CHỈ vai đặt lịch (CSKH/Lễ tân/QL/Trưởng ca) mới thấy hàng này — bác sĩ,
+      // điều dưỡng không đặt lịch nên bỏ hẳn cho gọn.
+      if (canBook && g.id && bucketNotPast && walkinAlive < WALKIN_CAP) {
         groupRows.push({
           key: `${bucketMs}-${g.id}-free`,
           free: {
@@ -291,7 +299,12 @@ export default function WeeklyAppointmentsTable({
           </thead>
           <tbody>
             {days.map((day) => {
-              const rows = buildDayRows(day, dutyByDate[day.date] ?? [], now);
+              const rows = buildDayRows(
+                day,
+                dutyByDate[day.date] ?? [],
+                now,
+                canWriteIntake(role),
+              );
               return (
                 <Fragment key={day.date}>
                   {/* Dòng tiêu đề NGÀY (gộp cả 5 hoặc 6 cột). */}
