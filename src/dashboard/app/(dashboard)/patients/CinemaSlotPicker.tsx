@@ -13,7 +13,7 @@
 // data + nhận callback như trước.
 
 import { useMemo } from "react";
-import { vnLocalToUtcISO, nowMs } from "../../../lib/datetime";
+import { vnLocalToUtcISO, nowMs, slotRange } from "../../../lib/datetime";
 import { clinicHoursForDate } from "../../../lib/roster";
 import {
   buildSlotUsage,
@@ -143,9 +143,9 @@ export default function CinemaSlotPicker({
               {slots.map((t) => (
                 <th
                   key={t}
-                  className="px-0.5 text-[10px] font-normal text-[#a1a1aa]"
+                  className="whitespace-nowrap px-0.5 text-[10px] font-normal text-[#a1a1aa]"
                 >
-                  {t}
+                  {slotRange(t)}
                 </th>
               ))}
             </tr>
@@ -202,7 +202,7 @@ export default function CinemaSlotPicker({
                       !isTaken &&
                       sub.seatIdx === Math.min(firstFreeSeat, REGULAR_CAP - 1);
                     const disabled = isPast || isTaken || !pickable;
-                    const title = `${d.label} · ${t} · ${
+                    const title = `${d.label} · ${slotRange(t)} · ${
                       sub.kind === "walkin" ? "chỗ vãng lai" : sub.label
                     }${
                       isTaken
@@ -216,7 +216,7 @@ export default function CinemaSlotPicker({
                             : " · đặt vào đây"
                     }`;
                     const cls =
-                      "h-6 w-7 rounded text-[10px] font-medium transition " +
+                      "h-6 w-full min-w-[3.75rem] rounded text-[10px] font-medium transition " +
                       (isSelected
                         ? "bg-[#9d2463] text-white"
                         : isPast || isTaken

@@ -18,7 +18,7 @@ import {
   REGULAR_CAP,
   WALKIN_CAP,
 } from "../../../../lib/slot-capacity";
-import { vnLocalToUtcISO, nowMs } from "../../../../lib/datetime";
+import { vnLocalToUtcISO, nowMs, slotRange } from "../../../../lib/datetime";
 import {
   todayVn,
   clinicHoursForDate,
@@ -994,7 +994,7 @@ export default function NewPatientForm({
                   >
                     {isSlotBooked
                       ? "Khung đang chọn đã có khách vãng lai — chuyển sang khung kế tiếp."
-                      : `Xếp khách vào chỗ vãng lai khung ${apptTime}.`}
+                      : `Xếp khách vào chỗ vãng lai khung ${slotRange(apptTime)}.`}
                   </p>
                 )}
               </div>

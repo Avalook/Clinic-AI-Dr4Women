@@ -98,6 +98,21 @@ export function fmtDate(ts: TimeInput): string {
     : "—";
 }
 
+/** Số phút của một khung đặt lịch (mọi cột lưới = 1 khung 15'). */
+export const SLOT_MINUTES = 15;
+
+/** "HH:mm" (mốc bắt đầu khung) → "HH:mm-HH:mm" (khung 15'), ví dụ
+ *  "17:00" → "17:00-17:15". Dùng cho nhãn cột & tooltip lưới đặt chỗ. */
+export function slotRange(hhmm: string, minutes: number = SLOT_MINUTES): string {
+  const [h, m] = hhmm.split(":").map(Number);
+  if (Number.isNaN(h) || Number.isNaN(m)) return hhmm;
+  const end = h * 60 + m + minutes;
+  const eh = Math.floor(end / 60) % 24;
+  const em = end % 60;
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return `${pad(h)}:${pad(m)}-${pad(eh)}:${pad(em)}`;
+}
+
 /** A naive date ("YYYY-MM-DD") + time ("HH:mm") a Vietnam user typed → the
  *  correct UTC instant, regardless of the browser's own time zone. */
 export function vnLocalToUtcISO(date: string, time: string): string {
