@@ -145,6 +145,9 @@ export default function NewPatientForm({
   initialAppt?: { date?: string; time?: string; doctorId?: string };
 }) {
   const walkin = variant === "walkin";
+  // Địa chỉ (Tỉnh/TP + Phường/Xã) BẮT BUỘC cho CSKH (full) và Lễ tân (RECEPTION).
+  // Điều dưỡng walk-in (nurse) giữ TUỲ CHỌN — khám nhanh khách vãng lai.
+  const requireAddress = !walkin || role === "RECEPTION";
   const router = useRouter();
   // Logic thời gian thực: năm sinh ≤ hôm nay; ngày khám ≥ hôm nay (giờ VN).
   const TODAY = todayVn();
@@ -379,17 +382,12 @@ export default function NewPatientForm({
   // trong save() vì có toggle "Chỉ biết năm"). Nút khoá tới khi đủ.
   // Khách thường (không vãng lai) phải đủ: Tỉnh/TP + Phường/Xã + Dịch vụ + Bác sĩ
   // + Ngày + Giờ khám + Kênh đặt (mới đủ điều kiện tạo lượt khám). Walk-in giữ nguyên.
+  // Địa chỉ đủ khi không yêu cầu, hoặc đã có cả Tỉnh + Phường/Xã.
+  const addressOk = !requireAddress || !!(provinceCode && wardCode);
   const requiredForCustomer =
-    walkin ||
-    !!(
-      provinceCode &&
-      wardCode &&
-      serviceId &&
-      doctorId &&
-      apptDate &&
-      apptTime &&
-      channel
-    );
+    addressOk &&
+    (walkin ||
+      !!(serviceId && doctorId && apptDate && apptTime && channel));
   const canSubmit =
     fullName.trim() &&
     locationId &&
@@ -516,9 +514,8 @@ export default function NewPatientForm({
       setError(dobErr);
       return;
     }
-    // BẮT BUỘC (khách thường, không vãng lai): Tỉnh/TP + Phường/Xã + Dịch vụ +
-    // Bác sĩ + Ngày + Giờ khám + Kênh đặt — đủ thì mới tạo được lượt khám.
-    if (!walkin) {
+    // BẮT BUỘC địa chỉ: CSKH (full) + Lễ tân (RECEPTION) phải có Tỉnh/TP + Phường/Xã.
+    if (requireAddress) {
       if (!provinceCode) {
         setError("Chọn Tỉnh / Thành phố.");
         return;
@@ -527,6 +524,10 @@ export default function NewPatientForm({
         setError("Chọn Phường / Xã.");
         return;
       }
+    }
+    // BẮT BUỘC (khách thường, không vãng lai): Dịch vụ + Bác sĩ + Ngày + Giờ khám
+    // + Kênh đặt — đủ thì mới tạo được lượt khám.
+    if (!walkin) {
       if (!serviceId) {
         setError("Chọn dịch vụ khám.");
         return;
@@ -818,7 +819,7 @@ export default function NewPatientForm({
           </div>
           <div>
             <label className={LABEL}>
-              Tỉnh / Thành phố {!walkin && <Req />}
+              Tỉnh / Thành phố {requireAddress && <Req />}
             </label>
             <SearchSelect
               options={provinceOpts}
@@ -830,7 +831,7 @@ export default function NewPatientForm({
           </div>
           <div>
             <label className={LABEL}>
-              Phường / Xã {!walkin && <Req />}
+              Phường / Xã {requireAddress && <Req />}
             </label>
             <SearchSelect
               options={wardOpts}
