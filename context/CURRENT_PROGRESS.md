@@ -21,6 +21,11 @@
 - **Đã làm:** `customers/page.tsx` thêm `examined` vào `apptByPatient` = `list.some(status==='COMPLETED')` (KHÔNG thêm query — tái dùng query lịch sẵn có; cùng định nghĩa "bệnh nhân" với `/patient-list`). `CustomersView.tsx` chỉ render nút khi `selectedAppt?.examined`. CHECKED_IN/IN_PROGRESS/mới đặt → ẩn.
 - **Test:** `tsc` + `next build` 0 lỗi. Không cần migration.
 
+### Bổ sung cùng ngày — tạm ẩn "Số thứ tự gọi khám" + fix "!" sinh hiệu không mất
+- **Tạm ẩn `/queue`:** `lib/roles.ts` đặt `NAV_ROLES["/queue"] = []` → ẩn sidebar mọi vai + gõ URL bị `requireNavAccess` redirect `/home`. Mở lại: khôi phục danh sách vai đã comment ngay trên.
+- **Fix "!" nhắc điền sinh hiệu (điều dưỡng) không mất sau khi lưu:** trước đây badge "!" ở `WeeklyAppointmentsTable` dựa THUẦN `isNurse && status==='CHECKED_IN'` — mà lưu sinh hiệu KHÔNG đổi appointment.status nên "!" còn mãi + vẫn điền lại được. **Đã xác nhận save THẬT lưu** (`saveVitals`→`/api/clinical-record` POST: tạo/tìm visit IN_PROGRESS + merge `clinical_record.soap_objective.vitals`, đã có `router.refresh()`). Fix: `home/page.tsx` đọc visit→clinical_record của các lịch CHECKED_IN, coi ĐÃ GHI khi đủ 3 vital bắt buộc (huyết áp/cân nặng/chiều cao = REQUIRED_VITALS), truyền `has_vitals` xuống bảng; badge chỉ hiện khi `CHECKED_IN && !has_vitals`. Điền lại để sửa vẫn được (visit IN_PROGRESS ghi đè, khóa 48h + FINALIZED giữ nguyên). Query đọc qua RLS caller (đã xác nhận nurse SELECT được visit/clinical_record — cùng client với form).
+- **Test:** `tsc` + `next build` 0 lỗi (lint chỉ còn `selAppt as any` CÓ SẴN). Không cần migration.
+
 ---
 
 ## 📍 SLOT-21 — Đặt lịch "2+1 mỗi khung 15'" (BN1/BN2 + chỗ vãng lai) — ĐÃ CODE, COMMIT LOCAL, CHƯA PUSH

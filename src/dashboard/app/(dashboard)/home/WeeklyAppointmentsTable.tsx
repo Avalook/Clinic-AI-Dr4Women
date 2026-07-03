@@ -35,6 +35,8 @@ export interface WeekApptRow {
   doctor_id: string | null;
   booking_channel: string | null;
   phan_loai: string; // "Tái khám" | "Khám lần đầu" | "" (suy từ lịch sử hẹn)
+  /** ĐÃ ghi sinh hiệu (đủ 3 vital bắt buộc) chưa — tắt "!" nhắc điều dưỡng. */
+  has_vitals?: boolean;
   patient: {
     clinic_patient_id: string;
     full_name: string;
@@ -348,14 +350,16 @@ export default function WeeklyAppointmentsTable({
                                     onClick={() => setSelAppt(a)}
                                     className="flex items-center gap-1.5 font-medium text-[#ec4899] hover:underline text-left"
                                   >
-                                    {isNurse && a.status === "CHECKED_IN" && (
-                                      <span
-                                        title="Cần điền sinh hiệu"
-                                        className="inline-flex h-4 w-4 shrink-0 animate-pulse items-center justify-center rounded-full bg-[#dc2626] text-[10px] font-bold leading-none text-white"
-                                      >
-                                        !
-                                      </span>
-                                    )}
+                                    {isNurse &&
+                                      a.status === "CHECKED_IN" &&
+                                      !a.has_vitals && (
+                                        <span
+                                          title="Cần điền sinh hiệu"
+                                          className="inline-flex h-4 w-4 shrink-0 animate-pulse items-center justify-center rounded-full bg-[#dc2626] text-[10px] font-bold leading-none text-white"
+                                        >
+                                          !
+                                        </span>
+                                      )}
                                     {a.patient?.full_name ?? "—"}
                                   </button>
                                 ) : (

@@ -55,7 +55,7 @@ function cleanName(name: string): string {
 
 function greet(role: ClinicRole | null, staff: ActiveStaff | null): string {
   if (!role || !staff) return "Trang chủ";
-  return `Chào ${GREET_LABEL[role]} ${cleanName(staff.full_name ?? staff.short_name)}`;
+  return `Xin chào ${GREET_LABEL[role]} ${cleanName(staff.full_name ?? staff.short_name)}`;
 }
 
 export default async function HomePage({
@@ -335,6 +335,57 @@ export default async function HomePage({
     }
   }
 
+  // "!" nhắc điều dưỡng điền sinh hiệu CHỈ hiện khi lịch đã CHECKED_IN mà CHƯA ghi
+  // sinh hiệu. Trước đây "!" dựa THUẦN vào status CHECKED_IN nên điền + lưu xong vẫn
+  // còn (lưu sinh hiệu KHÔNG đổi appointment.status). Nay đọc visit→clinical_record
+  // của các lịch CHECKED_IN, coi là ĐÃ GHI khi đủ 3 vital bắt buộc (huyết áp / cân
+  // nặng / chiều cao — khớp REQUIRED_VITALS ở ClinicalRecordForm). router.refresh()
+  // sau khi lưu sẽ nạp lại trang này → "!" tự mất.
+  const vitalsRecorded = new Set<string>();
+  const checkedInIds = weekApptRows
+    .filter((a) => a.status === "CHECKED_IN")
+    .map((a) => a.id);
+  if (checkedInIds.length) {
+    const { data: visits } = await supabase
+      .from("visit")
+      .select("visit_id, appointment_id")
+      .in("appointment_id", checkedInIds);
+    const vList =
+      (visits as { visit_id: string; appointment_id: string }[] | null) ?? [];
+    const apptByVisit = new Map(vList.map((v) => [v.visit_id, v.appointment_id]));
+    if (vList.length) {
+      const { data: recs } = await supabase
+        .from("clinical_record")
+        .select("visit_id, soap_objective")
+        .in(
+          "visit_id",
+          vList.map((v) => v.visit_id),
+        );
+      const nonEmpty = (x: unknown) =>
+        typeof x === "string" ? x.trim() !== "" : x != null;
+      for (const r of (recs as
+        | { visit_id: string; soap_objective: unknown }[]
+        | null) ?? []) {
+        const obj =
+          r.soap_objective && typeof r.soap_objective === "object"
+            ? (r.soap_objective as Record<string, unknown>)
+            : {};
+        const vitals =
+          obj.vitals && typeof obj.vitals === "object"
+            ? (obj.vitals as Record<string, unknown>)
+            : {};
+        const complete =
+          nonEmpty(vitals.huyet_ap) &&
+          nonEmpty(vitals.can_nang) &&
+          nonEmpty(vitals.chieu_cao);
+        if (complete) {
+          const aid = apptByVisit.get(r.visit_id);
+          if (aid) vitalsRecorded.add(aid);
+        }
+      }
+    }
+  }
+
   const t0 = new Date(apptStartUtc).getTime();
   const apptDays: ApptDay[] = apptDates.map((date, i) => {
     const s = t0 + i * DAY_MS;
@@ -344,7 +395,11 @@ export default async function HomePage({
         const t = new Date(a.slot_start).getTime();
         return t >= s && t < e;
       })
-      .map((a) => ({ ...a, phan_loai: phanLoaiOf(a) }));
+      .map((a) => ({
+        ...a,
+        phan_loai: phanLoaiOf(a),
+        has_vitals: vitalsRecorded.has(a.id),
+      }));
     return { date, items };
   });
 
