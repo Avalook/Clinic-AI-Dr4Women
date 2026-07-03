@@ -58,6 +58,32 @@ export interface Option {
   label: string;
 }
 
+/** Giá trị điền sẵn khi mở form ở chế độ SỬA lịch đã có. */
+export interface BookingInitial {
+  serviceId?: string;
+  doctorId?: string;
+  doctorLabel?: string;
+  locationId?: string;
+  apptDate?: string; // VN "YYYY-MM-DD"
+  apptTime?: string; // "HH:mm"
+  patientKind?: string;
+  needSono?: boolean;
+  channel?: string;
+}
+
+/** Chế độ SỬA lịch đã có (Thông tin khách hàng → bấm ô "Lịch hẹn sắp tới").
+ *  Khi set: form ĐIỀN SẴN lịch cũ; nút → PATCH reschedule (đổi giờ + bác sĩ),
+ *  CHỈ bật khi đã đổi ngày/giờ; Dịch vụ hiển thị read-only (reschedule không
+ *  đổi dịch vụ). */
+export interface BookingEdit {
+  appointmentId: string;
+  origDate: string; // VN "YYYY-MM-DD"
+  origTime: string; // "HH:mm"
+  serviceLabel: string; // tên dịch vụ hiện tại (chỉ hiển thị)
+  /** Gọi sau khi đổi lịch thành công (parent đóng modal + refresh). */
+  onDone: () => void;
+}
+
 export default function AppointmentBooking({
   clinicPatientId,
   services,
@@ -67,6 +93,8 @@ export default function AppointmentBooking({
   onBooked,
   secondary,
   walkin = false,
+  edit,
+  initial,
 }: {
   clinicPatientId: string;
   services: Option[];
@@ -81,11 +109,15 @@ export default function AppointmentBooking({
   /** Lễ tân xếp BN tái khám VÃNG LAI: chỉ bấm ô xanh (chỗ Ưu tiên, chỗ thứ 3),
    *  đặt như WALK_IN, không cần Kênh đặt. Mặc định false = đặt hẹn thường (ô hồng). */
   walkin?: boolean;
+  /** Set để chuyển form sang chế độ SỬA (đổi lịch) thay vì tạo mới. */
+  edit?: BookingEdit;
+  /** Giá trị điền sẵn (dùng chung với edit; cũng dùng được khi tạo mới). */
+  initial?: BookingInitial;
 }) {
-  const [serviceId, setServiceId] = useState("");
+  const [serviceId, setServiceId] = useState(initial?.serviceId ?? "");
   // Bác sĩ: combobox tìm kiếm bỏ dấu thay native <select>
-  const [doctorId, setDoctorId] = useState("");
-  const [doctorQ, setDoctorQ] = useState(""); // text hiện trong ô
+  const [doctorId, setDoctorId] = useState(initial?.doctorId ?? "");
+  const [doctorQ, setDoctorQ] = useState(initial?.doctorLabel ?? ""); // text hiện trong ô
   const [doctorOpen, setDoctorOpen] = useState(false);
   const filteredDoctors = useMemo(() => {
     const t = unaccentVi(doctorQ.trim());
@@ -93,15 +125,15 @@ export default function AppointmentBooking({
     return doctors.filter((d) => unaccentVi(d.label).includes(t));
   }, [doctorQ, doctors]);
   const [locationId, setLocationId] = useState(
-    defaultLocationId ?? locations[0]?.id ?? "",
+    initial?.locationId ?? defaultLocationId ?? locations[0]?.id ?? "",
   );
   const [linhVuc, setLinhVuc] = useState("");
-  const [apptDate, setApptDate] = useState("");
-  const [apptTime, setApptTime] = useState("");
+  const [apptDate, setApptDate] = useState(initial?.apptDate ?? "");
+  const [apptTime, setApptTime] = useState(initial?.apptTime ?? "");
   const [duration, setDuration] = useState(15);
   // Capacity Phase 1 (T-20260629-CAP-01) — CSKH chọn tay (DEC-3); backend gợi ý tải.
-  const [patientKind, setPatientKind] = useState(""); // "" | "RETURN" | "NEW"
-  const [needSono, setNeedSono] = useState(false);
+  const [patientKind, setPatientKind] = useState(initial?.patientKind ?? ""); // "" | "RETURN" | "NEW"
+  const [needSono, setNeedSono] = useState(initial?.needSono ?? false);
   // Lịch sử dịch vụ của BN này (T-20260629-EPI-01): số lần đã khám DV đang chọn + đợt
   // còn sống → hiện chú thích cho CSKH + đặt mặc định thông minh NEW/RETURN.
   const [svcHistory, setSvcHistory] = useState<{
@@ -131,7 +163,12 @@ export default function AppointmentBooking({
       .then((r) => (r.ok ? r.json() : { appointments: [] }))
       .then((data) => {
         if (active) {
-          setExistingAppts(data.appointments ?? []);
+          // Sửa lịch: bỏ CHÍNH lịch đang sửa khỏi sơ đồ để ô của nó không bị
+          // tính là "đã kín" (server cũng loại trừ self khi reschedule).
+          const list = (data.appointments ?? []) as { id?: string }[];
+          setExistingAppts(
+            edit ? list.filter((a) => a.id !== edit.appointmentId) : list,
+          );
         }
       })
       .catch(() => {
@@ -140,6 +177,8 @@ export default function AppointmentBooking({
     return () => {
       active = false;
     };
+    // edit ổn định (parent remount theo từng lịch) → không gây fetch lặp.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [apptDate]);
 
   // Bác sĩ trực ca của ngày đã chọn — sơ đồ chỉ vẽ hàng các bác sĩ này.
@@ -191,10 +230,12 @@ export default function AppointmentBooking({
       .then((j) => {
         if (!j) return;
         setSvcHistory(j);
-        setPatientKind(j.liveEpisode ? "RETURN" : "NEW");
+        // Sửa lịch: GIỮ loại khám đã điền sẵn, không tự ghi đè theo lịch sử.
+        if (!edit) setPatientKind(j.liveEpisode ? "RETURN" : "NEW");
       })
       .catch(() => {});
     return () => ctrl.abort();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [serviceId, clinicPatientId]);
 
   // CSKH: khung đang chọn còn chỗ đặt hẹn không? Luật 2+1 (slot-capacity):
@@ -219,7 +260,7 @@ export default function AppointmentBooking({
     setQueueNumber("");
   }, [apptTime, isSlotBooked]);
 
-  const [channel, setChannel] = useState("");
+  const [channel, setChannel] = useState(initial?.channel ?? "");
   const [queueNumber, setQueueNumber] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
@@ -227,8 +268,16 @@ export default function AppointmentBooking({
   // Kênh đặt BẮT BUỘC cho đặt hẹn thường: kênh rỗng bị server mặc định WALK_IN →
   // chiếm nhầm chỗ vãng lai (chỗ 3). Vãng lai (Lễ tân) thì cố định WALK_IN nên
   // KHÔNG cần chọn kênh.
+  // Chế độ SỬA: chỉ cho lưu khi ĐÃ đổi ngày/giờ (không đổi thì lưu vô nghĩa).
+  const changed =
+    !edit || apptDate !== edit.origDate || apptTime !== edit.origTime;
   const canBook =
-    serviceId && locationId && apptDate && apptTime && (walkin || channel);
+    serviceId &&
+    locationId &&
+    apptDate &&
+    apptTime &&
+    (walkin || channel) &&
+    changed;
   // Giới hạn giờ theo ngày đã chọn (giờ mở cửa PK).
   const ch = apptDate ? clinicHoursForDate(apptDate) : null;
   const minHour = ch ? Number(ch.open.slice(0, 2)) : 0;
@@ -251,6 +300,31 @@ export default function AppointmentBooking({
     }
     setSubmitting(true);
     const end = new Date(start.getTime() + duration * 60_000);
+
+    // Chế độ SỬA: PATCH reschedule (đổi giờ + tuỳ chọn bác sĩ). KHÔNG tạo lịch
+    // mới. Backend giữ trạng thái, chặn trùng giờ + luật 2+1 (loại trừ chính lịch).
+    if (edit) {
+      const res = await fetch("/api/appointments", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          id: edit.appointmentId,
+          action: "reschedule",
+          slot_start: start.toISOString(),
+          slot_end: end.toISOString(),
+          doctor_id: doctorId, // "" = bỏ phân bác sĩ
+        }),
+      });
+      const json = await res.json();
+      setSubmitting(false);
+      if (!res.ok) {
+        setError(json.error ?? "Lỗi đổi lịch.");
+        return;
+      }
+      edit.onDone();
+      return;
+    }
+
     const res = await fetch("/api/appointments", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -296,23 +370,32 @@ export default function AppointmentBooking({
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
         <div className="space-y-1">
           <label className={LABEL}>Dịch vụ *</label>
-          <select
-            value={linhVuc}
-            onChange={(e) => {
-              const code = e.target.value;
-              setLinhVuc(code);
-              const svcId = findServiceIdByLinhVuc(code, services);
-              setServiceId(svcId);
-            }}
-            className={INPUT}
-          >
-            <option value="">— Chọn dịch vụ —</option>
-            {LINH_VUC_OPTIONS.map((o) => (
-              <option key={o.code} value={o.code}>
-                {o.label}
-              </option>
-            ))}
-          </select>
+          {edit ? (
+            // Sửa lịch: dịch vụ giữ nguyên (reschedule không đổi dịch vụ) → chỉ hiển thị.
+            <div
+              className={INPUT + " flex items-center bg-[#fafafa] text-[#52525b]"}
+            >
+              {edit.serviceLabel || "—"}
+            </div>
+          ) : (
+            <select
+              value={linhVuc}
+              onChange={(e) => {
+                const code = e.target.value;
+                setLinhVuc(code);
+                const svcId = findServiceIdByLinhVuc(code, services);
+                setServiceId(svcId);
+              }}
+              className={INPUT}
+            >
+              <option value="">— Chọn dịch vụ —</option>
+              {LINH_VUC_OPTIONS.map((o) => (
+                <option key={o.code} value={o.code}>
+                  {o.label}
+                </option>
+              ))}
+            </select>
+          )}
         </div>
         <div className="space-y-1">
           <label className={LABEL}>Bác sĩ</label>
@@ -530,7 +613,13 @@ export default function AppointmentBooking({
 
       <div className="flex flex-col gap-2 sm:flex-row">
         <button onClick={book} disabled={!canBook || submitting} className={BTN}>
-          {submitting ? "Đang đặt..." : "Đặt lịch hẹn"}
+          {submitting
+            ? edit
+              ? "Đang đổi..."
+              : "Đang đặt..."
+            : edit
+              ? "Đổi lịch hẹn"
+              : "Đặt lịch hẹn"}
         </button>
         {secondary}
       </div>

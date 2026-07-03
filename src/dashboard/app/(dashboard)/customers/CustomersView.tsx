@@ -17,6 +17,9 @@ import { Search, ExternalLink, X, CalendarClock } from "lucide-react";
 import { fmtDate, fmtDateTimeOrDate } from "../../../lib/datetime";
 import { unaccentVi } from "../../../lib/validation";
 import PatientAdminEditor from "../PatientAdminEditor";
+import AppointmentEditModal, {
+  type EditableAppt,
+} from "./AppointmentEditModal";
 
 export interface CustomerRow {
   clinic_patient_id: string;
@@ -46,6 +49,8 @@ export interface ApptInfo {
   count: number;
   /** Đã khám xong (có ≥1 lịch COMPLETED) → mới hiện nút "Hồ sơ & lịch sử khám". */
   examined: boolean;
+  /** Lịch SẮP TỚI còn "sống" (đủ field để ĐỔI/HỦY). Chỉ có khi canManage. */
+  appt?: EditableAppt;
 }
 export interface Opt {
   id: string;
@@ -75,6 +80,9 @@ export default function CustomersView({
   by,
   initialSelected,
   canEdit = false,
+  canManage = false,
+  services = [],
+  doctors = [],
 }: {
   rows: CustomerRow[];
   apptByPatient: Record<string, ApptInfo>;
@@ -85,12 +93,18 @@ export default function CustomersView({
   initialSelected: string | null;
   /** CSKH/Lễ tân/QL: sửa thông tin hành chính ngay trong panel chi tiết. */
   canEdit?: boolean;
+  /** CSKH/QL/Trưởng ca: bấm ô "Lịch hẹn sắp tới" để ĐỔI/HỦY lịch. */
+  canManage?: boolean;
+  /** Dropdown cho modal đổi lịch (chỉ nạp khi canManage). */
+  services?: Opt[];
+  doctors?: Opt[];
 }) {
   const router = useRouter();
   // Mặc định KHÔNG chọn ai → chỉ hiện danh sách. Bấm 1 khách mới hiện chi tiết
   // (trừ khi vừa tạo khách mới → initialSelected để bôi hồng + xem ngay).
   const [sel, setSel] = useState<string | null>(initialSelected ?? null);
   const [term, setTerm] = useState(q);
+  const [editOpen, setEditOpen] = useState(false);
   const [isPending, startTransition] = useTransition();
 
   const selected = rows.find((r) => r.clinic_patient_id === sel) ?? null;
@@ -320,14 +334,16 @@ export default function CustomersView({
                 </button>
               </div>
 
-              {/* Lịch hẹn nổi bật (yêu cầu 05/06: thấy ngày-giờ hẹn ngay) */}
-              <div className="mb-3 flex items-center gap-2 rounded-lg border border-[#f3cfe0] bg-white px-3 py-2">
-                <CalendarClock size={15} className="shrink-0 text-[#ec4899]" />
-                {selectedAppt ? (
+              {/* Lịch hẹn nổi bật (yêu cầu 05/06: thấy ngày-giờ hẹn ngay).
+                  CSKH/QL: BẤM để mở modal ĐỔI / HỦY lịch (chỉ khi còn lịch sắp tới). */}
+              {canManage && selectedAppt?.appt ? (
+                <button
+                  onClick={() => setEditOpen(true)}
+                  className="mb-3 flex w-full items-center gap-2 rounded-lg border border-[#f3cfe0] bg-white px-3 py-2 text-left transition-colors hover:border-[#ec4899] hover:bg-[#fdf2f8]"
+                >
+                  <CalendarClock size={15} className="shrink-0 text-[#ec4899]" />
                   <span className="text-sm text-[#171717]">
-                    <span className="text-[#888888]">
-                      {selectedAppt.upcoming ? "Lịch hẹn sắp tới: " : "Lịch gần nhất: "}
-                    </span>
+                    <span className="text-[#888888]">Lịch hẹn sắp tới: </span>
                     <b>{fmtDateTimeOrDate(selectedAppt.slot_start)}</b>
                     {selectedAppt.count > 1 && (
                       <span className="text-[#888888]">
@@ -335,13 +351,36 @@ export default function CustomersView({
                         · {selectedAppt.count} lịch
                       </span>
                     )}
+                    <span className="ml-1 font-medium text-[#ec4899]">
+                      · bấm để đổi / hủy
+                    </span>
                   </span>
-                ) : (
-                  <span className="text-sm text-[#a1a1aa]">
-                    Chưa có lịch hẹn nào.
-                  </span>
-                )}
-              </div>
+                </button>
+              ) : (
+                <div className="mb-3 flex items-center gap-2 rounded-lg border border-[#f3cfe0] bg-white px-3 py-2">
+                  <CalendarClock size={15} className="shrink-0 text-[#ec4899]" />
+                  {selectedAppt ? (
+                    <span className="text-sm text-[#171717]">
+                      <span className="text-[#888888]">
+                        {selectedAppt.upcoming
+                          ? "Lịch hẹn sắp tới: "
+                          : "Lịch gần nhất: "}
+                      </span>
+                      <b>{fmtDateTimeOrDate(selectedAppt.slot_start)}</b>
+                      {selectedAppt.count > 1 && (
+                        <span className="text-[#888888]">
+                          {" "}
+                          · {selectedAppt.count} lịch
+                        </span>
+                      )}
+                    </span>
+                  ) : (
+                    <span className="text-sm text-[#a1a1aa]">
+                      Chưa có lịch hẹn nào.
+                    </span>
+                  )}
+                </div>
+              )}
 
               {canEdit ? (
                 <>
@@ -409,6 +448,19 @@ export default function CustomersView({
           </aside>
         )}
       </div>
+
+      {/* Modal ĐỔI / HỦY lịch hẹn — mở khi bấm ô "Lịch hẹn sắp tới". */}
+      {editOpen && selected && selectedAppt?.appt && (
+        <AppointmentEditModal
+          appt={selectedAppt.appt}
+          patientName={selected.full_name}
+          clinicPatientId={selected.clinic_patient_id}
+          services={services}
+          doctors={doctors}
+          locations={locations}
+          onClose={() => setEditOpen(false)}
+        />
+      )}
     </div>
   );
 }

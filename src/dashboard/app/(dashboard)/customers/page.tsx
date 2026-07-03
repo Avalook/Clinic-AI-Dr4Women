@@ -5,8 +5,9 @@
 
 import { getSupabaseServer } from "../../../lib/supabase-server";
 import { requireNavAccess, getClinicRole } from "../../../lib/clinic-session";
-import { canWriteIntake } from "../../../lib/roles";
+import { canWriteIntake, canManageAppt } from "../../../lib/roles";
 import { unaccentVi } from "../../../lib/validation";
+import type { EditableAppt } from "./AppointmentEditModal";
 import {
   vnTodayRangeUtc,
   vnMonthStartUtc,
@@ -55,6 +56,12 @@ function windowFor(period: Period): { start: string; end: string } | null {
   return null;
 }
 
+/** Supabase join trả object HOẶC array (tuỳ quan hệ) — lấy phần tử đầu. */
+function pick1<T>(v: T | T[] | null | undefined): T | null {
+  if (!v) return null;
+  return Array.isArray(v) ? (v[0] ?? null) : v;
+}
+
 const SELECT = `
   clinic_patient_id, patient_code, full_name, date_of_birth, birth_year,
   phone_primary, phone_secondary, gender, ethnicity, nationality,
@@ -73,8 +80,11 @@ export default async function CustomersPage({
   }>;
 }) {
   await requireNavAccess("/customers");
+  const role = await getClinicRole();
   // CSKH / Lễ tân / Quản lý: được SỬA thông tin hành chính ngay trong panel.
-  const canEdit = canWriteIntake(await getClinicRole());
+  const canEdit = canWriteIntake(role);
+  // CSKH / Quản lý / Trưởng ca: được ĐỔI / HỦY lịch hẹn (bấm ô "Lịch hẹn sắp tới").
+  const canManage = canManageAppt(role);
   const sp = await searchParams;
   const q = (sp.q ?? "").trim();
   const period: Period = (["today", "week", "month", "all"].includes(
@@ -137,9 +147,21 @@ export default async function CustomersPage({
     return query;
   };
 
-  const [patRes, locRes] = await Promise.all([
+  const [patRes, locRes, svcRes, docRes] = await Promise.all([
     buildPatientQuery(true),
     supabase.from("clinic_location").select("id, name").order("name"),
+    // Chỉ nạp dịch vụ + bác sĩ khi vai được đổi/hủy lịch (dùng cho modal sửa).
+    canManage
+      ? supabase.from("service_type").select("id, name").order("name")
+      : Promise.resolve({ data: [] as { id: string; name: string }[] }),
+    canManage
+      ? supabase
+          .from("staff")
+          .select("id, full_name")
+          .in("primary_department", ["DOCTOR", "ULTRASOUND_DOCTOR"])
+          .eq("is_active", true)
+          .order("full_name")
+      : Promise.resolve({ data: [] as { id: string; full_name: string }[] }),
   ]);
 
   let { data, error } = patRes;
@@ -153,28 +175,68 @@ export default async function CustomersPage({
     id: r.id as string,
     label: r.name as string,
   }));
+  // Dropdown cho modal ĐỔI lịch — bỏ dịch vụ rác "FREE" (khớp trang đặt lịch).
+  const services: Opt[] = ((svcRes.data ?? []) as { id: string; name: string }[])
+    .filter((r) => (r.name ?? "").trim().toUpperCase() !== "FREE")
+    .map((r) => ({ id: r.id, label: r.name }));
+  const doctors: Opt[] = (
+    (docRes.data ?? []) as { id: string; full_name: string }[]
+  ).map((r) => ({ id: r.id, label: r.full_name }));
 
   // Lịch hẹn của các khách đang hiển thị → "lịch đại diện": SẮP TỚI gần nhất,
   // nếu không có thì lịch GẦN NHẤT trong quá khứ. Kèm tổng số lịch.
   const apptByPatient: Record<string, ApptInfo> = {};
   if (rows.length) {
     const ids = rows.map((r) => r.clinic_patient_id);
+    // canManage: nạp thêm field để ĐIỀN SẴN modal đổi lịch (id/dịch vụ/bác sĩ/
+    // cơ sở/kênh). Vai khác chỉ cần tóm tắt (nhẹ hơn).
+    const apptSelect = canManage
+      ? `clinic_patient_id, id, slot_start, status, service_type_id, doctor_id, location_id, booking_channel,
+         service:service_type!service_type_id ( name ),
+         doctor:staff!doctor_id ( full_name )`
+      : "clinic_patient_id, slot_start, status";
     const { data: appts } = await supabase
       .from("appointment")
-      .select("clinic_patient_id, slot_start, status")
+      .select(apptSelect)
       .in("clinic_patient_id", ids)
       .order("slot_start", { ascending: true })
       .limit(3000);
     const nowUtc = new Date().toISOString();
-    type Raw = { clinic_patient_id: string; slot_start: string; status: string };
+    type Raw = {
+      clinic_patient_id: string;
+      slot_start: string;
+      status: string;
+      id?: string;
+      service_type_id?: string | null;
+      doctor_id?: string | null;
+      location_id?: string | null;
+      booking_channel?: string | null;
+      service?: { name: string } | { name: string }[] | null;
+      doctor?: { full_name: string } | { full_name: string }[] | null;
+    };
     const grouped: Record<string, Raw[]> = {};
-    for (const a of (appts as Raw[] | null) ?? []) {
+    for (const a of (appts as unknown as Raw[] | null) ?? []) {
       (grouped[a.clinic_patient_id] ??= []).push(a);
     }
     for (const [pid, list] of Object.entries(grouped)) {
       const upcoming = list.find((a) => a.slot_start >= nowUtc); // list sort tăng dần
       const repr = upcoming ?? list[list.length - 1];
       if (!repr) continue;
+      // Chỉ cho ĐỔI/HỦY lịch còn "sống" & SẮP TỚI (repr là lịch upcoming).
+      let appt: EditableAppt | undefined;
+      const EDITABLE = ["SCHEDULED", "CSKH_CONFIRMED", "CONFIRMED", "CHECKED_IN"];
+      if (canManage && upcoming && repr.id && EDITABLE.includes(repr.status)) {
+        appt = {
+          id: repr.id,
+          slot_start: repr.slot_start,
+          service_type_id: repr.service_type_id ?? null,
+          service_name: pick1(repr.service)?.name ?? null,
+          doctor_id: repr.doctor_id ?? null,
+          doctor_name: pick1(repr.doctor)?.full_name ?? null,
+          location_id: repr.location_id ?? null,
+          booking_channel: repr.booking_channel ?? null,
+        };
+      }
       apptByPatient[pid] = {
         slot_start: repr.slot_start,
         status: repr.status,
@@ -184,6 +246,7 @@ export default async function CustomersPage({
         // /patient-list). Đang khám (CHECKED_IN/IN_PROGRESS) hay mới đặt/check-in
         // thì CHƯA tính — nút "Hồ sơ & lịch sử khám" sẽ ẩn.
         examined: list.some((a) => a.status === "COMPLETED"),
+        appt,
       };
     }
   }
@@ -210,6 +273,9 @@ export default async function CustomersPage({
           by={by}
           initialSelected={selected}
           canEdit={canEdit}
+          canManage={canManage}
+          services={services}
+          doctors={doctors}
         />
       )}
     </div>

@@ -263,7 +263,7 @@ export async function GET(request: Request) {
 
   let query = db
     .from("appointment")
-    .select("slot_start, queue_number, status, doctor_id, booking_channel")
+    .select("id, slot_start, queue_number, status, doctor_id, booking_channel")
     .gte("slot_start", startOfDay)
     .lte("slot_start", endOfDay)
     .not("status", "eq", "CANCELLED")
