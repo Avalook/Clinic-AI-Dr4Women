@@ -27,8 +27,8 @@ fi
 echo "==> 1/6 Kéo code mới (chinh)"
 git pull --ff-only
 
-echo "==> 2/6 Build image api"
-$COMPOSE build api
+echo "==> 2/6 Build image api + dashboard"
+$COMPOSE build api dashboard
 
 echo "==> 3/6 Chạy migrations (idempotent, DATABASE_URL trong .env)"
 set -a; . ./.env; set +a
@@ -43,16 +43,19 @@ else
   echo "   (bỏ qua NOTIFY: thiếu psql hoặc DATABASE_URL — Supabase cloud thường tự reload)"
 fi
 
-echo "==> 5/6 Khởi động lại api"
-$COMPOSE up -d api
+echo "==> 5/6 Khởi động lại api + dashboard"
+$COMPOSE up -d
 
-echo "==> 6/6 Healthcheck"
-for i in $(seq 1 20); do
-  if curl -fsS http://localhost:8000/health >/dev/null 2>&1; then
-    echo "OK — api healthy sau ${i}0s. Deploy xong."
+echo "==> 6/6 Healthcheck (api :8000 + dashboard :3000)"
+api_ok=""; web_ok=""
+for i in $(seq 1 30); do
+  [ -z "$api_ok" ] && curl -fsS http://localhost:8000/health >/dev/null 2>&1 && api_ok=1
+  [ -z "$web_ok" ] && curl -fsS http://localhost:3000/ >/dev/null 2>&1 && web_ok=1
+  if [ -n "$api_ok" ] && [ -n "$web_ok" ]; then
+    echo "OK — api + dashboard healthy. Deploy xong."
     exit 0
   fi
   sleep 3
 done
-echo "!! api CHƯA healthy sau ~60s. Xem log:  $COMPOSE logs --tail=80 api"
+echo "!! Chưa healthy sau ~90s (api=${api_ok:-no} web=${web_ok:-no}). Log: $COMPOSE logs --tail=80"
 exit 1

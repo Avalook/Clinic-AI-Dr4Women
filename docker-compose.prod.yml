@@ -1,5 +1,8 @@
-# ClinicAI PRODUCTION backend — chạy trên Mac mini M4 từ CLONE RIÊNG (~/clinic-server).
-# Chỉ backend: FastAPI `api`. Dashboard ở Vercel, DB ở Supabase cloud (KHÔNG postgres local).
+# ClinicAI PRODUCTION — chạy trên Mac mini M4 từ CLONE RIÊNG (~/clinic-server).
+# App HOÀN CHỈNH RIÊNG: FastAPI `api` + `dashboard` (web). DB ở Supabase cloud.
+# Vercel là bản SONG SONG cho khách; Mac là bản độc lập của mình (chung Supabase).
+# Public qua Tailscale Funnel trỏ vào DASHBOARD :3000 (web hiện ra); dashboard gọi
+# api NỘI BỘ qua http://api:8000 (không cần phơi api ra ngoài).
 #
 # Tách biệt hoàn toàn với folder dev:
 #   - `name: clinicai_prod` → project riêng, container tên `clinicai_prod-*` (KHÔNG đụng
@@ -32,6 +35,35 @@ services:
       - "8000:8000"
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 40s
+    networks:
+      - internal
+
+  # Web giao diện (Next.js) — link Tailscale Funnel trỏ vào đây (:3000).
+  dashboard:
+    build:
+      context: ./src/dashboard
+      dockerfile: Dockerfile.dashboard
+      args:
+        # PUBLIC anon-tier, baked lúc build (từ .env qua interpolation).
+        NEXT_PUBLIC_SUPABASE_URL: ${SUPABASE_URL}
+        NEXT_PUBLIC_SUPABASE_ANON_KEY: ${SUPABASE_ANON_KEY}
+    image: clinicai-dashboard:prod
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      # Dashboard gọi FastAPI NỘI BỘ trong docker network (không qua internet).
+      CLINIC_API_URL: http://api:8000
+    ports:
+      - "3000:3000"
+    depends_on:
+      api:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://localhost:3000/"]
       interval: 15s
       timeout: 5s
       retries: 5

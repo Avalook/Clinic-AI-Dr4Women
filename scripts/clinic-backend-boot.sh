@@ -11,7 +11,7 @@
 set -u
 
 REPO="${1:-$HOME/clinic-server/Clinic-AI-Dr4Women}"
-PORT=8000
+PORT=3000   # cổng PHƠI ra internet = DASHBOARD (web). api :8000 chỉ nội bộ.
 COMPOSE_FILE="$REPO/docker-compose.prod.yml"
 LOG="$HOME/Library/Logs/clinic-backend-boot.log"
 
@@ -30,12 +30,12 @@ else
   log "không thấy colima trên PATH (cài: brew install colima docker)"
 fi
 
-# 1) Đưa container API lên (no-op nếu đang chạy; restart:unless-stopped lo phần crash).
+# 1) Đưa CẢ api + dashboard lên (no-op nếu đang chạy; restart:unless-stopped lo crash).
 if command -v docker >/dev/null 2>&1 && docker info >/dev/null 2>&1; then
-  if docker compose -f "$COMPOSE_FILE" up -d api >>"$LOG" 2>&1; then
-    log "docker compose (prod) up -d api OK"
+  if docker compose -f "$COMPOSE_FILE" up -d >>"$LOG" 2>&1; then
+    log "docker compose (prod) up -d OK (api + dashboard)"
   else
-    log "docker compose (prod) up -d api FAILED — kiểm tra $COMPOSE_FILE + .env"
+    log "docker compose (prod) up -d FAILED — kiểm tra $COMPOSE_FILE + .env"
   fi
 else
   log "docker daemon chưa sẵn sàng — bỏ qua, thử lại lần sau"
