@@ -8,9 +8,15 @@ import PatientDetail from "./PatientDetail";
 import PatientHistory from "./PatientHistory";
 import PatientBooking from "./PatientBooking";
 import PatientCskhLog from "./PatientCskhLog";
+import PatientAppointments, { type ApptRow } from "./PatientAppointments";
 import { getSupabaseServer } from "../../../../lib/supabase-server";
 import { getClinicRole, getClinicStaffId } from "../../../../lib/clinic-session";
-import { canWriteIntake, isDoctorRole, canEditPatient } from "../../../../lib/roles";
+import {
+  canWriteIntake,
+  isDoctorRole,
+  canEditPatient,
+  canManageAppt,
+} from "../../../../lib/roles";
 import type { Option } from "../AppointmentBooking";
 
 export const dynamic = "force-dynamic";
@@ -81,6 +87,21 @@ export default async function PatientDetailPage({
     }));
   }
 
+  // Lịch hẹn của khách (hiện ở mục "Lịch hẹn của khách"): CSKH/QL/Trưởng ca
+  // đổi/hủy ngay tại đây. Đọc qua phiên caller (RLS SELECT như board /tasks).
+  const supabaseAppt = await getSupabaseServer();
+  const apptListRes = await supabaseAppt
+    .from("appointment")
+    .select(
+      `id, slot_start, status, cancellation_reason,
+       doctor:staff!doctor_id ( full_name ),
+       service:service_type!service_type_id ( name )`,
+    )
+    .eq("clinic_patient_id", id)
+    .order("slot_start", { ascending: false })
+    .limit(50);
+  const appointments = (apptListRes.data as ApptRow[] | null) ?? [];
+
   return (
     <div className="space-y-6">
       <header>
@@ -115,6 +136,11 @@ export default async function PatientDetailPage({
           locations={locations}
         />
       )}
+      <PatientAppointments
+        appointments={appointments}
+        doctors={doctors}
+        canManage={canManageAppt(role)}
+      />
       <PatientCskhLog id={id} />
       <PatientHistory id={id} />
     </div>
