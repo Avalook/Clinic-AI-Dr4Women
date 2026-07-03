@@ -2,6 +2,31 @@
      📍 BÀN GIAO PHIÊN (đọc khối này TRƯỚC) — cập nhật 2026-07-03
      ════════════════════════════════════════════════════════════════════ -->
 
+## 📍 2026-07-03 — BACKEND CHẠY 24/7 TRÊN MAC MINI M4 (LIVE) 🟢
+
+**Link backend (server-to-server, KHÔNG phải cho khách):**
+`https://mac-mini-ca-quang.tailc94236.ts.net` · health: `.../health` → `{"status":"ok","service":"clinicai"}`
+
+**Kiến trúc hiện tại:** Vercel (Next.js, khách xem) + Supabase (DB) + **Mac mini = backend FastAPI/LangGraph** (`src/clinicai`). Backend phơi ra internet qua **Tailscale Funnel**, khóa bằng `BACKEND_API_KEY`.
+
+**Setup đã làm (tất cả trên Mac mini, KHÔNG đụng Vercel):**
+- **Clone RIÊNG** `~/clinic-server/Clinic-AI-Dr4Women` (nhánh `chinh`), tách hẳn folder dev. `.env` copy từ dev → **cùng Supabase DB**, `CHECKPOINTER_BACKEND=postgres`.
+- **Docker = Colima** (headless, thay Docker Desktop — chạy không cần đăng nhập GUI). Đã fix `~/.docker/config.json` bỏ `credsStore:desktop` (backup `.bak-*`).
+- **Compose prod** `docker-compose.prod.yml` (project `clinicai_prod`, container `clinicai_prod-api-1`, KHÔNG đụng project dev). Chạy: `docker compose -f docker-compose.prod.yml up -d api`.
+- **Tailscale Funnel** `:8000` — tài khoản là **`nguyencongtuyenlp@github`** (tailnet `nguyencongtuyenlp.github`, suffix `tailc94236.ts.net`), MagicDNS+HTTPS+Funnel đã bật. ⚠️ Tài khoản Tailscale/máy là của Tuyền (GitHub login) — sau nên chuyển sang tài khoản công ty.
+- **24/7**: LaunchDAEMON `/Library/LaunchDaemons/com.dr4women.clinic-backend.plist` (boot + self-heal 5', chạy `scripts/clinic-backend-boot.sh`: colima start → compose prod up → assert funnel). `sudo pmset -a sleep 0 disablesleep 1 autorestart 1`. Đã GỠ LaunchAgent CŨ (user, trỏ dev folder) để hết xung đột.
+- **Deploy sau này**: `cd ~/clinic-server/... && ./scripts/deploy-backend.sh` (pull→build→migrate→NOTIFY pgrst→up→health). Backend deploy THỦ CÔNG → push `chinh` cho Vercel KHÔNG ảnh hưởng backend đang chạy.
+
+**Quy ước từ điển với Quang:** "sửa cho khách xem" = dashboard→Vercel; "sửa cho server" = `src/clinicai`→Mac mini. Cùng nhánh `chinh`, khác nơi chạy.
+
+**CÒN TREO:**
+- **Chưa nối Vercel** (Quang dặn chưa đụng): khi muốn dashboard dùng backend Mac → set trên Vercel `CLINIC_API_URL=https://mac-mini-ca-quang.tailc94236.ts.net` + `BACKEND_API_KEY` (khớp .env server) → redeploy. Chưa set thì dashboard vẫn ghi thẳng Supabase (fallback).
+- **Chưa test reboot thật** (log xác nhận daemon chạy đúng, nhưng chưa reboot để chốt).
+- **FileVault chưa bật** (nên bật — mã hóa đĩa cho PII).
+- Nâng cấp tương lai (đã plan, chưa làm): domain riêng→Cloudflare Tunnel; local-LLM native (Qwen/MLX) cho voice/giảm chi phí; workers/cron. Xem `docs/deploy-mac-mini.md` + `~/.claude/plans/ok-hi-n-l-m-nh-replicated-panda.md`.
+
+---
+
 ## 📍 2026-07-03 — Fix "người thứ 2 không đặt được slot" + nhãn khung 15' dạng dải
 
 **Triệu chứng (Quang báo, có ảnh):** lưới 2+1 hiện BN2 còn trống, bấm đặt → lỗi "Khung giờ đã đầy tải: Khung đã đầy quota đặt trước (online)". BN1 đã kín, BN2 lẽ ra đặt được.
