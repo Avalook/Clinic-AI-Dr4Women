@@ -817,7 +817,9 @@ export default function NewPatientForm({
             />
           </div>
           <div>
-            <label className={LABEL}>Tỉnh / Thành phố</label>
+            <label className={LABEL}>
+              Tỉnh / Thành phố {!walkin && <Req />}
+            </label>
             <SearchSelect
               options={provinceOpts}
               value={provinceCode}
@@ -827,7 +829,9 @@ export default function NewPatientForm({
             />
           </div>
           <div>
-            <label className={LABEL}>Phường / Xã</label>
+            <label className={LABEL}>
+              Phường / Xã {!walkin && <Req />}
+            </label>
             <SearchSelect
               options={wardOpts}
               value={wardCode}
@@ -1008,11 +1012,13 @@ export default function NewPatientForm({
         <SectionHeader
           icon={<CalendarClock size={16} />}
           title="Lịch hẹn khám"
-          hint="Điền dịch vụ + ngày + giờ để đặt lịch luôn (có thể bỏ trống)."
+          hint="Mục có dấu * là bắt buộc (Dịch vụ, Bác sĩ, Ngày, Giờ, Kênh đặt)."
         />
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
           <div>
-            <label className={LABEL}>Dịch vụ khám</label>
+            <label className={LABEL}>
+              Dịch vụ khám <Req />
+            </label>
             <select
               value={linhVuc}
               onChange={(e) => {
@@ -1032,7 +1038,9 @@ export default function NewPatientForm({
             </select>
           </div>
           <div>
-            <label className={LABEL}>Bác sĩ</label>
+            <label className={LABEL}>
+              Bác sĩ <Req />
+            </label>
             <div className="relative">
               <input
                 value={doctorQ}
@@ -1088,7 +1096,9 @@ export default function NewPatientForm({
             </div>
           </div>
           <div>
-            <label className={LABEL}>Ngày khám</label>
+            <label className={LABEL}>
+              Ngày khám <Req />
+            </label>
             <DateField
               value={apptDate}
               onChange={setApptDate}
@@ -1097,7 +1107,9 @@ export default function NewPatientForm({
             />
           </div>
           <div>
-            <label className={LABEL}>Giờ</label>
+            <label className={LABEL}>
+              Giờ <Req />
+            </label>
             <Time24Input
               value={apptTime}
               onChange={setApptTime}
@@ -1162,7 +1174,9 @@ export default function NewPatientForm({
             )}
           </div>
           <div>
-            <label className={LABEL}>Kênh đặt</label>
+            <label className={LABEL}>
+              Kênh đặt <Req />
+            </label>
             <select
               value={channel}
               onChange={(e) => setChannel(e.target.value)}
