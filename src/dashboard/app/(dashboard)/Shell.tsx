@@ -78,8 +78,10 @@ export default function Shell({
 
   const renderSidebar = (collapsed: boolean, isMobile = false) => {
     return (
-      <div className="flex h-full flex-col justify-between">
-        <div className="flex-1 space-y-6">
+      <div className="flex h-full flex-col">
+        {/* Vùng Nav CUỘN (min-h-0 + overflow) → nhiều mục (vd Quản lý) không đẩy
+            footer 'Thoát' + nút thu/mở ra ngoài màn hình. Footer ghim đáy. */}
+        <div className="flex-1 min-h-0 space-y-6 overflow-y-auto">
           <div className={`flex items-center ${collapsed ? "justify-center" : "justify-between"} px-3`}>
             <h1 className="flex items-center gap-2 text-base font-medium text-white">
               <Image
@@ -105,7 +107,7 @@ export default function Shell({
           <Nav role={role} onNavigate={() => setOpen(false)} isCollapsed={collapsed} />
         </div>
 
-        <div className="mt-auto space-y-3 border-t border-[#1f1f1f] px-3 pt-4">
+        <div className="shrink-0 space-y-3 border-t border-[#1f1f1f] px-3 pt-4">
           {!collapsed && (
             <p className="truncate text-xs text-[#71717a]" title={identity}>
               {identity}
