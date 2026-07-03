@@ -1,0 +1,85 @@
+# ClinicAI PRODUCTION backend — chạy trên Mac mini M4 từ CLONE RIÊNG (~/clinic-server).
+# Chỉ backend: FastAPI `api`. Dashboard ở Vercel, DB ở Supabase cloud (KHÔNG postgres local).
+#
+# Tách biệt hoàn toàn với folder dev:
+#   - `name: clinicai_prod` → project riêng, container tên `clinicai_prod-*` (KHÔNG đụng
+#     `clinicai_api` của docker-compose.yml dev trên cùng máy).
+#   - KHÔNG đặt container_name cố định (để tên tự suy theo project).
+#   - Server ĐỘC QUYỀN bind host :8000 (Tailscale Funnel trỏ vào đây).
+#
+# Ingress: Tailscale Funnel (mặc định, không cần domain) HOẶC service `cloudflared`
+#   (profile `cloudflare`, chỉ khi đã có domain riêng — xem docs/deploy-mac-mini.md).
+# RabbitMQ: profile `workers` (chưa cần cho brief/patients).
+#
+# Lệnh: docker compose -f docker-compose.prod.yml up -d           # chỉ api
+#       docker compose -f docker-compose.prod.yml --profile workers up -d
+#       docker compose -f docker-compose.prod.yml --profile cloudflare up -d
+
+name: clinicai_prod
+
+services:
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile.api
+    image: clinicai-api:prod
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      # State orchestrator LangGraph bền qua restart (mất điện/reboot). .env override được.
+      CHECKPOINTER_BACKEND: ${CHECKPOINTER_BACKEND:-postgres}
+    ports:
+      - "8000:8000"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 40s
+    networks:
+      - internal
+
+  # BẬT khi cần event-bus/workers: --profile workers
+  rabbitmq:
+    image: rabbitmq:3.13-management-alpine
+    profiles: ["workers"]
+    restart: unless-stopped
+    environment:
+      RABBITMQ_DEFAULT_USER: ${RABBITMQ_USER:-clinicai}
+      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_PASSWORD:-clinicai_dev_pass}
+      RABBITMQ_DEFAULT_VHOST: ${RABBITMQ_VHOST:-clinicai}
+    # KHÔNG map cổng ra host (chỉ dùng nội bộ network — tránh phơi broker ra ngoài).
+    volumes:
+      - rabbitmq_data:/var/lib/rabbitmq
+      - ./docker/rabbitmq/definitions.json:/etc/rabbitmq/definitions.json:ro
+      - ./docker/rabbitmq/rabbitmq.conf:/etc/rabbitmq/rabbitmq.conf:ro
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    networks:
+      - internal
+
+  # BẬT khi đã có domain riêng: --profile cloudflare (thay Tailscale Funnel).
+  # Cần TUNNEL_TOKEN trong .env (từ Cloudflare Zero Trust → Tunnels).
+  cloudflared:
+    image: cloudflare/cloudflared:latest
+    profiles: ["cloudflare"]
+    restart: unless-stopped
+    command: tunnel --no-autoupdate run
+    environment:
+      TUNNEL_TOKEN: ${TUNNEL_TOKEN:-}
+    depends_on:
+      api:
+        condition: service_healthy
+    networks:
+      - internal
+
+networks:
+  internal:
+    driver: bridge
+
+volumes:
+  rabbitmq_data:
