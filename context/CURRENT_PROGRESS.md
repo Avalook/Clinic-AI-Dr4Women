@@ -10,7 +10,7 @@
 **Kiến trúc hiện tại:** Mac mini chạy **BẢN ĐẦY ĐỦ RIÊNG** = `dashboard` (Next.js :3000, phơi qua Tailscale Funnel) + `api` (FastAPI/LangGraph :8000 nội bộ, dashboard gọi qua `http://api:8000`). **Vercel là bản SONG SONG cho khách**; Mac là bản độc lập của mình. **Cả hai chung 1 Supabase.** (Quang chốt: Mac = full app riêng, Vercel giữ cho khách vì Vercel không sợ mất điện/mạng nhà.)
 
 **Setup đã làm (tất cả trên Mac mini, KHÔNG đụng Vercel):**
-- **Clone RIÊNG** `~/clinic-server/Clinic-AI-Dr4Women` (nhánh `chinh`), tách hẳn folder dev. `.env` copy từ dev → **cùng Supabase DB**, `CHECKPOINTER_BACKEND=postgres`.
+- **Clone RIÊNG** `~/clinic-server/Clinic-AI-Dr4Women` (nhánh `chinh`), tách hẳn folder dev. `.env` (secret, KHÔNG commit) trỏ **Supabase ATF `atfmxvdfnbeenrdbbllp`** = ĐÚNG project Vercel/khách đang dùng (KHÁC folder dev đang dùng fzw). `CHECKPOINTER_BACKEND=postgres`. Đổi DB → phải rebuild dashboard (URL Supabase baked lúc build).
 - **Docker = Colima** (headless, thay Docker Desktop — chạy không cần đăng nhập GUI). Đã fix `~/.docker/config.json` bỏ `credsStore:desktop` (backup `.bak-*`).
 - **Compose prod** `docker-compose.prod.yml` (project `clinicai_prod`: `clinicai_prod-api-1` + `clinicai_prod-dashboard-1`, KHÔNG đụng project dev). Chạy: `docker compose -f docker-compose.prod.yml up -d`. Dashboard build cần lock synced (đã fix playwright) + `PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1`.
 - **Tailscale Funnel** phơi `:3000` (DASHBOARD/web; api :8000 chỉ nội bộ) — tài khoản là **`nguyencongtuyenlp@github`** (tailnet `nguyencongtuyenlp.github`, suffix `tailc94236.ts.net`), MagicDNS+HTTPS+Funnel đã bật. ⚠️ Tài khoản Tailscale/máy là của Tuyền (GitHub login) — sau nên chuyển sang tài khoản công ty.
